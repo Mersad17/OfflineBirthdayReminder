@@ -1,20 +1,18 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+// App.tsx
+import { AuthProvider } from "./src/auth/AuthContext";
+import RootNavigator from "./src/navigation/RootNavigator";
+import { useRegisterPushToken } from "./src/notifications/useRegisterPushToken";
+import React from "react";
+
+function Bootstrap(){
+  useRegisterPushToken();
+  return <RootNavigator/>
+}
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <AuthProvider>
+      <Bootstrap />
+    </AuthProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
