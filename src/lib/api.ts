@@ -1,54 +1,116 @@
+// services/api.ts
 import axios from "axios";
 import { API_BASE_URL } from "../config/env";
-import { loadTokens,saveTokens, clearTokens } from "./storage";
-import { refreshAccessToken } from "./auth";
+import { loadTokens, saveTokens, clearTokens } from "./storage";
 import { emitLogout } from "./authEvents";
 
-//  Create an Axios instance
+// ---------------------------------------------------------------------------
+// 1. Axios instances
+// ---------------------------------------------------------------------------
+
+// Main API client (used everywhere in the app)
 export const api = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 10000,
-})
-// Attach Access Token to Every Request
-// You automatically add the Authorization header before every request.
-// loadTokens() gets the access token from SecureStore or memory.
-// If there's no token (not logged in), we don’t attach anything.
-// This is a clean, modular way to handle auth across your app.
-api.interceptors.request.use( async(config) => {
-    const {access} = await loadTokens();
-    if (access){
-        config.headers =config.headers ??{};
-        config.headers.Authorization = `Bearer ${access}`;
-    }
-    return config
-})
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
 
-//  add refresh-token logic later if needed;
+// Separate client for refreshing tokens (no interceptors!)
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
 
-// Handle expired access tokens
+// ---------------------------------------------------------------------------
+// 2. Refresh function (uses plain axios, no interceptors)
+// ---------------------------------------------------------------------------
+
+/**
+ * Refresh the access token using the refresh token stored in storage.
+ * - Calls /api/token/refresh/
+ * - Handles ROTATE_REFRESH_TOKENS=True (saves new refresh if returned)
+ * - Persists new tokens via saveTokens(access, refresh)
+ * - Returns the new access token as a string
+ */
+const refreshAccessToken = async (): Promise<string> => {
+  const { refresh } = await loadTokens();
+
+  if (!refresh) {
+    throw new Error("No refresh token available");
+  }
+
+  const response = await refreshClient.post("/token/refresh/", {
+    refresh,
+  });
+
+  // For SimpleJWT with ROTATE_REFRESH_TOKENS=True, response is usually:
+  // { access: "...", refresh: "..." }  (refresh might be omitted if not rotated)
+  const newAccess: string = response.data.access;
+  const newRefresh: string = response.data.refresh ?? refresh;
+
+  // ✅ match your saveTokens(access, refresh) signature
+  await saveTokens(newAccess, newRefresh);
+
+  return newAccess;
+};
+
+// ---------------------------------------------------------------------------
+// 3. Request interceptor – attach access token
+// ---------------------------------------------------------------------------
+
+api.interceptors.request.use(async (config) => {
+  const { access } = await loadTokens();
+
+  if (access) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${access}`;
+  }
+
+  return config;
+});
+
+// ---------------------------------------------------------------------------
+// 4. Response interceptor – handle 401 & refresh flow
+// ---------------------------------------------------------------------------
+
 api.interceptors.response.use(
-    (response) => response, // no issue, move on
-    async (error) => {
-        const originalRequest = error.config;
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
 
-        // If unauthorized and not already retried, attempt refresh
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true; // prevent infinite retry loop
-
-            try {
-                const newAccess = await refreshAccessToken(); 
-
-                // Attach new token and retry the request
-                originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-                return api(originalRequest);
-            } catch (err) {
-                // Refresh token failed → logout user
-                await clearTokens();
-                emitLogout();
-                return Promise.reject(err); // let app redirect to login
-            }
-        }
-
-        return Promise.reject(error);
+    // If no response at all (network error, timeout), just reject
+    if (!error.response) {
+      return Promise.reject(error);
     }
+
+    const status = error.response.status;
+
+    // Only handle 401 (Unauthorized) and avoid infinite loops
+    if (
+      status === 401 &&
+      !originalRequest._retry &&
+      // don't try to refresh if we're already on login or refresh endpoints
+      !originalRequest.url?.includes("/login/") &&
+      !originalRequest.url?.includes("/token/refresh/")
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        const newAccess = await refreshAccessToken();
+
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+
+        // Retry the original request with the new token
+        return api(originalRequest);
+      } catch (err) {
+        // Refresh failed → clear tokens & force logout
+        await clearTokens();
+        emitLogout();
+        return Promise.reject(err);
+      }
+    }
+
+    // Any other error: just bubble it up
+    return Promise.reject(error);
+  }
 );

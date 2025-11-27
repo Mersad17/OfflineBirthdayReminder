@@ -15,8 +15,12 @@ export default function HomeScreen({ navigation }: any) {
     setLoading(true);
     try {
       // 1) fetch both in parallel
-      const [contacts, events] = await Promise.all([fetchContacts(), fetchEvents()]);
-
+      const [contacts, eventsPage] = await Promise.all([
+        fetchContacts(),
+        fetchEvents("upcoming", 1),
+      ]);
+      
+      const events = eventsPage.results || [];
       // 2) map contact id -> name for quick lookup
       const nameById = new Map<number, string>();
       contacts.forEach((c: Contact) => {

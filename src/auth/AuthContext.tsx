@@ -1,5 +1,11 @@
-// src/auth/AuthContext.tsx
-import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import { login as apiLogin, register as apiRegister, logout as apiLogout } from "./api";
 import { saveTokens, loadTokens, clearTokens } from "../lib/storage";
 import { registerLogoutHandler } from "../lib/authEvents";
@@ -18,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setAuth] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // optional: on mount, check stored tokens
+  // On mount, check stored tokens
   useEffect(() => {
     (async () => {
       const { access } = await loadTokens();
@@ -26,49 +32,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const value = useMemo<AuthState>(() => ({
-    isAuthenticated,
-    loading,
-    login: async (email, password) => {
-      setLoading(true);
-      try {
-        const tokens = await apiLogin({ email, password });
-        await saveTokens(tokens.access, tokens.refresh);
-        setAuth(true);
-      } finally {
-        setLoading(false);
-      }
-    },
-    register: async (email, password) => {
-      setLoading(true);
-      try {
-        await apiRegister({ email, password });
-        // immediately login after register (optional)
-        const tokens = await apiLogin({ email, password });
-        await saveTokens(tokens.access, tokens.refresh);
-        setAuth(true);
-      } finally {
-        setLoading(false);
-      }
-    },
-    logout: async () => {
-      setLoading(true);
-      try {
-        const { refresh } = await loadTokens();
-        if (refresh) await apiLogout(refresh);
-      } catch {}
-      finally {
-        await clearTokens();
-        setAuth(false);
-        setLoading(false);
-      }
-    },
-  }), [isAuthenticated, loading]);
+  const login = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    try {
+      const tokens = await apiLogin({ email, password });
+      await saveTokens(tokens.access, tokens.refresh);
+      setAuth(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const register = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    try {
+      await apiRegister({ email, password });
+      const tokens = await apiLogin({ email, password });
+      await saveTokens(tokens.access, tokens.refresh);
+      setAuth(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { refresh } = await loadTokens();
+      if (refresh) await apiLogout(refresh);
+    } catch {
+      // ignore error
+    } finally {
+      await clearTokens();
+      setAuth(false);
+      setLoading(false);
+    }
+  }, []);
+
+  const value = useMemo<AuthState>(
+    () => ({
+      isAuthenticated,
+      loading,
+      login,
+      register,
+      logout,
+    }),
+    [isAuthenticated, loading, login, register, logout]
+  );
+
   useEffect(() => {
-    registerLogoutHandler(() => {
-      value.logout(); // We're safe to call it here now
-    });
-  }, [value]);
+    registerLogoutHandler(logout);
+  }, [logout]);
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -6,17 +6,23 @@ export async function fetchReminders(): Promise<ReminderDTO[]> {
   return res.data;
 }
 
-export type CreateReminderPayload = {
-  event: number;
-  days_before?: number | null;
-  absolute_datetime?: string | null;
-};
 
-export async function createReminder(payload: CreateReminderPayload): Promise<ReminderDTO> {
-  const res = await api.post<ReminderDTO>("/reminders/", payload);
+export async function createReminder(eventId: number, payload: Partial<ReminderDTO>) {
+  const res = await api.post("/reminders/", {
+    event: eventId,
+    ...payload,
+  });
   return res.data;
 }
-export async function fetchRemindersByEvent(eventId: number): Promise<ReminderDTO[]> {
-    const res = await api.get<ReminderDTO[]>(`/reminders/?event=${eventId}`);
-    return res.data;
-  }
+
+export async function updateReminder(id: number, payload: Partial<ReminderDTO>) {
+  const res = await api.patch(`/reminders/${id}/`, payload);
+  return res.data;
+}
+
+export async function deleteReminder(id: number) {
+  await api.delete(`/reminders/${id}/`);
+  return true;
+}
+
+

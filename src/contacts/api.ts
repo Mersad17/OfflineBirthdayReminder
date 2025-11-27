@@ -1,5 +1,5 @@
 import {api} from "../lib/api";
-import { Contact } from "./types";
+import { Contact, CreateContactInput } from "./types";
 
 export async function fetchContacts(page = 1) {
     const res = await api.get(`/contacts/?page=${page}`);
@@ -9,9 +9,8 @@ export async function fetchContacts(page = 1) {
   
 
 
-
-export async function createContact(payload: Contact): Promise<Contact>{
-    const res = await api.post<Contact>("/contacts/",payload)
+export async function createContact(payload: CreateContactInput): Promise<CreateContactInput>{
+    const res = await api.post<CreateContactInput>("/contacts/",payload)
     return res.data;
 }
 

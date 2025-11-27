@@ -1,93 +1,106 @@
-import React from "react";
-import { View, Text, ActivityIndicator, ScrollView, Button, Modal, TextInput, Alert } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
-import { fetchContactById } from "../../contacts/api";
+
 import { Contact } from "../../contacts/types";
-import { fetchEvents } from "../../events/api";
+import { fetchContactById } from "../../contacts/api";
+
 import { EventDTO } from "../../events/types";
-import { fetchRemindersByEvent, createReminder } from "../../reminders/api";
-import { ReminderDTO } from "../../reminders/types";
-import { formatReminder, formatSendAt } from "../../reminders/utils";
-import { formatFriendly } from "../../events/dateUtils";
+import { fetchAllEvents } from "../../events/api";
+import { useIsFocused } from "@react-navigation/native";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
 export default function ContactDetailScreen({ route, navigation }: Props) {
   const { contactId, contactName } = route.params;
-  const [loading, setLoading] = React.useState(true);
-  const [contact, setContact] = React.useState<Contact | null>(null);
-  const [events, setEvents] = React.useState<EventDTO[]>([]);
-  const [remindersByEvent, setRemindersByEvent] = React.useState<Record<number, ReminderDTO[]>>({});
+  const isFocused = useIsFocused();
+  const [loading, setLoading] = useState(true);
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [events, setEvents] = useState<EventDTO[]>([]);
 
-  // add-reminder sheet state
-  const [sheetVisible, setSheetVisible] = React.useState(false);
-  const [selectedEvent, setSelectedEvent] = React.useState<EventDTO | null>(null);
-  const [daysBefore, setDaysBefore] = React.useState("3"); // default preset
-
-  React.useEffect(() => {
+  useEffect(() => {
     if (contactName) navigation.setOptions({ title: contactName });
   }, [contactName, navigation]);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        // 1) contact
-        const c = await fetchContactById(contactId);
-        setContact(c);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
 
-        // 2) all events, but keep only this contact's
-        const allEvents = await fetchEvents();
-        const mine = allEvents.filter((e) => e.contact === contactId && e.is_active);
-        setEvents(mine);
+      const c = await fetchContactById(contactId);
+      setContact(c);
 
-        // 3) reminders per event (parallel)
-        const map: Record<number, ReminderDTO[]> = {};
-        for (const e of mine) {
-          try {
-            const r = await fetchRemindersByEvent(e.id);
-            map[e.id] = r;
-          } catch {
-            map[e.id] = [];
-          }
-        }
-        setRemindersByEvent(map);
-      } catch (e) {
-        Alert.alert("Error", "Failed to load contact details.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+      const allEvents = await fetchAllEvents();
+
+      // 🔍 Only events for this contact (handles different possible API shapes)
+      const related = allEvents.filter((e: any) => {
+        if (e.contact_id === contactId) return true;
+        if (e.contact === contactId) return true;
+        if (e.contact && typeof e.contact === "object" && e.contact.id === contactId)
+          return true;
+        return false;
+      });
+
+      setEvents(related);
+    } catch (err) {
+      Alert.alert("Error", "Failed to load contact details.");
+    } finally {
+      setLoading(false);
+    }
   }, [contactId]);
 
-  function openAddReminder(e: EventDTO) {
-    setSelectedEvent(e);
-    setDaysBefore("3");
-    setSheetVisible(true);
+  // ✅ Fetch once on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+  useEffect(() => {
+    if (isFocused){
+      loadData();
+
+    }
+  }, [isFocused]);
+
+  // ✅ Single handleAddEvent with onSaved callback
+  function handleAddEvent() {
+    if (!contact) return;
+    navigation.navigate("AddEvent", {
+      contactId: contact.id,
+      contactName: `${contact.first_name} ${contact.last_name}`,
+     
+    });
   }
 
-  async function saveReminder() {
-    if (!selectedEvent) return;
-    try {
-      const payload = { event: selectedEvent.id, days_before: Number(daysBefore) };
-      const created = await createReminder(payload);
-      // update local state
-      setRemindersByEvent((prev) => ({
-        ...prev,
-        [selectedEvent.id]: [...(prev[selectedEvent.id] || []), created],
-      }));
-      setSheetVisible(false);
-      Alert.alert("Success", "Reminder added.");
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail;
-      Alert.alert("Error", detail || "Could not create reminder.");
-    }
+  function iconForType(type: number) {
+    if (type === 1) return "🎂";
+    if (type === 2) return "💍";
+    return "🎉";
+  }
+
+  function typeLabel(type: number) {
+    if (type === 1) return "Birthday";
+    if (type === 2) return "Anniversary";
+    return "Custom Event";
+  }
+
+  function friendlyCountdown(days: number) {
+    if (days === 0) return "🎉 Today!";
+    if (days === 1) return "Tomorrow 🎈";
+    if (days < 7) return `in ${days} days`;
+    if (days < 30) return `in ${Math.ceil(days / 7)} weeks`;
+    return "";
   }
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <View style={styles.center}>
         <ActivityIndicator />
         <Text style={{ marginTop: 8 }}>Loading…</Text>
       </View>
@@ -96,102 +109,209 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
   if (!contact) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <View style={styles.center}>
         <Text>Contact not found.</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        {/* Header */}
-        <View style={{ padding: 16, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
-          <Text style={{ fontSize: 22, fontWeight: "700" }}>{contact.first_name} {contact.last_name}</Text>
-          {contact.birthday ? (
-            <Text style={{ marginTop: 6, color: "#444" }}>
-              🎂 Birthday: {contact.birthday}
-            </Text>
-          ) : (
-            <Text style={{ marginTop: 6, color: "#888" }}>No birthday set</Text>
-          )}
+    <ScrollView contentContainerStyle={styles.page}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Text style={styles.headerEmoji}>🧑‍🤝‍🧑</Text>
+
+        <Text style={styles.headerName}>
+          {contact.first_name} {contact.last_name}
+        </Text>
+
+        {contact.birthday ? (
+          <Text style={styles.headerTitle}>
+            🎂 Birthday: {contact.birthday}
+          </Text>
+        ) : (
+          <Text style={styles.headerTitleMuted}>No birthday set</Text>
+        )}
+
+        <Text style={styles.confettiBottom}>✨🎊✨</Text>
+      </View>
+
+      {/* EVENTS SECTION */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Events</Text>
+
+          <TouchableOpacity style={styles.addButton} onPress={handleAddEvent}>
+            <Text style={styles.addButtonText}>＋ Add</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Events section */}
-        <View>
-          <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>Events</Text>
-
-          {events.length === 0 && (
-            <View style={{ padding: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 10 }}>
-              <Text style={{ marginBottom: 6, color: "#555" }}>No events yet.</Text>
-              <Button title="+ Add event" onPress={() => Alert.alert("Coming soon", "Add Event modal will go here.")} />
-            </View>
-          )}
-
-          {events.map((e) => (
-            <View key={e.id} style={{ marginBottom: 12, padding: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 10 }}>
-              <Text style={{ fontWeight: "700" }}>
-                {iconForEvent(e)} {titleForEvent(e)} • {formatFriendly(new Date(e.date))}
-              </Text>
-
-              {/* Reminders list */}
-              <View style={{ marginTop: 8 }}>
-                {(remindersByEvent[e.id] || []).length === 0 ? (
-                  <Text style={{ color: "#888" }}>No reminders yet.</Text>
-                ) : (
-                  (remindersByEvent[e.id] || [])
-                    .sort((a, b) => new Date(a.send_at || 0).getTime() - new Date(b.send_at || 0).getTime())
-                    .map((r) => (
-                      <View key={r.id} style={{ paddingVertical: 6, borderBottomWidth: 1, borderColor: "#f1f1f1" }}>
-                        <Text style={{ fontWeight: "600" }}>{formatReminder(r)}</Text>
-                        <Text style={{ color: "#666" }}>Send at: {formatSendAt(r)}</Text>
-                      </View>
-                    ))
-                )}
-              </View>
-
-              <View style={{ height: 8 }} />
-              <Button title="Add reminder" onPress={() => openAddReminder(e)} />
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Add Reminder bottom sheet (simple Modal for now) */}
-      <Modal visible={sheetVisible} transparent animationType="slide" onRequestClose={() => setSheetVisible(false)}>
-        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.2)" }}>
-          <View style={{ padding: 16, backgroundColor: "white", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: "700" }}>
-              Add reminder{selectedEvent ? ` for ${titleForEvent(selectedEvent)}` : ""}
+        {events.length === 0 && (
+          <View style={styles.emptyBox}>
+            <Text style={{ color: "#777" }}>
+              No events yet for this contact.
             </Text>
-            <View style={{ height: 12 }} />
-            <Text style={{ marginBottom: 6 }}>Days before</Text>
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-              {["0", "1", "3", "7", "14"].map((d) => (
-                <Button key={d} title={d === "0" ? "Same day" : `${d}d`} onPress={() => setDaysBefore(d)} />
-              ))}
-            </View>
-            <TextInput
-              value={daysBefore}
-              onChangeText={setDaysBefore}
-              keyboardType="numeric"
-              placeholder="Custom days"
-              style={{ borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, marginBottom: 12 }}
-            />
-            <Button title="Save reminder" onPress={saveReminder} />
-            <View style={{ height: 8 }} />
-            <Button title="Cancel" onPress={() => setSheetVisible(false)} />
           </View>
-        </View>
-      </Modal>
-    </View>
+        )}
+
+        {events.map((item, index) => {
+          const previous = index > 0 ? events[index - 1] : null;
+          const showMonthHeader =
+            !previous || previous.month_label !== item.month_label;
+
+          return (
+            <View key={item.id}>
+              {showMonthHeader && (
+                <Text style={styles.monthHeader}>{item.month_label}</Text>
+              )}
+
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() =>
+                  navigation.navigate("EventDetails", {
+                    eventId: item.id,
+                    eventTitle: item.title || typeLabel(item.type),
+                    from: "contact",
+                    contactId,
+                  })
+                }
+              >
+                <Text style={styles.cardTitle} numberOfLines={1}>
+                  {iconForType(item.type)} {typeLabel(item.type)}
+                </Text>
+
+                <Text style={styles.cardSub} numberOfLines={1}>
+                  {item.title || "Untitled Event"} • {item.next_occurrence}
+                  {item.days_until < 30 && (
+                    <Text style={{ color: "#007AFF" }}>
+                      {" "}
+                      • {friendlyCountdown(item.days_until)}
+                    </Text>
+                  )}
+                </Text>
+
+                <Text style={styles.cardStatus}>
+                  {item.has_reminder
+                    ? `🔔 ${item.reminder_count} reminder${
+                        item.reminder_count > 1 ? "s" : ""
+                      }`
+                    : "⚠️ No reminder"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </View>
+    </ScrollView>
   );
 }
 
-function iconForEvent(e: EventDTO) {
-  // you can map your EventTypes here; for now, assume 0 = birthday
-  return e.type === 0 ? "🎂" : "🗓️";
-}
-function titleForEvent(e: EventDTO) {
-  return e.type === 0 ? "Birthday" : (e.title || "Custom event");
-}
+const styles = StyleSheet.create({
+  page: {
+    padding: 16,
+    gap: 20,
+    backgroundColor: "#fff",
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  header: {
+    padding: 26,
+    borderRadius: 22,
+    alignItems: "center",
+    backgroundColor: "#E5F0FF",
+    borderWidth: 2,
+    borderColor: "#C3D9FF",
+  },
+  headerEmoji: {
+    fontSize: 60,
+  },
+  headerName: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#1D4ED8",
+    marginTop: 6,
+  },
+  headerTitle: {
+    fontSize: 16,
+    color: "#4B5563",
+    marginTop: 4,
+  },
+  headerTitleMuted: {
+    fontSize: 16,
+    color: "#888",
+    marginTop: 4,
+  },
+  confettiBottom: {
+    fontSize: 20,
+    opacity: 0.7,
+    marginTop: 8,
+  },
+  section: {
+    marginTop: 10,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  addButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#007AFF",
+  },
+  addButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  monthHeader: {
+    fontSize: 18,
+    fontWeight: "700",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 8,
+    marginTop: 12,
+    marginBottom: 6,
+    color: "#333",
+  },
+  card: {
+    backgroundColor: "#fafafa",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#eee",
+    marginBottom: 10,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  cardSub: {
+    color: "#666",
+    fontSize: 14,
+    marginTop: 2,
+  },
+  cardStatus: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#777",
+  },
+  emptyBox: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#fafafa",
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+});
