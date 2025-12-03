@@ -17,4 +17,13 @@ export async function createContact(payload: CreateContactInput): Promise<Create
 export async function fetchContactById(id: number): Promise<Contact> {
     const res = await api.get<Contact>(`/contacts/${id}/`);
     return res.data;
-  }
+}
+
+export async function updateContact(id:number,payload:CreateContactInput): Promise<CreateContactInput> {
+  const res = await api.patch<CreateContactInput>(`/contacts/${id}/`,payload);
+  return res.data;
+}
+
+export async function deleteContact(id:number){
+  return api.delete(`/contacts/${id}/`);
+}

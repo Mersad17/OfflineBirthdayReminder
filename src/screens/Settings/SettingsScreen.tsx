@@ -1,26 +1,38 @@
 import React from "react";
-import { View, Text, Button, Alert } from "react-native";
-import { sendTestPush } from "../../notifications/api";
+import { View, Text, Button, Alert, TouchableOpacity, ScrollView } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 
-export default function SettingsScreen() {
+type Props = NativeStackScreenProps<SettingsStackParamsList, "Settings">
+export default function SettingsScreen({navigation}:Props) {
   const { logout } = useAuth();
 
-  async function onTestPush() {
-    try {
-      const r = await sendTestPush();
-      Alert.alert("Push", r.detail || "Sent!");
-    } catch (e: any) {
-      Alert.alert("Push", "Failed to send test push.");
-    }
-  }
 
   return (
+    <ScrollView>
     <View style={{ flex: 1, padding: 16, gap: 12 }}>
-      <Text style={{ fontSize: 20, fontWeight: "600", marginBottom: 8 }}>Settings</Text>
-      <Button title="Send test notification" onPress={onTestPush} />
-      <View style={{ height: 16 }} />
+      <TouchableOpacity
+      onPress={()=>navigation.navigate("Profile")}
+      >
+        <Text style={{fontSize:18, fontWeight:'600'}}>
+      Profile
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+      onPress={()=>navigation.navigate('Appearance')}
+      >
+
+      <Text style={{fontSize:18,fontWeight:'500'}}>Appereance</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={()=> navigation.navigate('Notifications')}>
+        <Text style={{fontSize:18, fontWeight:'500'}}>Notifications</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={()=>navigation.navigate("AppInfo")}>
+        <Text style={{fontSize:18, fontWeight:"500"}}>AppInfo</Text>
+      </TouchableOpacity>
       <Button title="Logout" onPress={logout} />
     </View>
+        </ScrollView>
   );
 }

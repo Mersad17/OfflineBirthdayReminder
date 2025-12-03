@@ -5,10 +5,12 @@ import ContactDetailScreen from "../screens/Contacts/ContactDetailScreen";
 import EventDetails from "../screens/Events/EventDetails";
 import AddEventScreen from "../screens/Contacts/AddEventScreen";
 import EditEventScreen from "../screens/Events/EditEventScreen";
+import EditContactScreen from "../screens/Contacts/EditContactScreen";
 
 export type ContactsStackParamList = {
   ContactsList: undefined;
   AddContact: undefined;
+  EditContact: { contactId:number; };
   AddEvent: { contactId: number; contactName: string, };
   ContactDetail: { contactId: number; contactName?: string };
   EventDetails: { eventId: number; eventTitle?: string, from:string, contactId: number };
@@ -25,6 +27,7 @@ export default function ContactsStack() {
       <Stack.Screen name="AddContact" component={AddContactScreen} options={{ title: "Add Contact" }} />
       <Stack.Screen name="AddEvent" component={AddEventScreen} options={{ title: "Add Event" }} />
       <Stack.Screen name="ContactDetail" component={ContactDetailScreen} options={{ title: "Contact" }} />
+      <Stack.Screen name="EditContact" component={EditContactScreen} options={{title:"Edit Contact"}}/>
       <Stack.Screen name="EventDetails" component={EventDetails} options={{ title: "EventDetails" }} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} options={{ title: "Edit Event" }} />
 

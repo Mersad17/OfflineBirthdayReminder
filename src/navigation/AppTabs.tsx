@@ -5,6 +5,7 @@ import HomeScreen from "../screens/Home/HomeScreen";
 import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ContactsStack from "./ContactsStack";
 import EventsStack from "./EventsStack";
+import SettingsStack from "./SettingsStack";
 const Tab = createBottomTabNavigator();
 export default function AppTabs() {
   return (
@@ -31,7 +32,7 @@ export default function AppTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Contacts" component={ContactsStack} options={{ headerShown: false }} />
       <Tab.Screen name="Events" component={EventsStack} options={{ headerShown: false }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Settings" component={SettingsStack} />
       {/* later: Contacts, Reminders, Settings */}
     </Tab.Navigator>
   );

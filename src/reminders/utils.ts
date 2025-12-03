@@ -13,3 +13,18 @@ export function formatReminder(r: ReminderDTO) {
 export function formatSendAt(r: ReminderDTO) {
   return r.send_at ? new Date(r.send_at).toLocaleString() : "—";
 }
+
+
+export function formatDateTime(value?: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",   // "Dec"
+    day: "2-digit",   // "10"
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

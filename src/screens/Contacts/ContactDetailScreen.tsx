@@ -12,7 +12,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
 
 import { Contact } from "../../contacts/types";
-import { fetchContactById } from "../../contacts/api";
+import { deleteContact, fetchContactById } from "../../contacts/api";
 
 import { EventDTO } from "../../events/types";
 import { fetchAllEvents } from "../../events/api";
@@ -67,7 +67,23 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
     }
   }, [isFocused]);
-
+  useEffect(()=>{
+    if (!contact)return;
+    navigation.setOptions({
+      title: contactName || "Contact",
+      headerRight:()=>(
+        <TouchableOpacity 
+          onPress={()=>
+            navigation.navigate("EditContact",{
+              contactId,
+            })
+          }
+        >
+          <Text style={{color:"#1D4ED8",fontWeight:"700"}}>Edit</Text>
+        </TouchableOpacity>
+      )
+    })
+  },[contact,contactId])
   // ✅ Single handleAddEvent with onSaved callback
   function handleAddEvent() {
     if (!contact) return;
@@ -114,7 +130,27 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       </View>
     );
   }
-
+  function confirmDelete(){
+    if(!contact) return;
+    const contactIdToDelete = contact.id;
+    Alert.alert("Delete Contact","Are you sure you want to delete this event?",[
+      {text:"Cancel",style: "cancel"},
+      {
+        text: "Delete",
+        style:"destructive",
+        onPress: async ()=>{
+          try{
+            await deleteContact(contactIdToDelete);
+            Alert.alert("Contact Deleted with success!");
+           
+            navigation.navigate("ContactsList");
+          }catch{
+            Alert.alert("Error","Could not delete contact.");
+          }
+        }
+      }
+    ])
+  }
   return (
     <ScrollView contentContainerStyle={styles.page}>
       {/* HEADER */}
@@ -202,6 +238,9 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           );
         })}
       </View>
+      <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
+        <Text style={styles.deleteButtonText}>Delete Contact</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -314,4 +353,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
+  deleteButton:{
+    backgroundColor:"#FEE2E2",
+    padding:14,
+    borderRadius:12,
+    alignItems:"center",
+    borderWidth:1,
+    borderColor:"#FCA5A5",
+  },
+  deleteButtonText:{
+    color:"#FCA5A5",
+    fontWeight:"700",
+  },
+
 });

@@ -11,7 +11,7 @@ export type Contact = {
 
 export type CreateContactInput = {
   first_name: string;
-  last_name: string;
+  last_name?: string| null;
   birthday?: string | null;
   email?: string | null;
   phone?: string | null;

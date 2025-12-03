@@ -25,6 +25,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { EventDTO } from "../../events/types";
 import { useIsFocused } from "@react-navigation/native";
+import { formatDateTime } from "../../reminders/utils";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -40,8 +41,9 @@ function ReminderModal({
   onSave: (data: {
     days_before: number | null;
     absolute_datetime: string | null;
+    time_of_day?: string | null;
   }) => void;
-  initial?: { days_before: number | null; absolute_datetime: string | null };
+  initial?: { days_before: number | null; absolute_datetime: string | null, time_of_day?: string | null; };
 }) {
   const fade = React.useRef(new Animated.Value(0)).current;
 
@@ -53,6 +55,8 @@ function ReminderModal({
       ? new Date(initial.absolute_datetime)
       : new Date()
   );
+  const [relativeTime, setRelativeTime] = useState<Date>(new Date());
+  const [showRelativeTimePicker, setShowRelativeTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -116,14 +120,18 @@ function ReminderModal({
         Alert.alert("Validation", "Please enter how many days before.");
         return;
       }
-      onSave({ days_before: daysBefore, absolute_datetime: null });
+      // Convert relativeTime into "HH:MM" string for backend
+      const hours = relativeTime.getHours().toString().padStart(2, "0");
+      const minutes = relativeTime.getMinutes().toString().padStart(2, "0");
+      const timeStr = `${hours}:${minutes}`;
+      onSave({ days_before: daysBefore, absolute_datetime: null ,time_of_day: timeStr,});
     } else {
       // absolute mode
       if (!tempDate) {
         Alert.alert("Validation", "Please choose a date and time.");
         return;
       }
-      onSave({ days_before: null, absolute_datetime: tempDate.toISOString() });
+      onSave({ days_before: null, absolute_datetime: tempDate.toISOString(),time_of_day: null, });
     }
   }
 
@@ -182,6 +190,28 @@ function ReminderModal({
               onChangeText={(v) => setDaysBefore(v ? Number(v) : null)}
               placeholder="E.g. 3"
             />
+             <Text style={modalStyles.label}>Time of day</Text>
+    <TouchableOpacity
+      style={modalStyles.dateButton}
+      onPress={() => setShowRelativeTimePicker(true)}
+    >
+      <Text style={modalStyles.dateButtonText}>
+        {relativeTime.toLocaleTimeString()}
+      </Text>
+    </TouchableOpacity>
+    {showRelativeTimePicker && (
+      <DateTimePicker
+        value={relativeTime}
+        mode="time"
+        display="default"
+        onChange={(e, selected) => {
+          setShowRelativeTimePicker(false);
+          if (selected) {
+            setRelativeTime(selected);
+          }
+        }}
+      />
+    )}
           </>
         )}
 
@@ -237,7 +267,6 @@ function ReminderModal({
 // ⭐ EVENT DETAILS SCREEN
 // -----------------------------------------------------
 
-export const ReloadContext = createContext(false)
 type Props = NativeStackScreenProps<EventsStackParamList, "EventDetails">;
 
 export default function EventDetails({ route, navigation }: Props) {
@@ -325,7 +354,6 @@ function confirmDelete() {
         onPress: async () => {
           try {
             await deleteEvent(eventIdToDelete);
-            <ReloadContext value={true}></ReloadContext>
             if (from === "events") {
               // Came from Events list → go back to list
               navigation.navigate("EventsList");
@@ -437,13 +465,18 @@ function confirmDelete() {
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.reminderText}>
+
                   {r.days_before !== null
                     ? `Remind ${r.days_before} days before`
-                    : `At: ${r.absolute_datetime}`}
+                    
+                    : `On this exact date:`}
                 </Text>
 
                 {r.send_at && (
-                  <Text style={styles.reminderSub}>Send at: {r.send_at}</Text>
+                   <Text style={styles.reminderSub}>
+                   {formatDateTime(r.send_at)}
+                 </Text>
+               
                 )}
               </View>
 

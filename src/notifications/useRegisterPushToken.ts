@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Platform, Alert } from "react-native";
 import { api } from "../lib/api";
 import { configureAndroidChannel } from "./notification";
+import Constants from "expo-constants";
 
 // tiny cache to avoid re-registering constantly
 let cachedToken = "";
@@ -34,9 +35,20 @@ export function useRegisterPushToken() {
         console.log("Permission for notifications not granted.");
         return;
       }
+      const projectId =
+      Constants.expoConfig?.extra?.projectId ??
+      Constants.easConfig?.projectId;
+
+    if (!projectId) {
+      console.warn("No projectId found in app config; push may fail on EAS builds.");
+    }
 
       // 2) get expo push token
-      const token = (await Notifications.getExpoPushTokenAsync()).data; // EAS builds: pass projectId
+      const token = (
+        await Notifications.getExpoPushTokenAsync(
+          projectId ? { projectId } : undefined
+        )
+      ).data; // EAS builds: pass projectId
       setExpoPushToken(token);
 
       // 3) register to your backend (only if changed)
@@ -45,9 +57,13 @@ export function useRegisterPushToken() {
           await api.post("/push/register/", { expo_push_token: token });
           cachedToken = token;
           console.log("Registered push token with backend.");
-        } catch (e) {
-          console.log("Register push token failed:", e);
-        }
+        }  catch (e: any) {
+  console.log(
+    "Register push token failed:",
+    e.response?.status,
+    e.response?.data || e.message
+  );
+}
       }
 
       // iOS: notification permissions also require enabling in app.json (handled by expo)

@@ -108,11 +108,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
         is_recurring: isRecurring,
         is_active: isActive,
       });
-          navigation.navigate({
-              name: "EventDetails",
-              params: {   reload: true },
-              merge: true,
-            } as any);
+          navigation.goBack();
     } catch {
       Alert.alert("Error", "Could not update event.");
     } finally {
