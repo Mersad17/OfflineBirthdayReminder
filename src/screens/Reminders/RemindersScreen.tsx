@@ -3,6 +3,7 @@ import { View, Text, FlatList, RefreshControl } from "react-native";
 import { fetchReminders } from "../../reminders/api";
 import { ReminderDTO } from "../../reminders/types";
 import { formatReminder, formatSendAt } from "../../reminders/utils";
+import { Screen } from "../../components/Screen";
 
 export default function RemindersScreen() {
   const [reminders, setReminders] = React.useState<ReminderDTO[]>([]);
@@ -44,6 +45,8 @@ export default function RemindersScreen() {
   }
 
   return (
+    <Screen >
+
     <View style={{ flex: 1 }}>
       {reminders.length === 0 ? (
         <View style={{ padding: 16 }}>
@@ -52,8 +55,8 @@ export default function RemindersScreen() {
         </View>
       ) : (
         <FlatList
-          data={reminders}
-          keyExtractor={(r) => String(r.id)}
+        data={reminders}
+        keyExtractor={(r) => String(r.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <View style={{ padding: 12, borderBottomWidth: 1, borderColor: "#eee" }}>
@@ -65,6 +68,7 @@ export default function RemindersScreen() {
         />
       )}
     </View>
+</Screen>
   );
 }
 

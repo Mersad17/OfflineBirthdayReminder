@@ -6,16 +6,21 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { login as apiLogin, register as apiRegister, logout as apiLogout } from "./api";
+import { login as apiLogin, register as apiRegister, logout as apiLogout,getMe } from "./api";
 import { saveTokens, loadTokens, clearTokens } from "../lib/storage";
 import { registerLogoutHandler } from "../lib/authEvents";
+import { User } from "./types";
+
 
 type AuthState = {
   isAuthenticated: boolean;
   loading: boolean;
+  user: User | null; 
+   
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -23,12 +28,35 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setAuth] = useState(false);
   const [loading, setLoading] = useState(false);
-
+  const [user, setUser] = useState<User|null>(null);
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await getMe();
+      setUser(me);
+    } catch (e) {
+      // optional: handle error, but we can keep it simple for now
+      console.log("Failed to refresh user", e);
+    }
+  }, []);
   // On mount, check stored tokens
   useEffect(() => {
     (async () => {
       const { access } = await loadTokens();
-      setAuth(!!access);
+      if (access) {
+        setAuth(true);
+        try {
+          const me = await getMe(); // GET /api/me/
+          setUser(me);
+        } catch {
+          // if /me fails, force logout
+          await clearTokens();
+          setAuth(false);
+          setUser(null);
+        }
+      } else {
+        setAuth(false);
+        setUser(null);
+      }
     })();
   }, []);
 
@@ -37,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const tokens = await apiLogin({ email, password });
       await saveTokens(tokens.access, tokens.refresh);
+      const me = await getMe();
+      setUser(me);
       setAuth(true);
     } finally {
       setLoading(false);
@@ -49,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await apiRegister({ email, password });
       const tokens = await apiLogin({ email, password });
       await saveTokens(tokens.access, tokens.refresh);
+      const me = await getMe();
+      setUser(me);
       setAuth(true);
     } finally {
       setLoading(false);
@@ -65,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       await clearTokens();
       setAuth(false);
+      setUser(null); 
       setLoading(false);
     }
   }, []);
@@ -73,11 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       isAuthenticated,
       loading,
+      user,
       login,
       register,
       logout,
+      refreshUser, 
     }),
-    [isAuthenticated, loading, login, register, logout]
+    [isAuthenticated, loading, user, login, register, logout, refreshUser]
   );
 
   useEffect(() => {

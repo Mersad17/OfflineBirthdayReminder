@@ -26,6 +26,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { EventDTO } from "../../events/types";
 import { useIsFocused } from "@react-navigation/native";
 import { formatDateTime } from "../../reminders/utils";
+import { Screen } from "../../components/Screen";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -408,6 +409,8 @@ function confirmDelete() {
   }
 
   return (
+    <Screen scroll>
+
     <ScrollView contentContainerStyle={styles.page}>
       {/* HEADER */}
       <View style={styles.header}>
@@ -445,7 +448,7 @@ function confirmDelete() {
             setEditingReminder(null);
             setShowModal(true);
           }}
-        >
+          >
           <Text style={styles.addReminderText}>+ Add Reminder</Text>
         </TouchableOpacity>
 
@@ -454,13 +457,13 @@ function confirmDelete() {
         ) : (
           event.reminders.map((r) => (
             <TouchableOpacity
-              key={r.id}
+            key={r.id}
               style={styles.reminderItem}
               onPress={() => {
                 setEditingReminder(r);
                 setShowModal(true);
               }}
-            >
+              >
               <Text style={styles.reminderBullet}>🔔</Text>
 
               <View style={{ flex: 1 }}>
@@ -473,7 +476,7 @@ function confirmDelete() {
                 </Text>
 
                 {r.send_at && (
-                   <Text style={styles.reminderSub}>
+                  <Text style={styles.reminderSub}>
                    {formatDateTime(r.send_at)}
                  </Text>
                
@@ -505,7 +508,7 @@ function confirmDelete() {
             } else {
               await createReminder(event.id, data);
             }
-
+            
             const updated = await fetchEventById(eventId);
             setEvent(updated);
           } catch {
@@ -514,8 +517,9 @@ function confirmDelete() {
             setShowModal(false);
           }
         }}
-      />
+        />
     </ScrollView>
+        </Screen>
   );
 }
 

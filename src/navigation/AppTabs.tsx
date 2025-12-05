@@ -2,9 +2,9 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "../screens/Home/HomeScreen";
-import SettingsScreen from "../screens/Settings/SettingsScreen";
 import ContactsStack from "./ContactsStack";
 import EventsStack from "./EventsStack";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import SettingsStack from "./SettingsStack";
 const Tab = createBottomTabNavigator();
 export default function AppTabs() {
@@ -32,7 +32,23 @@ export default function AppTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Contacts" component={ContactsStack} options={{ headerShown: false }} />
       <Tab.Screen name="Events" component={EventsStack} options={{ headerShown: false }} />
-      <Tab.Screen name="Settings" component={SettingsStack} />
+      <Tab.Screen
+  name="Settings"
+  component={SettingsStack}
+  options={({ route }) => {
+    const routeName = getFocusedRouteNameFromRoute(route) ?? "Settings";
+
+    // screens where you want to HIDE the tab bar
+    const hideOnScreens = ["Profile", "Appearance", "Notifications", "AppInfo"];
+
+    return {
+      headerShown: false,
+      tabBarStyle: hideOnScreens.includes(routeName)
+        ? { display: "none" }
+        : undefined,
+    };
+  }}
+/>
       {/* later: Contacts, Reminders, Settings */}
     </Tab.Navigator>
   );

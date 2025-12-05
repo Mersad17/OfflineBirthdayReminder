@@ -14,6 +14,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { createContact } from "../../contacts/api";
+import { Screen } from "../../components/Screen";
 
 type Props = {
   navigation: any;
@@ -88,6 +89,8 @@ export default function AddContactScreen({ navigation }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // tweak if you have a header
     >
+      <Screen scroll>
+
       <View style={styles.container}>
         <ScrollView
           ref={scrollRef}
@@ -141,7 +144,7 @@ export default function AddContactScreen({ navigation }: Props) {
               >
                 <Text
                   style={birthday ? styles.dateText : styles.datePlaceholder}
-                >
+                  >
                   {birthday || "1990-07-21"}
                 </Text>
                 <Text style={styles.dateIcon}>📅</Text>
@@ -170,7 +173,7 @@ export default function AddContactScreen({ navigation }: Props) {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 style={styles.input}
-              />
+                />
             </View>
 
             <View style={styles.fieldGroup}>
@@ -184,7 +187,7 @@ export default function AddContactScreen({ navigation }: Props) {
                 placeholder="+33 6 12 34 56 78"
                 keyboardType="phone-pad"
                 style={styles.input}
-              />
+                />
             </View>
 
             <View style={styles.fieldGroup}>
@@ -216,7 +219,7 @@ export default function AddContactScreen({ navigation }: Props) {
               style={styles.secondaryButton}
               onPress={() => navigation.goBack()}
               disabled={saving}
-            >
+              >
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </TouchableOpacity>
 
@@ -227,7 +230,7 @@ export default function AddContactScreen({ navigation }: Props) {
               ]}
               onPress={onSubmit}
               disabled={saving}
-            >
+              >
               <Text style={styles.primaryButtonText}>
                 {saving ? "Saving..." : "Save"}
               </Text>
@@ -235,6 +238,7 @@ export default function AddContactScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </View>
+  </Screen>
     </KeyboardAvoidingView>
   );
 }

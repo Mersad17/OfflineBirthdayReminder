@@ -14,6 +14,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { createEvent } from "../../events/api";
+import { Screen } from "../../components/Screen";
 
 type Props = {
   navigation: any;
@@ -125,10 +126,11 @@ export default function AddEventScreen({ navigation, route }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
+      <Screen scroll>
       <View style={styles.container}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.card}>
             {/* Contact info */}
@@ -327,6 +329,7 @@ export default function AddEventScreen({ navigation, route }: Props) {
           </View>
         </ScrollView>
       </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }

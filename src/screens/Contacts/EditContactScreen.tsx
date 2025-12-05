@@ -5,6 +5,7 @@ import { CreateContactInput } from "../../contacts/types";
 import { fetchContactById, updateContact } from "../../contacts/api";
 import { ActivityIndicator, Alert, View,Text, ScrollView, TextInput,StyleSheet, TouchableOpacity, Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "EditContact">;
 
@@ -100,6 +101,7 @@ export default function EditContactScreen({route,navigation}: Props){
         )
     }
     return(
+        <Screen scroll>
         <View style={{flex:1}}>
             <ScrollView ref={scrollRef} contentContainerStyle={styles.page}>
                 <View style={styles.headerCard}>
@@ -208,6 +210,7 @@ export default function EditContactScreen({route,navigation}: Props){
 
                     )}
         </View>
+        </Screen>
     )
 } 
 

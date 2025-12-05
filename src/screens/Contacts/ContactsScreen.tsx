@@ -12,6 +12,7 @@ import {
 import { fetchContacts } from "../../contacts/api";
 import { Contact } from "../../contacts/types";
 import { useIsFocused } from "@react-navigation/native";
+import { Screen } from "../../components/Screen";
 
 type Props = {
   navigation: any;
@@ -114,6 +115,8 @@ export default function ContactScreen({ navigation }: Props) {
   const isEmpty = !loading && filteredContacts.length === 0;
 
   return (
+    <Screen>
+
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerRow}>
@@ -170,13 +173,13 @@ export default function ContactScreen({ navigation }: Props) {
         renderItem={renderItem}
       />
     </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 50,
   },

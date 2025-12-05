@@ -18,6 +18,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { EventsStackParamList } from "../../navigation/EventsStack";
 import { fetchEventById, updateEvent } from "../../events/api";
 import { EventDTO } from "../../events/types";
+import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<EventsStackParamList, "EditEvent">;
 
@@ -126,6 +127,8 @@ export default function EditEventScreen({ route, navigation }: Props) {
   }
 
   return (
+    <Screen scroll>
+
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.page}>
         {/* 🎈 Fun header / live preview */}
@@ -270,6 +273,8 @@ export default function EditEventScreen({ route, navigation }: Props) {
         </View>
       </Modal>
     </View>
+    </Screen>
+
   );
 }
 

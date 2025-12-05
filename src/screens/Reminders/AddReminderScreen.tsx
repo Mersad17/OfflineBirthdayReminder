@@ -3,6 +3,7 @@ import { View, Text, TextInput, Button, Alert } from "react-native";
 import { createReminder } from "../../reminders/api";
 import { fetchEvents } from "../../events/api";
 import { EventDTO } from "../../events/types";
+import { Screen } from "../../components/Screen";
 
 export default function AddReminderScreen({ navigation }: any) {
   const [events, setEvents] = React.useState<EventDTO[]>([]);
@@ -29,7 +30,7 @@ export default function AddReminderScreen({ navigation }: any) {
     }
     setSaving(true);
     try {
-      await createReminder({ event: eventId, days_before: Number(days) });
+      await createReminder(eventId, { days_before: Number(days) });
       Alert.alert("Success", "Reminder created!");
       navigation.goBack();
     } catch (e: any) {
@@ -42,16 +43,18 @@ export default function AddReminderScreen({ navigation }: any) {
   }
 
   return (
+    <Screen scroll>
+
     <View style={{ flex: 1, padding: 16, gap: 12 }}>
       <Text style={{ fontSize: 18, fontWeight: "600" }}>Add Reminder</Text>
       <Text>Event ID (temporary dropdown)</Text>
       {events.map((e) => (
         <Button
-          key={e.id}
+        key={e.id}
           title={`Event ${e.id} (${e.date})`}
           color={eventId === e.id ? "green" : undefined}
           onPress={() => setEventId(e.id)}
-        />
+          />
       ))}
 
       <Text>Days before</Text>
@@ -60,9 +63,10 @@ export default function AddReminderScreen({ navigation }: any) {
         value={days}
         onChangeText={setDays}
         style={{ borderWidth: 1, padding: 8 }}
-      />
+        />
 
       <Button title={saving ? "Saving..." : "Save"} onPress={onSave} />
     </View>
+        </Screen>
   );
 }

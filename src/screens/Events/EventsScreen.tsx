@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { fetchEvents } from "../../events/api";
 import { EventDTO } from "../../events/types";
+import { Screen } from "../../components/Screen";
 
 type FilterType = "upcoming" | "past" | "no_reminder";
 
@@ -128,6 +129,8 @@ export default function EventsScreen({ navigation }: any) {
   }
 
   return (
+    <Screen>
+
     <View style={styles.container}>
       <Text style={styles.title}>Events</Text>
 
@@ -136,7 +139,7 @@ export default function EventsScreen({ navigation }: any) {
         placeholder="Search events or contacts..."
         value={search}
         onChangeText={setSearch}
-      />
+        />
 
       <View style={styles.filterRow}>
         {[
@@ -145,15 +148,15 @@ export default function EventsScreen({ navigation }: any) {
           { label: "No Reminder", value: "no_reminder" as FilterType },
         ].map(({ label, value }) => (
           <Pressable
-            key={value}
-            style={[styles.filterButton, filter === value && styles.filterButtonActive]}
-            onPress={() => {
-              if (filter !== value) setFilter(value);
-            }}
+          key={value}
+          style={[styles.filterButton, filter === value && styles.filterButtonActive]}
+          onPress={() => {
+            if (filter !== value) setFilter(value);
+          }}
           >
             <Text
               style={[styles.filterText, filter === value && styles.filterTextActive]}
-            >
+              >
               {label}
             </Text>
           </Pressable>
@@ -172,7 +175,7 @@ export default function EventsScreen({ navigation }: any) {
         renderItem={({ item, index }) => {
           const previous = index > 0 ? filteredEvents[index - 1] : null;
           const showMonthHeader = !previous || previous.month_label !== item.month_label;
-
+          
           return (
             <View>
               {showMonthHeader && (
@@ -187,7 +190,7 @@ export default function EventsScreen({ navigation }: any) {
                       from: "events",
                     })
                   }
-                >
+                  >
                   <Text
                     style={styles.cardTitle}
                     numberOfLines={1}
@@ -200,7 +203,7 @@ export default function EventsScreen({ navigation }: any) {
                     style={styles.cardSub}
                     numberOfLines={1}
                     ellipsizeMode="tail"
-                  >
+                    >
                     {item.title || "Untitled Event"} • {item.next_occurrence}
                     {item.days_until < 30 && (
                       <Text style={{ color: "#007AFF" }}>
@@ -221,14 +224,15 @@ export default function EventsScreen({ navigation }: any) {
             </View>
           );
         }}
-      />
+        />
       
     </View>
+  </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 16, paddingTop: 50 },
+  container: { flex: 1,  paddingHorizontal: 16, paddingTop: 50 },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 16 },
   search: {
     backgroundColor: "#f1f1f1",

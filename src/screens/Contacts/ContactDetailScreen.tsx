@@ -249,7 +249,6 @@ const styles = StyleSheet.create({
   page: {
     padding: 16,
     gap: 20,
-    backgroundColor: "#fff",
   },
   center: {
     flex: 1,
