@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
-import { LoginPayload,RegisterPayload,TokenPair, User } from "./types";
+import { ChangePasswordErrorResponse, ChangePasswordPayload, LoginPayload,RegisterPayload,TokenPair, User } from "./types";
+import axios from "axios";
 
 export async function login(payload:LoginPayload):Promise<TokenPair> {
     const res = await api.post("/login/",payload) // your MyTokenObtainPairView route (often /api/token/)
@@ -25,11 +26,25 @@ export async function updateProfile(payload: { first_name?: string; last_name?: 
     return res.data; // updated user
   }
 
-  export async function changePassword(payload: {
-    current_password: string;
-    new_password: string;
-  }) {
+
+
+export async function changePassword(
+  payload: ChangePasswordPayload
+): Promise<any> {
+  try {
     const res = await api.post("/accounts/change-password/", payload);
     return res.data;
+  } catch (error: any) {
+    if (axios.isAxiosError(error) && error.response) {
+      // Throw the raw DRF error body so the caller can inspect fields
+      const data = error.response.data as ChangePasswordErrorResponse;
+      throw data;
+    }
+
+    // Fallback for network or unexpected errors
+    const fallback: ChangePasswordErrorResponse = {
+      detail: "Network error. Please try again.",
+    };
+    throw fallback;
   }
-  
+}

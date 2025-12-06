@@ -5,6 +5,7 @@ import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 import { useAuth } from "../../auth/AuthContext";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { updateProfile } from "../../auth/api"; 
+import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<SettingsStackParamsList, "Profile">;
 
@@ -48,6 +49,8 @@ export default function ProfileScreen({}: Props) {
 
 
   return (
+    <Screen scroll>
+
     <View style={[styles.container]}>
       <Text style={[styles.title, { color: settings.titleColor }]}>
         Manage Profile
@@ -84,7 +87,7 @@ export default function ProfileScreen({}: Props) {
         onChangeText={setLastName}
         placeholder="Last name"
         placeholderTextColor="#9CA3AF"
-      />
+        />
 
       <View style={styles.saveButton}>
         <Button
@@ -92,9 +95,10 @@ export default function ProfileScreen({}: Props) {
           onPress={onSave}
           color={settings.buttonColor}
           disabled={loading}
-        />
+          />
       </View>
     </View>
+  </Screen>
   );
 }
 

@@ -9,3 +9,15 @@ export type User = {
     last_name?: string;    
   };
   
+export type ChangePasswordPayload={
+  current_password:string,
+  new_password:string,
+}
+
+export type ChangePasswordErrorResponse = {
+  current_password?: string[];   // ["Current password is incorrect."]
+  new_password?: string[];       // ["This password is too short."]
+  non_field_errors?: string[];   // ["Something went wrong"]
+  detail?: string;               // "Some error message"
+  [key: string]: any;
+};
