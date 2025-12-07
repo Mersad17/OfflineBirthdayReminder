@@ -90,7 +90,8 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       // don't try to refresh if we're already on login or refresh endpoints
       !originalRequest.url?.includes("/login/") &&
-      !originalRequest.url?.includes("/token/refresh/")
+      !originalRequest.url?.includes("/token/refresh/")&&
+      !originalRequest.url?.includes("/logout/") 
     ) {
       originalRequest._retry = true;
 

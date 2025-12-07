@@ -136,7 +136,30 @@ export default function SettingsScreen({ navigation }: Props) {
             Notification settings
           </Text>
         </TouchableOpacity>
+        <Text style={[
+          styles.sectionTitle,{color:settings.textColor}
+        ]}>
+        Support
+        </Text>
+        <TouchableOpacity style={styles.row} onPress={()=> 
+          navigation.navigate("ReportBug")}>
+            <Text style={[styles.rowText, {
+                  color: settings.textColor,
+                },]}>
+                  Report a bug
 
+            </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.row}
+        onPress={()=>navigation.navigate('Feedback')}>
+          <Text style={[
+            styles.rowText,
+            {
+              color:settings.textColor,
+            },
+          ]}></Text>
+        </TouchableOpacity>
+        
         {/* App */}
         <Text
           style={[

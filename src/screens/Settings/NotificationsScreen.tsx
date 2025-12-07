@@ -18,6 +18,7 @@ import {
   clearCachedToken,
   registerPushTokenOnce,
 } from "../../notifications/useRegisterPushToken";
+import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<SettingsStackParamsList, "Notifications">;
 
@@ -116,10 +117,9 @@ export default function NotificationScreen({}: Props) {
   }
 
   return (
+    <Screen>
+
     <View style={styles.container}>
-      <Text style={[styles.title, { color: settings.titleColor }]}>
-        Notifications
-      </Text>
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
@@ -137,7 +137,7 @@ export default function NotificationScreen({}: Props) {
           disabled={updating}
           trackColor={{ false: "#D1D5DB", true: settings.buttonColor }}
           thumbColor="#FFFFFF"
-        />
+          />
       </View>
 
       <View style={{ marginTop: 24 }}>
@@ -146,22 +146,23 @@ export default function NotificationScreen({}: Props) {
           color={settings.buttonColor}
           onPress={onSendTest}
           disabled={!enabled}
-        />
+          />
       </View>
     </View>
+</Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    gap: 12,
-  },
+    container: {
+        flex: 1,
+        padding: 16,
+        gap: 12,
+    },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 16,
+      fontSize: 20,
+      fontWeight: "700",
+      marginBottom: 16,
   },
   row: {
     flexDirection: "row",
