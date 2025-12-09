@@ -7,7 +7,9 @@ import {
   Button,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
+import Constants from "expo-constants";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 import { useAppearance } from "../../appearance/AppearanceContext";
@@ -29,9 +31,20 @@ export default function ReportBugScreen({ navigation }: Props) {
       return;
     }
 
+    const appVersion =
+      Constants.expoConfig?.version ??
+      Constants.nativeApplicationVersion ??
+      "unknown";
+    const platform = Platform.OS; // "ios" | "android" | "web"
+
     try {
       setSubmitting(true);
-      await reportBug({ title: title.trim(), description: description.trim() });
+      await reportBug({
+        title: title.trim(),
+        description: description.trim(),
+        app_version: appVersion,
+        platform,
+      });
 
       Alert.alert("Report a bug", "Thank you! Your bug report has been sent.", [
         {

@@ -1,11 +1,11 @@
 // src/navigation/AppTabs.tsx
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "../screens/Home/HomeScreen";
 import ContactsStack from "./ContactsStack";
 import EventsStack from "./EventsStack";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import SettingsStack from "./SettingsStack";
+import { Ionicons } from "@expo/vector-icons";
 const Tab = createBottomTabNavigator();
 export default function AppTabs() {
   return (

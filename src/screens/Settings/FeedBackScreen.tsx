@@ -7,7 +7,9 @@ import {
   Button,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
+import Constants from "expo-constants";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 import { useAppearance } from "../../appearance/AppearanceContext";
@@ -27,9 +29,19 @@ export default function FeedbackScreen({ navigation }: Props) {
       return;
     }
 
+    const appVersion =
+      Constants.expoConfig?.version ??
+      Constants.nativeApplicationVersion ??
+      "unknown";
+    const platform = Platform.OS; // "ios" | "android" | "web"
+
     try {
       setSubmitting(true);
-      await sendFeedback({ message: message.trim() });
+      await sendFeedback({
+        message: message.trim(),
+        app_version: appVersion,
+        platform,
+      });
 
       Alert.alert("Feedback", "Thank you for your feedback!", [
         {

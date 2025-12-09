@@ -18,7 +18,13 @@ type AuthState = {
   user: User | null; 
    
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    timezone: string
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -73,20 +79,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      await apiRegister({ email, password });
-      const tokens = await apiLogin({ email, password });
-      await saveTokens(tokens.access, tokens.refresh);
-      const me = await getMe();
-      setUser(me);
-      setAuth(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  const register = useCallback(
+    async (
+      email: string,
+      password: string,
+      firstName: string,
+      lastName: string,
+      timezone: string
+    ) => {
+      setLoading(true);
+      try {
+        // 1) Create the user
+        await apiRegister({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+          timezone,
+        });
+  
+        // 2) Immediately log them in
+        const tokens = await apiLogin({ email, password });
+        await saveTokens(tokens.access, tokens.refresh);
+  
+        // 3) Load user profile
+        const me = await getMe();
+        setUser(me);
+        setAuth(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+  
   const logout = useCallback(async () => {
     setLoading(true);
     try {

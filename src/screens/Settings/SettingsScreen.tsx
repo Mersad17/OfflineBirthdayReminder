@@ -7,11 +7,13 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
-import { useAuth } from "../../auth/AuthContext";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
+import { useAuth } from "../../auth/AuthContext";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { Screen } from "../../components/Screen";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+
 type Props = NativeStackScreenProps<SettingsStackParamsList, "SettingsHome">;
 
 export default function SettingsScreen({ navigation }: Props) {
@@ -20,178 +22,176 @@ export default function SettingsScreen({ navigation }: Props) {
 
   return (
     <Screen scroll>
-    <ScrollView
-      style={[styles.scroll]} // ✅
-      contentContainerStyle={styles.scrollContent}
-    >
-      <View style={styles.container}>
-        <Text
-          style={[
-            styles.title,
-            {
-              color: settings.textColor,
-            },
-          ]}
-        >
-          Settings
-        </Text>
-
-        {/* Account */}
-        <Text
-          style={[
-            styles.sectionTitle,
-            {
-              color: settings.textColor,
-            },
-          ]}
-        >
-          Account
-        </Text>
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate("Profile")}
-        >
-          <Text
-            style={[
-              styles.rowText,
-              {
-                color: settings.textColor,
-              },
-            ]}
-          >
-            Manage Profile
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.container}>
+          <Text style={[styles.title, { color: settings.textColor }]}>
+            Settings
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate("PasswordAndSecurity")}
-        >
-          <Text
-            style={[
-              styles.rowText,
-              {
-                color: settings.textColor,
-              },
-            ]}
-          >
-            Password and Security
+
+          {/* Account */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Account
           </Text>
-        </TouchableOpacity>
 
-        
-
-        {/* Appearance */}
-        <Text
-          style={[
-            styles.sectionTitle,
-            {
-              color: settings.textColor,
-            },
-          ]}
-        >
-          Appearance
-        </Text>
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate("Appearance")}
-        >
-          <Text
-            style={[
-              styles.rowText,
-              {
-                color: settings.textColor,
-              },
-            ]}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Profile")}
           >
-            Theme, colors & background
-          </Text>
-        </TouchableOpacity>
+            <View style={styles.rowLeft}>
+              <Ionicons name="person-circle-outline" size={22} color={settings.textColor} />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Manage Profile
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
 
-        {/* Notifications */}
-        <Text
-          style={[
-            styles.sectionTitle,
-            {
-              color: settings.textColor,
-            },
-          ]}
-        >
-          Notifications
-        </Text>
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate("Notifications")}
-        >
-          <Text
-            style={[
-              styles.rowText,
-              {
-                color: settings.textColor,
-              },
-            ]}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("PasswordAndSecurity")}
           >
-            Notification settings
+            <View style={styles.rowLeft}>
+              <Ionicons name="lock-closed-outline" size={22} color={settings.textColor} />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Password and Security
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          {/* Appearance */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Appearance
           </Text>
-        </TouchableOpacity>
-        <Text style={[
-          styles.sectionTitle,{color:settings.textColor}
-        ]}>
-        Support
-        </Text>
-        <TouchableOpacity style={styles.row} onPress={()=> 
-          navigation.navigate("ReportBug")}>
-            <Text style={[styles.rowText, {
-                  color: settings.textColor,
-                },]}>
-                  Report a bug
 
-            </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.row}
-        onPress={()=>navigation.navigate('Feedback')}>
-          <Text style={[
-            styles.rowText,
-            {
-              color:settings.textColor,
-            },
-          ]}></Text>
-        </TouchableOpacity>
-        
-        {/* App */}
-        <Text
-          style={[
-            styles.sectionTitle,
-            {
-              color: settings.textColor,
-            },
-          ]}
-        >
-          App
-        </Text>
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => navigation.navigate("AppInfo")}
-        >
-          <Text
-            style={[
-              styles.rowText,
-              {
-                color: settings.textColor,
-              },
-            ]}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Appearance")}
           >
-            About / Version
+            <View style={styles.rowLeft}>
+              <Ionicons name="color-palette-outline" size={22} color={settings.textColor} />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Theme, colors & background
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          {/* Notifications */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Notifications
           </Text>
-        </TouchableOpacity>
-        <View style={styles.logoutWrapper}>
-          <Button title="Logout" onPress={logout} color={settings.buttonColor} />
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Notifications")}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons name="notifications-outline" size={22} color={settings.textColor} />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Notification settings
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          {/* Support */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Support
+          </Text>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("ReportBug")}
+          >
+            <View style={styles.rowLeft}>
+              <MaterialCommunityIcons
+                name="bug-outline"
+                size={22}
+                color={settings.textColor}
+              />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Report a bug
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("Feedback")}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={22}
+                color={settings.textColor}
+              />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                Send feedback
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          {/* App */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            App
+          </Text>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate("AppInfo")}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons name="information-circle-outline" size={22} color={settings.textColor} />
+              <Text style={[styles.rowText, { color: settings.textColor }]}>
+                About / Version
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={settings.textColor}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.logoutWrapper}>
+            <Button
+              title="Logout"
+              onPress={logout}
+              color={settings.buttonColor}
+            />
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
     </Screen>
   );
 }
@@ -221,6 +221,14 @@ const styles = StyleSheet.create({
   },
   row: {
     paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   rowText: {
     fontSize: 16,
