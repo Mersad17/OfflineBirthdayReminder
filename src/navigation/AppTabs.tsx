@@ -6,6 +6,7 @@ import EventsStack from "./EventsStack";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import SettingsStack from "./SettingsStack";
 import { Ionicons } from "@expo/vector-icons";
+import HomeStackNavigator from "./HomeStackNavigation";
 const Tab = createBottomTabNavigator();
 export default function AppTabs() {
   return (
@@ -29,7 +30,7 @@ export default function AppTabs() {
       },
     })}
   >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeStackNavigator} />
       <Tab.Screen name="Contacts" component={ContactsStack} options={{ headerShown: false }} />
       <Tab.Screen name="Events" component={EventsStack} options={{ headerShown: false }} />
       <Tab.Screen

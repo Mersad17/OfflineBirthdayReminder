@@ -1,3 +1,4 @@
+// src/screens/events/AddEventScreen.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -26,12 +27,24 @@ type Props = {
   };
 };
 
+// 👇 Keep this in sync with your Django EventTypes IntEnum
+type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+const EVENT_TYPE_OPTIONS: { label: string; value: EventTypeValue }[] = [
+  { label: "🎂 Birthday", value: 1 },        // BIRTHDAY
+  { label: "💍 Anniversary", value: 2 },     // ANNIVERSARY
+  { label: "⭐ Important date", value: 3 },   // IMPORTANT_DATE
+  { label: "🤝 Meeting", value: 4 },         // MEETING
+  { label: "🏝 Holiday", value: 5 },         // HOLIDAY
+  { label: "✨ Other", value: 6 },           // OTHER / CUSTOM
+];
+
 export default function AddEventScreen({ navigation, route }: Props) {
   const contactId = route?.params?.contactId;
   const contactName = route?.params?.contactName || "Selected contact";
 
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<1 | 2 | 3>(1); // 1=birthday, 2=anniversary, 3=other
+  const [type, setType] = useState<EventTypeValue>(1); // default: Birthday
 
   const [dateString, setDateString] = useState("");
   const [date, setDate] = useState<Date | null>(null);
@@ -94,13 +107,17 @@ export default function AddEventScreen({ navigation, route }: Props) {
       Alert.alert("Date required", "Please pick a date for this event.");
       return;
     }
+    if (!title) {
+      Alert.alert("No Title", "Please add a title.");
+      return;
+    }
 
     setSaving(true);
     try {
       await createEvent({
         contact: contactId,
-        title: title.trim() || undefined,
-        type,
+        title: title.trim(),
+        type, // 👈 matches EventTypes in backend
         date: dateString,
         time: timeString ? `${timeString}:00` : undefined,
         is_recurring: isRecurring,
@@ -127,208 +144,201 @@ export default function AddEventScreen({ navigation, route }: Props) {
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
       <Screen scroll>
-      <View style={styles.container}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.card}>
-            {/* Contact info */}
-            <Text style={styles.sectionTitle}>Contact</Text>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.contactPill}
-              // if later you add "Select contact" screen, you can navigate here
-              // onPress={() => navigation.navigate("SelectContact")}
-            >
-              <Text style={styles.contactPillLabel}>For</Text>
-              <Text style={styles.contactPillName} numberOfLines={1}>
-                {contactName}
-              </Text>
-            </TouchableOpacity>
+        <View style={styles.container}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.card}>
+              {/* Contact info */}
+              <Text style={styles.sectionTitle}>Contact</Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.contactPill}
+              >
+                <Text style={styles.contactPillLabel}>For</Text>
+                <Text style={styles.contactPillName} numberOfLines={1}>
+                  {contactName}
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.divider} />
+              <View style={styles.divider} />
 
-            {/* Basic info */}
-            <Text style={styles.sectionTitle}>Basic info</Text>
+              {/* Basic info */}
+              <Text style={styles.sectionTitle}>Basic info</Text>
 
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Event title</Text>
-                <Text style={styles.optionalTag}>Optional</Text>
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Event title</Text>
+                </View>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Birthday party, First date, Coffee, etc."
+                  style={styles.input}
+                  autoCapitalize="sentences"
+                  returnKeyType="done"
+                />
               </View>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Birthday party, Dinner, etc."
-                style={styles.input}
-                autoCapitalize="sentences"
-                returnKeyType="done"
-              />
-            </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Type</Text>
-              <View style={styles.typeRow}>
-                {[
-                  { label: "🎂 Birthday", value: 1 as 1 },
-                  { label: "💍 Anniversary", value: 2 as 2 },
-                  { label: "🎉 Other", value: 3 as 3 },
-                ].map((t) => {
-                  const active = type === t.value;
-                  return (
-                    <TouchableOpacity
-                      key={t.value}
-                      style={[
-                        styles.typeChip,
-                        active && styles.typeChipActive,
-                      ]}
-                      onPress={() => setType(t.value)}
-                    >
-                      <Text
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Type</Text>
+                <View style={styles.typeRow}>
+                  {EVENT_TYPE_OPTIONS.map((t) => {
+                    const active = type === t.value;
+                    return (
+                      <TouchableOpacity
+                        key={t.value}
                         style={[
-                          styles.typeChipText,
-                          active && styles.typeChipTextActive,
+                          styles.typeChip,
+                          active && styles.typeChipActive,
                         ]}
+                        onPress={() => setType(t.value)}
                       >
-                        {t.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <Text
+                          style={[
+                            styles.typeChipText,
+                            active && styles.typeChipTextActive,
+                          ]}
+                        >
+                          {t.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
 
-            <View style={styles.divider} />
+              <View style={styles.divider} />
 
-            {/* Date and time */}
-            <Text style={styles.sectionTitle}>When</Text>
+              {/* Date and time */}
+              <Text style={styles.sectionTitle}>When</Text>
 
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Date</Text>
-                <Text style={styles.labelHint}>Required</Text>
-              </View>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={openDatePicker}
-                style={[styles.input, styles.dateInput]}
-              >
-                <Text
-                  style={
-                    dateString ? styles.dateText : styles.datePlaceholder
-                  }
-                >
-                  {dateString || "Pick a date"}
-                </Text>
-                <Text style={styles.dateIcon}>📅</Text>
-              </TouchableOpacity>
-
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date || new Date()}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onDateChange}
-                />
-              )}
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Time</Text>
-                <Text style={styles.optionalTag}>Optional</Text>
-              </View>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={openTimePicker}
-                style={[styles.input, styles.dateInput]}
-              >
-                <Text
-                  style={
-                    timeString ? styles.dateText : styles.datePlaceholder
-                  }
-                >
-                  {timeString || "No specific time"}
-                </Text>
-                <Text style={styles.dateIcon}>⏰</Text>
-              </TouchableOpacity>
-
-              {showTimePicker && (
-                <DateTimePicker
-                  value={time || new Date()}
-                  mode="time"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onTimeChange}
-                />
-              )}
-            </View>
-
-            {/* Recurrence */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Repeat</Text>
-              <View style={styles.repeatRow}>
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Date</Text>
+                  <Text style={styles.labelHint}>Required</Text>
+                </View>
                 <TouchableOpacity
-                  style={[
-                    styles.repeatChip,
-                    isRecurring && styles.repeatChipActive,
-                  ]}
-                  onPress={() => setIsRecurring(true)}
+                  activeOpacity={0.7}
+                  onPress={openDatePicker}
+                  style={[styles.input, styles.dateInput]}
                 >
                   <Text
-                    style={[
-                      styles.repeatChipText,
-                      isRecurring && styles.repeatChipTextActive,
-                    ]}
+                    style={
+                      dateString ? styles.dateText : styles.datePlaceholder
+                    }
                   >
-                    Every year
+                    {dateString || "Pick a date"}
                   </Text>
+                  <Text style={styles.dateIcon}>📅</Text>
                 </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={date || new Date()}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onDateChange}
+                  />
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Time</Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
                 <TouchableOpacity
-                  style={[
-                    styles.repeatChip,
-                    !isRecurring && styles.repeatChipActive,
-                  ]}
-                  onPress={() => setIsRecurring(false)}
+                  activeOpacity={0.7}
+                  onPress={openTimePicker}
+                  style={[styles.input, styles.dateInput]}
                 >
                   <Text
-                    style={[
-                      styles.repeatChipText,
-                      !isRecurring && styles.repeatChipTextActive,
-                    ]}
+                    style={
+                      timeString ? styles.dateText : styles.datePlaceholder
+                    }
                   >
-                    One-time only
+                    {timeString || "No specific time"}
                   </Text>
+                  <Text style={styles.dateIcon}>⏰</Text>
                 </TouchableOpacity>
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={time || new Date()}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                  />
+                )}
+              </View>
+
+              {/* Recurrence */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Repeat</Text>
+                <View style={styles.repeatRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      isRecurring && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsRecurring(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        isRecurring && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      Every year
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      !isRecurring && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsRecurring(false)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        !isRecurring && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      One-time only
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Actions */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.goBack()}
-              disabled={saving}
-            >
-              <Text style={styles.secondaryButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            {/* Actions */}
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => navigation.goBack()}
+                disabled={saving}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                saving && styles.primaryButtonDisabled,
-              ]}
-              onPress={onSubmit}
-              disabled={saving}
-            >
-              <Text style={styles.primaryButtonText}>
-                {saving ? "Saving..." : "Save"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  saving && styles.primaryButtonDisabled,
+                ]}
+                onPress={onSubmit}
+                disabled={saving}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {saving ? "Saving..." : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
       </Screen>
     </KeyboardAvoidingView>
   );
@@ -337,7 +347,6 @@ export default function AddEventScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 20,
   },
@@ -415,15 +424,16 @@ const styles = StyleSheet.create({
   },
   typeRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
   },
   typeChip: {
-    flex: 1,
-    marginRight: 6,
     paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
     backgroundColor: "#eee",
     alignItems: "center",
+    justifyContent: "center",
   },
   typeChipActive: {
     backgroundColor: "#007AFF",

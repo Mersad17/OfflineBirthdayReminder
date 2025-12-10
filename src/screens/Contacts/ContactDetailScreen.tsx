@@ -14,9 +14,14 @@ import { ContactsStackParamList } from "../../navigation/ContactsStack";
 import { Contact } from "../../contacts/types";
 import { deleteContact, fetchContactById } from "../../contacts/api";
 
-import { EventDTO } from "../../events/types";
+import {
+  EventDTO,
+  EventTypeValue,
+  EVENT_TYPE_META, // 👈 shared icon/label map
+} from "../../events/types";
 import { fetchAllEvents } from "../../events/api";
 import { useIsFocused } from "@react-navigation/native";
+import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -40,7 +45,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
       const allEvents = await fetchAllEvents();
 
-      // 🔍 Only events for this contact (handles different possible API shapes)
+      // Only events for this contact
       const related = allEvents.filter((e: any) => {
         if (e.contact_id === contactId) return true;
         if (e.contact === contactId) return true;
@@ -57,53 +62,51 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     }
   }, [contactId]);
 
-  // ✅ Fetch once on mount
   useEffect(() => {
     loadData();
-  }, []);
-  useEffect(() => {
-    if (isFocused){
-      loadData();
+  }, [loadData]);
 
+  useEffect(() => {
+    if (isFocused) {
+      loadData();
     }
-  }, [isFocused]);
-  useEffect(()=>{
-    if (!contact)return;
+  }, [isFocused, loadData]);
+
+  useEffect(() => {
+    if (!contact) return;
     navigation.setOptions({
       title: contactName || "Contact",
-      headerRight:()=>(
-        <TouchableOpacity 
-          onPress={()=>
-            navigation.navigate("EditContact",{
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("EditContact", {
               contactId,
             })
           }
         >
-          <Text style={{color:"#1D4ED8",fontWeight:"700"}}>Edit</Text>
+          <Text style={{ color: "#1D4ED8", fontWeight: "700" }}>Edit</Text>
         </TouchableOpacity>
-      )
-    })
-  },[contact,contactId])
-  // ✅ Single handleAddEvent with onSaved callback
+      ),
+    });
+  }, [contact, contactId, contactName, navigation]);
+
   function handleAddEvent() {
     if (!contact) return;
     navigation.navigate("AddEvent", {
       contactId: contact.id,
       contactName: `${contact.first_name} ${contact.last_name}`,
-     
     });
   }
 
+  // 🔁 use shared meta instead of hard-coded if/else
   function iconForType(type: number) {
-    if (type === 1) return "🎂";
-    if (type === 2) return "💍";
-    return "🎉";
+    const meta = EVENT_TYPE_META[type as EventTypeValue];
+    return meta?.icon ?? "🎉";
   }
 
   function typeLabel(type: number) {
-    if (type === 1) return "Birthday";
-    if (type === 2) return "Anniversary";
-    return "Custom Event";
+    const meta = EVENT_TYPE_META[type as EventTypeValue];
+    return meta?.label ?? "Event";
   }
 
   function friendlyCountdown(days: number) {
@@ -130,28 +133,31 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       </View>
     );
   }
-  function confirmDelete(){
-    if(!contact) return;
+
+  function confirmDelete() {
+    if (!contact) return;
     const contactIdToDelete = contact.id;
-    Alert.alert("Delete Contact","Are you sure you want to delete this event?",[
-      {text:"Cancel",style: "cancel"},
+    Alert.alert("Delete Contact", "Are you sure you want to delete this contact?", [
+      { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
-        style:"destructive",
-        onPress: async ()=>{
-          try{
+        style: "destructive",
+        onPress: async () => {
+          try {
             await deleteContact(contactIdToDelete);
-            Alert.alert("Contact Deleted with success!");
-           
+            Alert.alert("Contact deleted successfully!");
             navigation.navigate("ContactsList");
-          }catch{
-            Alert.alert("Error","Could not delete contact.");
+          } catch {
+            Alert.alert("Error", "Could not delete contact.");
           }
-        }
-      }
-    ])
+        },
+      },
+    ]);
   }
+
   return (
+    <Screen scroll>
+
     <ScrollView contentContainerStyle={styles.page}>
       {/* HEADER */}
       <View style={styles.header}>
@@ -194,9 +200,9 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           const previous = index > 0 ? events[index - 1] : null;
           const showMonthHeader =
             !previous || previous.month_label !== item.month_label;
-
-          return (
-            <View key={item.id}>
+            
+            return (
+              <View key={item.id}>
               {showMonthHeader && (
                 <Text style={styles.monthHeader}>{item.month_label}</Text>
               )}
@@ -211,7 +217,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
                     contactId,
                   })
                 }
-              >
+                >
                 <Text style={styles.cardTitle} numberOfLines={1}>
                   {iconForType(item.type)} {typeLabel(item.type)}
                 </Text>
@@ -238,10 +244,12 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           );
         })}
       </View>
+
       <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
         <Text style={styles.deleteButtonText}>Delete Contact</Text>
       </TouchableOpacity>
     </ScrollView>
+    </Screen>
   );
 }
 
@@ -352,17 +360,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
-  deleteButton:{
-    backgroundColor:"#FEE2E2",
-    padding:14,
-    borderRadius:12,
-    alignItems:"center",
-    borderWidth:1,
-    borderColor:"#FCA5A5",
+  deleteButton: {
+    backgroundColor: "#FEE2E2",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
   },
-  deleteButtonText:{
-    color:"#FCA5A5",
-    fontWeight:"700",
+  deleteButtonText: {
+    color: "#FCA5A5",
+    fontWeight: "700",
   },
-
 });

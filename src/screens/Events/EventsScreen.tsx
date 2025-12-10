@@ -1,3 +1,4 @@
+// src/screens/Events/EventsScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -11,7 +12,11 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { fetchEvents } from "../../events/api";
-import { EventDTO } from "../../events/types";
+import {
+  EventDTO,
+  EventTypeValue,
+  EVENT_TYPE_META,
+} from "../../events/types";
 import { Screen } from "../../components/Screen";
 
 type FilterType = "upcoming" | "past" | "no_reminder";
@@ -22,8 +27,9 @@ export default function EventsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Per-filter caches
-  const [eventsByFilter, setEventsByFilter] = useState<Record<FilterType, EventDTO[]>>({
+  const [eventsByFilter, setEventsByFilter] = useState<
+    Record<FilterType, EventDTO[]>
+  >({
     upcoming: [],
     past: [],
     no_reminder: [],
@@ -35,20 +41,22 @@ export default function EventsScreen({ navigation }: any) {
     no_reminder: 1,
   });
 
-  const [hasNextByFilter, setHasNextByFilter] = useState<Record<FilterType, boolean>>({
+  const [hasNextByFilter, setHasNextByFilter] = useState<
+    Record<FilterType, boolean>
+  >({
     upcoming: false,
     past: false,
     no_reminder: false,
   });
 
-  // ✅ New: track if we've *attempted* loading each filter at least once
-  const [loadedByFilter, setLoadedByFilter] = useState<Record<FilterType, boolean>>({
+  const [loadedByFilter, setLoadedByFilter] = useState<
+    Record<FilterType, boolean>
+  >({
     upcoming: false,
     past: false,
     no_reminder: false,
   });
 
-  // Derived for current filter
   const events = eventsByFilter[filter];
   const page = pageByFilter[filter];
   const hasNext = hasNextByFilter[filter];
@@ -78,8 +86,6 @@ export default function EventsScreen({ navigation }: any) {
         [filterToLoad]: !!data.next,
       }));
 
-      // ✅ mark this filter as "loaded at least once",
-      // even if results.length === 0
       setLoadedByFilter((prev) => ({
         ...prev,
         [filterToLoad]: true,
@@ -91,8 +97,6 @@ export default function EventsScreen({ navigation }: any) {
     }
   }
 
-  // On mount + when filter changes:
-  // Only fetch if this filter has never been loaded before
   useEffect(() => {
     if (!loadedByFilter[filter]) {
       loadEvents(filter, 1, false);
@@ -101,13 +105,13 @@ export default function EventsScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadEvents(filter, 1, false); // force reload for current filter
+    await loadEvents(filter, 1, false);
     setRefreshing(false);
   };
 
   const loadMore = () => {
     if (hasNext && !loading) {
-      loadEvents(filter, page + 1, true); // next page for current filter
+      loadEvents(filter, page + 1, true);
     }
   };
 
@@ -128,111 +132,125 @@ export default function EventsScreen({ navigation }: any) {
     return "";
   }
 
+  // ⭐ new helper using EVENT_TYPE_META
+  function iconForType(type: number) {
+    const meta = EVENT_TYPE_META[type as EventTypeValue];
+    return meta?.icon ?? "🎉";
+  }
+
   return (
     <Screen>
+      <View style={styles.container}>
+        <Text style={styles.title}>Events</Text>
 
-    <View style={styles.container}>
-      <Text style={styles.title}>Events</Text>
-
-      <TextInput
-        style={styles.search}
-        placeholder="Search events or contacts..."
-        value={search}
-        onChangeText={setSearch}
+        <TextInput
+          style={styles.search}
+          placeholder="Search events or contacts..."
+          value={search}
+          onChangeText={setSearch}
         />
 
-      <View style={styles.filterRow}>
-        {[
-          { label: "Upcoming", value: "upcoming" as FilterType },
-          { label: "Past", value: "past" as FilterType },
-          { label: "No Reminder", value: "no_reminder" as FilterType },
-        ].map(({ label, value }) => (
-          <Pressable
-          key={value}
-          style={[styles.filterButton, filter === value && styles.filterButtonActive]}
-          onPress={() => {
-            if (filter !== value) setFilter(value);
-          }}
-          >
-            <Text
-              style={[styles.filterText, filter === value && styles.filterTextActive]}
+        <View style={styles.filterRow}>
+          {[
+            { label: "Upcoming", value: "upcoming" as FilterType },
+            { label: "Past", value: "past" as FilterType },
+            { label: "No Reminder", value: "no_reminder" as FilterType },
+          ].map(({ label, value }) => (
+            <Pressable
+              key={value}
+              style={[
+                styles.filterButton,
+                filter === value && styles.filterButtonActive,
+              ]}
+              onPress={() => {
+                if (filter !== value) setFilter(value);
+              }}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  filter === value && styles.filterTextActive,
+                ]}
               >
-              {label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
-      <FlatList
-        data={filteredEvents}
-        keyExtractor={(item) => String(item.id)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.2}
-        ListFooterComponent={
-          loading && hasNext ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
-        }
-        renderItem={({ item, index }) => {
-          const previous = index > 0 ? filteredEvents[index - 1] : null;
-          const showMonthHeader = !previous || previous.month_label !== item.month_label;
-          
-          return (
-            <View>
-              {showMonthHeader && (
-                <Text style={styles.monthHeader}>{item.month_label}</Text>
-              )}
-              <View style={styles.card}>
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation.navigate("EventDetails", {
-                      eventId: item.id,
-                      eventTitle: `${item.title}`,
-                      from: "events",
-                    })
-                  }
+        <FlatList
+          data={filteredEvents}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.2}
+          ListFooterComponent={
+            loading && hasNext ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} />
+            ) : null
+          }
+          renderItem={({ item, index }) => {
+            const previous = index > 0 ? filteredEvents[index - 1] : null;
+            const showMonthHeader =
+              !previous || previous.month_label !== item.month_label;
+
+            return (
+              <View>
+                {showMonthHeader && (
+                  <Text style={styles.monthHeader}>{item.month_label}</Text>
+                )}
+                <View style={styles.card}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate("EventDetails", {
+                        eventId: item.id,
+                        eventTitle: item.title,
+                        from: "events",
+                      })
+                    }
                   >
-                  <Text
-                    style={styles.cardTitle}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {item.type === 1 ? "🎂 " : item.type === 2 ? "💍 " : "🎉 "}
-                    {item.contact_name}
-                  </Text>
-                  <Text
-                    style={styles.cardSub}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
+                    <Text
+                      style={styles.cardTitle}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                     >
-                    {item.title || "Untitled Event"} • {item.next_occurrence}
-                    {item.days_until < 30 && (
-                      <Text style={{ color: "#007AFF" }}>
-                        {" "}
-                        • {friendlyCountdown(item.days_until)}
-                      </Text>
-                    )}
-                  </Text>
-                  <Text style={styles.cardStatus}>
-                    {item.has_reminder
-                      ? `🔔 ${item.reminder_count} reminder${
-                          item.reminder_count > 1 ? "s" : ""
-                        }`
-                      : "⚠️ No reminder"}
-                  </Text>
-                </TouchableOpacity>
+                      {iconForType(item.type)} {item.contact_name}
+                    </Text>
+                    <Text
+                      style={styles.cardSub}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {item.title || "Untitled Event"} • {item.next_occurrence}
+                      {item.days_until < 30 && (
+                        <Text style={{ color: "#007AFF" }}>
+                          {" "}
+                          • {friendlyCountdown(item.days_until)}
+                        </Text>
+                      )}
+                    </Text>
+                    <Text style={styles.cardStatus}>
+                      {item.has_reminder
+                        ? `🔔 ${item.reminder_count} reminder${
+                            item.reminder_count > 1 ? "s" : ""
+                          }`
+                        : "⚠️ No reminder"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          );
-        }}
+            );
+          }}
         />
-      
-    </View>
-  </Screen>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1,  paddingHorizontal: 16, paddingTop: 50 },
+  container: { flex: 1, paddingHorizontal: 16, paddingTop: 50 },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 16 },
   search: {
     backgroundColor: "#f1f1f1",

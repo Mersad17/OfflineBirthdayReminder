@@ -89,7 +89,7 @@ export default function AddContactScreen({ navigation }: Props) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // tweak if you have a header
     >
-      <Screen scroll>
+    <Screen scroll>
 
       <View style={styles.container}>
         <ScrollView
@@ -246,7 +246,6 @@ export default function AddContactScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 20,
   },

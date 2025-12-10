@@ -29,8 +29,9 @@ export type EventDTO = {
 };
 
 export type UpdateEventPayload = {
-  title?: string | null;
+  title: string;
   date?: string;
+  time?: string;
   type?: number;
   is_recurring?: boolean;
   is_active?: boolean;
@@ -46,4 +47,44 @@ export type UpcomingEvent = {
   daysUntil: number;            // 0 = today, 1 = tomorrow, …
   formattedDate: string;        // e.g., "Sat, Oct 25"
   section: "This week" | "Next week" | "Later";
+};
+
+export type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+export const EVENT_TYPE_META: Record<
+  EventTypeValue,
+  { icon: string; label: string }
+> = {
+  1: { icon: "🎂", label: "Birthday" },         // BIRTHDAY
+  2: { icon: "💍", label: "Anniversary" },      // ANNIVERSARY
+  3: { icon: "⭐", label: "Important date" },   // IMPORTANT_DATE
+  4: { icon: "🤝", label: "Meeting" },         // MEETING
+  5: { icon: "🏝", label: "Holiday" },         // HOLIDAY
+  6: { icon: "✨", label: "Other" },           // OTHER
+};
+
+
+export type HomeEventDTO = {
+  id: number;
+  contact_id: number;
+  contact_name: string;
+  type: number;           // EventTypeValue (1..6) côté front
+  next_occurrence: string; // ISO date string "2025-03-24"
+  days_until: number;      // 0 = today, >0 future, <0 passé
+};
+
+export type TypeInsightDTO = {
+  type: number;   // EventTypeValue
+  count: number;
+};
+
+export type HomeSummaryDTO = {
+  today: HomeEventDTO[];
+  upcoming: HomeEventDTO[];
+  recently_celebrated: HomeEventDTO[];
+  type_insights: TypeInsightDTO[];
+  meta: {
+    upcoming_week_count: number;
+    total_contacts: number;
+  };
 };

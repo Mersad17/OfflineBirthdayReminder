@@ -1,3 +1,4 @@
+// src/screens/Events/EditEventScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,500 +9,660 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  Switch,
-  Modal,
-  Pressable,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
 import { EventsStackParamList } from "../../navigation/EventsStack";
 import { fetchEventById, updateEvent } from "../../events/api";
 import { EventDTO } from "../../events/types";
 import { Screen } from "../../components/Screen";
 
+// 👇 Keep this in sync with your Django EventTypes IntEnum
+type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+const EVENT_TYPE_OPTIONS: { label: string; value: EventTypeValue }[] = [
+  { label: "🎂 Birthday", value: 1 },
+  { label: "💍 Anniversary", value: 2 },
+  { label: "⭐ Important date", value: 3 },
+  { label: "🤝 Meeting", value: 4 },
+  { label: "🏝 Holiday", value: 5 },
+  { label: "✨ Other", value: 6 },
+];
+
 type Props = NativeStackScreenProps<EventsStackParamList, "EditEvent">;
 
 export default function EditEventScreen({ route, navigation }: Props) {
-  const { eventId } = route.params;
+  const { eventId, eventTitle, contactId: routeContactId } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [event, setEvent] = useState<EventDTO | null>(null);
 
-  // Form fields
+  const [contactId, setContactId] = useState<number | null>(
+    routeContactId ?? null
+  );
+  const [contactName, setContactName] = useState<string>("Contact");
+
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [dateObj, setDateObj] = useState(new Date());
-  const [type, setType] = useState(1);
+  const [type, setType] = useState<EventTypeValue>(1);
+
+  const [dateString, setDateString] = useState("");
+  const [date, setDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const [timeString, setTimeString] = useState("");
+  const [time, setTime] = useState<Date | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
   const [isRecurring, setIsRecurring] = useState(true);
   const [isActive, setIsActive] = useState(true);
 
-  // UI state
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTypePicker, setShowTypePicker] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // ---------- helpers ----------
+
+  function formatDate(d: Date) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function formatTime(d: Date) {
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  }
+
+  function parseDateFromString(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    const [year, month, day] = value.split("-").map((p) => Number(p));
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  }
+
+  function parseTimeFromString(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    const parts = value.split(":");
+    if (parts.length < 2) return null;
+    const hours = Number(parts[0]);
+    const minutes = Number(parts[1]);
+    const base = new Date();
+    base.setHours(hours || 0, minutes || 0, 0, 0);
+    return base;
+  }
+
+  // ---------- load event ----------
 
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const e = await fetchEventById(eventId);
         setEvent(e);
 
-        setTitle(e.title || "");
-        setDate(e.date);
-        setDateObj(new Date(e.date));
-        setType(e.type);
+        // Contact: prefer backend contact_name, but keep routeContactId
+        setContactId(routeContactId ?? e.contact ?? null);
+        setContactName(e.contact_name || "Contact");
+
+        // Title: backend title OR eventTitle from route OR fallback
+        const initialTitle = e.title || eventTitle || "";
+        setTitle(initialTitle);
+
+        // Type
+        setType((e.type as EventTypeValue) ?? 1);
+
+        // Date
+        setDateString(e.date || "");
+        setDate(parseDateFromString(e.date));
+
+        // Time
+        if (e.time) {
+          const hhmm = e.time.slice(0, 5); // "HH:MM"
+          setTimeString(hhmm);
+          setTime(parseTimeFromString(hhmm));
+        }
+
         setIsRecurring(e.is_recurring);
         setIsActive(e.is_active);
-      } catch {
+      } catch (err) {
+        console.log("Failed to load event", err);
         Alert.alert("Error", "Could not load event.");
       } finally {
         setLoading(false);
       }
     })();
-  }, [eventId]);
+  }, [eventId, eventTitle, routeContactId]);
 
-  function iconForType(t: number) {
-    if (t === 1) return "🎂";
-    if (t === 2) return "💍";
-    return "🎉";
-  }
+  // ---------- pickers ----------
 
-  function typeLabel(t: number) {
-    if (t === 1) return "Birthday";
-    if (t === 2) return "Anniversary";
-    return "Custom Event";
-  }
-
-  function onDateChange(_: any, selectedDate?: Date) {
-    if (!selectedDate) {
+  function onDateChange(evt: DateTimePickerEvent, selectedDate?: Date) {
+    if (Platform.OS === "android") {
       setShowDatePicker(false);
-      return;
     }
-    setShowDatePicker(false);
-    setDateObj(selectedDate);
-
-    const y = selectedDate.getFullYear();
-    const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
-    const d = String(selectedDate.getDate()).padStart(2, "0");
-    setDate(`${y}-${m}-${d}`);
+    if (selectedDate) {
+      setDate(selectedDate);
+      setDateString(formatDate(selectedDate));
+    }
   }
+
+  function onTimeChange(evt: DateTimePickerEvent, selectedTime?: Date) {
+    if (Platform.OS === "android") {
+      setShowTimePicker(false);
+    }
+    if (selectedTime) {
+      setTime(selectedTime);
+      setTimeString(formatTime(selectedTime));
+    }
+  }
+
+  function openDatePicker() {
+    setShowDatePicker(true);
+  }
+
+  function openTimePicker() {
+    setShowTimePicker(true);
+  }
+
+  // ---------- save ----------
 
   async function onSave() {
-    setError(null);
+    if (!event) return;
 
-    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      setError("Date must be in YYYY-MM-DD format.");
+    if (!dateString) {
+      Alert.alert("Date required", "Please pick a date for this event.");
       return;
     }
-    if (type === 3 && !title.trim()) {
-      setError("Custom events must have a title.");
+    if (!title.trim()) {
+      Alert.alert("Title required", "Please add a title.");
       return;
     }
 
     setSaving(true);
     try {
       await updateEvent(eventId, {
-        title,
-        date,
+        title: title.trim(),
         type,
+        date: dateString,
+        time: timeString ? `${timeString}:00` : undefined,
         is_recurring: isRecurring,
         is_active: isActive,
+        // ⚠️ usually you DON'T change contact on edit,
+        // so we don't send it (backend keeps existing contact)
       });
-          navigation.goBack();
-    } catch {
-      Alert.alert("Error", "Could not update event.");
+
+      Alert.alert("Saved", "Event updated.");
+      navigation.goBack();
+    } catch (e: any) {
+      console.log("Failed to update event", e);
+      const detail = e?.response?.data?.detail;
+      if (detail) {
+        Alert.alert("Cannot update event", detail);
+      } else {
+        Alert.alert("Error", "Could not update event.");
+      }
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading || !event) {
+  // ---------- loading states ----------
+
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <Text style={{ marginTop: 8 }}>Loading…</Text>
-      </View>
+      <Screen scroll>
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={{ marginTop: 8 }}>Loading event…</Text>
+        </View>
+      </Screen>
     );
   }
 
+  if (!event) {
+    return (
+      <Screen scroll>
+        <View style={styles.center}>
+          <Text>Event not found.</Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  // ---------- UI ----------
+
   return (
-    <Screen scroll>
-
-    <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.page}>
-        {/* 🎈 Fun header / live preview */}
-        <View style={styles.headerCard}>
-          <Text style={styles.headerEmoji}>{iconForType(type)}</Text>
-          <Text style={styles.headerContact}>{event.contact_name}</Text>
-          <Text style={styles.headerTitleText}>{title || "Untitled Event"}</Text>
-          <Text style={styles.headerMeta}>
-            {typeLabel(type)} • {date || "No date"}
-          </Text>
-        </View>
-
-        {/* Basics card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Basics</Text>
-
-          {/* Title */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Title (optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder={
-                type === 1
-                  ? "Birthday party at home"
-                  : type === 2
-                  ? "Anniversary dinner"
-                  : "Event title…"
-              }
-            />
-          </View>
-
-          {/* Date */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Date</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.dateButtonText}>
-                {date || "Pick a date"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Type */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Type</Text>
-            <TouchableOpacity
-              style={styles.typeSelector}
-              onPress={() => setShowTypePicker(true)}
-            >
-              <Text style={styles.typeSelectorText}>
-                {iconForType(type)} {typeLabel(type)}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Behavior card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Behavior</Text>
-
-          <ToggleRow
-            label="Recurring every year"
-            value={isRecurring}
-            onValueChange={setIsRecurring}
-          />
-
-          <ToggleRow
-            label="Active"
-            value={isActive}
-            onValueChange={setIsActive}
-          />
-        </View>
-
-        {/* Error message */}
-        {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Save button */}
-        <TouchableOpacity
-          style={[styles.saveButton, saving && { opacity: 0.6 }]}
-          onPress={onSave}
-          disabled={saving}
-        >
-          <Text style={styles.saveButtonText}>
-            {saving ? "Saving…" : "Save Changes"}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Cancel */}
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Date picker modal (native) */}
-      {showDatePicker && (
-        <DateTimePicker
-          mode="date"
-          value={dateObj}
-          onChange={onDateChange}
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-        />
-      )}
-
-      {/* Type picker bottom sheet */}
-      <Modal visible={showTypePicker} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowTypePicker(false)} />
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Select event type</Text>
-
-          <TypePickerItem
-            label="🎂 Birthday"
-            isSelected={type === 1}
-            onPress={() => {
-              setType(1);
-              setShowTypePicker(false);
-            }}
-          />
-          <TypePickerItem
-            label="💍 Anniversary"
-            isSelected={type === 2}
-            onPress={() => {
-              setType(2);
-              setShowTypePicker(false);
-            }}
-          />
-          <TypePickerItem
-            label="🎉 Custom Event"
-            isSelected={type === 3}
-            onPress={() => {
-              setType(3);
-              setShowTypePicker(false);
-            }}
-          />
-        </View>
-      </Modal>
-    </View>
-    </Screen>
-
-  );
-}
-
-// Small subcomponents
-
-function ToggleRow({
-  label,
-  value,
-  onValueChange,
-}: {
-  label: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-}) {
-  return (
-    <View style={styles.toggleRow}>
-      <Text style={styles.label}>{label}</Text>
-      <Switch value={value} onValueChange={onValueChange} />
-    </View>
-  );
-}
-
-function TypePickerItem({
-  label,
-  isSelected,
-  onPress,
-}: {
-  label: string;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.typeOption,
-        isSelected && styles.typeOptionSelected,
-      ]}
-      onPress={onPress}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
-      <Text
-        style={[
-          styles.typeOptionText,
-          isSelected && styles.typeOptionTextSelected,
-        ]}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
+      <Screen scroll>
+        <View style={styles.container}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.card}>
+              {/* Contact info */}
+              <Text style={styles.sectionTitle}>Contact</Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.contactPill}
+                disabled
+              >
+                <Text style={styles.contactPillLabel}>For</Text>
+                <Text style={styles.contactPillName} numberOfLines={1}>
+                  {contactName}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              {/* Basic info */}
+              <Text style={styles.sectionTitle}>Basic info</Text>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Event title</Text>
+                </View>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Birthday party, First date, Coffee, etc."
+                  style={styles.input}
+                  autoCapitalize="sentences"
+                  returnKeyType="done"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Type</Text>
+                <View style={styles.typeRow}>
+                  {EVENT_TYPE_OPTIONS.map((t) => {
+                    const active = type === t.value;
+                    return (
+                      <TouchableOpacity
+                        key={t.value}
+                        style={[
+                          styles.typeChip,
+                          active && styles.typeChipActive,
+                        ]}
+                        onPress={() => setType(t.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.typeChipText,
+                            active && styles.typeChipTextActive,
+                          ]}
+                        >
+                          {t.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* Date and time */}
+              <Text style={styles.sectionTitle}>When</Text>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Date</Text>
+                  <Text style={styles.labelHint}>Required</Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={openDatePicker}
+                  style={[styles.input, styles.dateInput]}
+                >
+                  <Text
+                    style={
+                      dateString ? styles.dateText : styles.datePlaceholder
+                    }
+                  >
+                    {dateString || "Pick a date"}
+                  </Text>
+                  <Text style={styles.dateIcon}>📅</Text>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={date || new Date()}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onDateChange}
+                  />
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Time</Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={openTimePicker}
+                  style={[styles.input, styles.dateInput]}
+                >
+                  <Text
+                    style={
+                      timeString ? styles.dateText : styles.datePlaceholder
+                    }
+                  >
+                    {timeString || "No specific time"}
+                  </Text>
+                  <Text style={styles.dateIcon}>⏰</Text>
+                </TouchableOpacity>
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={time || new Date()}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                  />
+                )}
+              </View>
+
+              {/* Recurrence */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Repeat</Text>
+                <View style={styles.repeatRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      isRecurring && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsRecurring(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        isRecurring && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      Every year
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      !isRecurring && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsRecurring(false)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        !isRecurring && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      One-time only
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Status */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Status</Text>
+                <View style={styles.repeatRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      isActive && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsActive(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        isActive && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      Active
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.repeatChip,
+                      !isActive && styles.repeatChipActive,
+                    ]}
+                    onPress={() => setIsActive(false)}
+                  >
+                    <Text
+                      style={[
+                        styles.repeatChipText,
+                        !isActive && styles.repeatChipTextActive,
+                      ]}
+                    >
+                      Paused
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => navigation.goBack()}
+                disabled={saving}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  saving && styles.primaryButtonDisabled,
+                ]}
+                onPress={onSave}
+                disabled={saving}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {saving ? "Saving..." : "Save changes"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
+
+// ---------- styles (same style language as AddEvent) ----------
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 18,
-    gap: 22,
-    paddingBottom: 30,
-  },
-
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // HEADER
-  headerCard: {
-    padding: 24,
-    borderRadius: 20,
-    backgroundColor: "#E5F0FF",
-    borderWidth: 2,
-    borderColor: "#C3D9FF",
-    alignItems: "center",
-  },
-  headerEmoji: { fontSize: 52 },
-  headerContact: {
-    marginTop: 8,
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1D4ED8",
-  },
-  headerTitleText: {
-    marginTop: 4,
-    fontSize: 16,
-    color: "#4B5563",
-  },
-  headerMeta: {
-    marginTop: 6,
-    fontSize: 14,
-    color: "#6B7280",
-  },
-
-  // CARDS
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-    gap: 12,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-
-  field: {
-    gap: 4,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4B5563",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "#F9FAFB",
-    fontSize: 16,
-  },
-
-  dateButton: {
-    marginTop: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  dateButtonText: {
-    color: "#1D4ED8",
-    fontWeight: "600",
-  },
-
-  typeSelector: {
-    marginTop: 2,
-    borderRadius: 10,
-    backgroundColor: "#DBEAFE",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  typeSelectorText: {
-    fontWeight: "600",
-    color: "#1E3A8A",
-  },
-
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 6,
-  },
-
-  // ERROR BOX
-  errorBox: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-  },
-  errorText: {
-    color: "#B91C1C",
-    fontWeight: "600",
-  },
-
-  // SAVE BUTTON
-  saveButton: {
-    marginTop: 8,
-    backgroundColor: "#1D4ED8",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    shadowColor: "#1D4ED8",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  saveButtonText: {
-    color: "white",
-    fontWeight: "700",
-    fontSize: 17,
-  },
-  cancelText: {
-    marginTop: 8,
-    textAlign: "center",
-    color: "#6B7280",
-  },
-
-  // MODAL
-  modalBackdrop: {
+  container: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    paddingHorizontal: 16,
+    paddingTop: 20,
   },
-  modalCard: {
-    backgroundColor: "white",
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    gap: 10,
+  scrollContent: {
+    paddingBottom: 80,
   },
-  modalTitle: {
-    fontSize: 18,
+  card: {
+    backgroundColor: "#fafafa",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  sectionTitle: {
+    fontSize: 14,
     fontWeight: "700",
+    color: "#333",
     marginBottom: 8,
   },
-  typeOption: {
-    padding: 12,
+  divider: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginVertical: 12,
+  },
+  fieldGroup: {
+    marginBottom: 14,
+  },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#333",
+    marginBottom: 4,
+  },
+  labelHint: {
+    fontSize: 11,
+    color: "#999",
+  },
+  optionalTag: {
+    fontSize: 11,
+    color: "#777",
+  },
+  input: {
     borderRadius: 10,
-    backgroundColor: "#F3F4FF",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+    fontSize: 14,
   },
-  typeOptionSelected: {
-    backgroundColor: "#2563EB",
+  contactPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "#f1f1f1",
   },
-  typeOptionText: {
-    fontSize: 16,
-    color: "#111827",
+  contactPillLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginRight: 6,
+  },
+  contactPillName: {
+    fontSize: 14,
     fontWeight: "600",
+    color: "#333",
+    flexShrink: 1,
   },
-  typeOptionTextSelected: {
-    color: "#FFFFFF",
+  typeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  typeChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: "#eee",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  typeChipActive: {
+    backgroundColor: "#007AFF",
+  },
+  typeChipText: {
+    fontSize: 13,
+    color: "#333",
+    fontWeight: "500",
+  },
+  typeChipTextActive: {
+    color: "#fff",
+  },
+  dateInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  datePlaceholder: {
+    fontSize: 14,
+    color: "#999",
+  },
+  dateIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  repeatRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  repeatChip: {
+    flex: 1,
+    marginRight: 6,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#eee",
+    alignItems: "center",
+  },
+  repeatChipActive: {
+    backgroundColor: "#007AFF",
+  },
+  repeatChipText: {
+    fontSize: 13,
+    color: "#333",
+    fontWeight: "500",
+  },
+  repeatChipTextActive: {
+    color: "#fff",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    marginTop: 18,
+  },
+  secondaryButton: {
+    flex: 1,
+    marginRight: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#333",
+  },
+  primaryButton: {
+    flex: 1,
+    marginLeft: 8,
+    borderRadius: 20,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
   },
 });

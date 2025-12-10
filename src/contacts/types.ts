@@ -1,3 +1,5 @@
+import { EventTypeValue } from "../events/types";
+
 export type Contact = {
   id: number;
   first_name: string;
@@ -6,7 +8,12 @@ export type Contact = {
   email?: string | null;
   phone?: string | null;
   created_at: string;  
-  notes: string;      
+  notes: string;
+  next_event?: {
+    type: EventTypeValue;
+    date: string;
+  };
+        
 };
 
 export type CreateContactInput = {

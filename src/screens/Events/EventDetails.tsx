@@ -23,7 +23,7 @@ import {
 } from "../../reminders/api";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { EventDTO } from "../../events/types";
+import { EVENT_TYPE_META, EventDTO, EventTypeValue } from "../../events/types";
 import { useIsFocused } from "@react-navigation/native";
 import { formatDateTime } from "../../reminders/utils";
 import { Screen } from "../../components/Screen";
@@ -393,12 +393,15 @@ function confirmDelete() {
   }
 
   function iconForType(t: number) {
-    return t === 1 ? "🎂" : t === 2 ? "💍" : "🎉";
+    const meta = EVENT_TYPE_META[t as EventTypeValue];
+    return meta?.icon ?? "🎉"; // fallback just in case
   }
-
+  
   function typeLabel(t: number) {
-    return t === 1 ? "Birthday" : t === 2 ? "Anniversary" : "Custom Event";
+    const meta = EVENT_TYPE_META[t as EventTypeValue];
+    return meta?.label ?? "Event";
   }
+  
 
   function countdown(d: number) {
     if (d === 0) return "🎉 Today!";

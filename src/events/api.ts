@@ -1,6 +1,6 @@
 import { CreateEventInput } from "../contacts/types";
 import { api } from "../lib/api";
-import { EventDTO, UpdateEventPayload } from "./types";
+import { EventDTO, HomeSummaryDTO, UpdateEventPayload } from "./types";
 
 export async function fetchEvents(filter: "upcoming" | "past" | "no_reminder" = "upcoming", page = 1) {
     const res = await api.get(`/events/?filter=${filter}&page=${page}`);
@@ -26,5 +26,10 @@ export async function deleteEvent(id: number){
 }
 export async function updateEvent(id:number,payload: UpdateEventPayload): Promise <EventDTO>{
   const res = await api.patch<EventDTO>(`/events/${id}/`,payload)
+  return res.data
+}
+
+export async function fetchHomeSummary(): Promise<HomeSummaryDTO>{
+  const res = await api.get("/home/")
   return res.data
 }
