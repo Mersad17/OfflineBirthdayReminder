@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { Contact, CreateContactInput } from "./types";
+import { Contact, CreateContactInput, UpdateContactInput } from "./types";
 
 export async function fetchContacts(page = 1) {
   const res = await api.get(`/contacts/?page=${page}`);
@@ -57,10 +57,9 @@ export async function fetchContactById(id: number): Promise<Contact> {
   return res.data;
 }
 
-export async function updateContact(id: number, payload: CreateContactInput): Promise<Contact> {
+export async function updateContact(id: number, payload: UpdateContactInput): Promise<Contact> {
   const { photo_uri, ...rest } = payload;
 
-  // ✅ No photo change → JSON PATCH
   if (photo_uri === undefined) {
     const res = await api.patch<Contact>(`/contacts/${id}/`, rest);
     return res.data;
@@ -82,7 +81,7 @@ export async function updateContact(id: number, payload: CreateContactInput): Pr
     return res.data;
   }
 
-  const form = buildContactFormData(payload);
+  const form = buildContactFormData(payload as any);
 
   const res = await api.patch<Contact>(`/contacts/${id}/`, form, {
     headers: { "Content-Type": "multipart/form-data" },

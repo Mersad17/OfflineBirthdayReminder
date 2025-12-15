@@ -14,7 +14,9 @@ export type Contact = {
     type: EventTypeValue;
     date: string;
   };
-        
+  talk_every_days?: number | null;
+  talk_last_at?: string | null; // YYYY-MM-DD
+  talk_next_at?: string | null; // YYYY-MM-DD
 };
 
 export type CreateContactInput = {
@@ -25,6 +27,9 @@ export type CreateContactInput = {
   phone?: string | null;
   notes?: string | null;
   photo_uri?: string | null; 
+  talk_every_days?: number | null;
+  talk_last_at?: string | null; // YYYY-MM-DD
+  talk_next_at?: string | null; // YYYY-MM-DD
 };
 
 export type CreateEventInput = {
@@ -34,4 +39,7 @@ export type CreateEventInput = {
   date: string;             
   time?: string | null;     
   is_recurring?: boolean;   
+  
 };
+
+export type UpdateContactInput = Partial<CreateContactInput>;
