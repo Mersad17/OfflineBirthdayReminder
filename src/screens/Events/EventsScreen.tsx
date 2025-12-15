@@ -18,10 +18,13 @@ import {
   EVENT_TYPE_META,
 } from "../../events/types";
 import { Screen } from "../../components/Screen";
+import { useAppearance } from "../../appearance/AppearanceContext";
 
 type FilterType = "upcoming" | "past" | "no_reminder";
 
 export default function EventsScreen({ navigation }: any) {
+  const { settings } = useAppearance();
+
   const [filter, setFilter] = useState<FilterType>("upcoming");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,7 +135,7 @@ export default function EventsScreen({ navigation }: any) {
     return "";
   }
 
-  // ⭐ new helper using EVENT_TYPE_META
+  // ⭐ using EVENT_TYPE_META
   function iconForType(type: number) {
     const meta = EVENT_TYPE_META[type as EventTypeValue];
     return meta?.icon ?? "🎉";
@@ -141,11 +144,21 @@ export default function EventsScreen({ navigation }: any) {
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={styles.title}>Events</Text>
+        <Text style={[styles.title, { color: settings.titleColor }]}>
+          Events
+        </Text>
 
         <TextInput
-          style={styles.search}
+          style={[
+            styles.search,
+            {
+              backgroundColor: settings.cardColor,
+              borderColor: settings.cardColor + "60",
+              color: settings.textColor,
+            },
+          ]}
           placeholder="Search events or contacts..."
+          placeholderTextColor={settings.textColor + "66"}
           value={search}
           onChangeText={setSearch}
         />
@@ -155,40 +168,60 @@ export default function EventsScreen({ navigation }: any) {
             { label: "Upcoming", value: "upcoming" as FilterType },
             { label: "Past", value: "past" as FilterType },
             { label: "No Reminder", value: "no_reminder" as FilterType },
-          ].map(({ label, value }) => (
-            <Pressable
-              key={value}
-              style={[
-                styles.filterButton,
-                filter === value && styles.filterButtonActive,
-              ]}
-              onPress={() => {
-                if (filter !== value) setFilter(value);
-              }}
-            >
-              <Text
+          ].map(({ label, value }) => {
+            const isActive = filter === value;
+            return (
+              <Pressable
+                key={value}
                 style={[
-                  styles.filterText,
-                  filter === value && styles.filterTextActive,
+                  styles.filterButton,
+                  {
+                    backgroundColor: isActive
+                      ? settings.buttonColor
+                      : settings.backgroundColor,
+                    borderColor: settings.cardColor + "60",
+                    borderWidth: 1,
+                  },
                 ]}
+                onPress={() => {
+                  if (filter !== value) setFilter(value);
+                }}
               >
-                {label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.filterText,
+                    {
+                      color: isActive
+                        ? settings.buttonTextColor
+                        : settings.textColor,
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <FlatList
           data={filteredEvents}
           keyExtractor={(item) => String(item.id)}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={settings.primaryColor}
+            />
           }
           onEndReached={loadMore}
           onEndReachedThreshold={0.2}
           ListFooterComponent={
             loading && hasNext ? (
-              <ActivityIndicator style={{ marginVertical: 16 }} />
+              <ActivityIndicator
+                style={{ marginVertical: 16 }}
+                color={settings.primaryColor}
+              />
             ) : null
           }
           renderItem={({ item, index }) => {
@@ -199,9 +232,27 @@ export default function EventsScreen({ navigation }: any) {
             return (
               <View>
                 {showMonthHeader && (
-                  <Text style={styles.monthHeader}>{item.month_label}</Text>
+                  <Text
+                    style={[
+                      styles.monthHeader,
+                      {
+                        backgroundColor: settings.cardColor,
+                        color: settings.titleColor,
+                      },
+                    ]}
+                  >
+                    {item.month_label}
+                  </Text>
                 )}
-                <View style={styles.card}>
+                <View
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: settings.cardColor,
+                      borderColor: settings.cardColor + "40",
+                    },
+                  ]}
+                >
                   <TouchableOpacity
                     onPress={() =>
                       navigation.navigate("EventDetails", {
@@ -212,26 +263,37 @@ export default function EventsScreen({ navigation }: any) {
                     }
                   >
                     <Text
-                      style={styles.cardTitle}
+                      style={[
+                        styles.cardTitle,
+                        { color: settings.titleColor },
+                      ]}
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
                       {iconForType(item.type)} {item.contact_name}
                     </Text>
                     <Text
-                      style={styles.cardSub}
+                      style={[
+                        styles.cardSub,
+                        { color: settings.textColor },
+                      ]}
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
                       {item.title || "Untitled Event"} • {item.next_occurrence}
                       {item.days_until < 30 && (
-                        <Text style={{ color: "#007AFF" }}>
+                        <Text style={{ color: settings.primaryColor }}>
                           {" "}
                           • {friendlyCountdown(item.days_until)}
                         </Text>
                       )}
                     </Text>
-                    <Text style={styles.cardStatus}>
+                    <Text
+                      style={[
+                        styles.cardStatus,
+                        { color: settings.textColor + "AA" },
+                      ]}
+                    >
                       {item.has_reminder
                         ? `🔔 ${item.reminder_count} reminder${
                             item.reminder_count > 1 ? "s" : ""
@@ -253,7 +315,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16, paddingTop: 50 },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 16 },
   search: {
-    backgroundColor: "#f1f1f1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -264,11 +325,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     paddingVertical: 6,
     paddingHorizontal: 8,
-    backgroundColor: "#f8f8f8",
     borderRadius: 8,
     marginTop: 12,
     marginBottom: 6,
-    color: "#333",
   },
   filterRow: {
     flexDirection: "row",
@@ -278,22 +337,20 @@ const styles = StyleSheet.create({
   filterButton: {
     flex: 1,
     marginHorizontal: 4,
-    backgroundColor: "#eee",
     borderRadius: 20,
     paddingVertical: 8,
   },
-  filterButtonActive: { backgroundColor: "#007AFF" },
-  filterText: { textAlign: "center", color: "#333", fontWeight: "500" },
-  filterTextActive: { color: "#fff" },
+  filterText: {
+    textAlign: "center",
+    fontWeight: "500",
+  },
   card: {
-    backgroundColor: "#fafafa",
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#eee",
   },
   cardTitle: { fontSize: 17, fontWeight: "700", marginBottom: 2 },
-  cardSub: { color: "#666", fontSize: 14 },
-  cardStatus: { marginTop: 6, fontSize: 13, color: "#777" },
+  cardSub: { fontSize: 14 },
+  cardStatus: { marginTop: 6, fontSize: 13 },
 });

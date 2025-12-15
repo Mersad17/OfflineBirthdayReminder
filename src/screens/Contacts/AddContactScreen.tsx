@@ -15,12 +15,15 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { createContact } from "../../contacts/api";
 import { Screen } from "../../components/Screen";
+import { useAppearance } from "../../appearance/AppearanceContext";
 
 type Props = {
   navigation: any;
 };
 
 export default function AddContactScreen({ navigation }: Props) {
+  const { settings } = useAppearance();
+
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [birthday, setBirthday] = useState(""); // "YYYY-MM-DD"
@@ -87,158 +90,253 @@ export default function AddContactScreen({ navigation }: Props) {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0} // tweak if you have a header
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
-    <Screen scroll>
+      <Screen scroll>
+        <View style={styles.container}>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: settings.cardColor },
+              ]}
+            >
+              {/* Name section */}
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                Basic info
+              </Text>
 
-      <View style={styles.container}>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.card}>
-            {/* Name section */}
-            <Text style={styles.sectionTitle}>Basic info</Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>First name</Text>
-              <TextInput
-                value={first}
-                onChangeText={setFirst}
-                placeholder="Jane"
-                style={styles.input}
-                autoCapitalize="words"
-                returnKeyType="next"
-              />
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Last name</Text>
-              <TextInput
-                value={last}
-                onChangeText={setLast}
-                placeholder="Doe"
-                style={styles.input}
-                autoCapitalize="words"
-                returnKeyType="next"
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            {/* Extra details */}
-            <Text style={styles.sectionTitle}>Details</Text>
-
-            {/* Birthday with date picker */}
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Birthday</Text>
-                <Text style={styles.labelHint}>Tap to pick a date</Text>
+              <View style={styles.fieldGroup}>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  First name
+                </Text>
+                <TextInput
+                  value={first}
+                  onChangeText={setFirst}
+                  placeholder="Jane"
+                  placeholderTextColor="#9CA3AF"
+                  style={[
+                    styles.input,
+                    { color: settings.textColor },
+                  ]}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
               </View>
 
+              <View style={styles.fieldGroup}>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  Last name
+                </Text>
+                <TextInput
+                  value={last}
+                  onChangeText={setLast}
+                  placeholder="Doe"
+                  placeholderTextColor="#9CA3AF"
+                  style={[
+                    styles.input,
+                    { color: settings.textColor },
+                  ]}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* Extra details */}
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                Details
+              </Text>
+
+              {/* Birthday with date picker */}
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Birthday
+                  </Text>
+                  <Text style={styles.labelHint}>Tap to pick a date</Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={openBirthdayPicker}
+                  style={[styles.input, styles.dateInput]}
+                >
+                  <Text
+                    style={
+                      birthday ? styles.dateText : styles.datePlaceholder
+                    }
+                  >
+                    {birthday || "1990-07-21"}
+                  </Text>
+                  <Text style={styles.dateIcon}>📅</Text>
+                </TouchableOpacity>
+
+                {showBirthdayPicker && (
+                  <DateTimePicker
+                    value={birthdayDate || new Date(1990, 0, 1)}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onBirthdayChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Email
+                  </Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="name@example.com"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={[
+                    styles.input,
+                    { color: settings.textColor },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Phone
+                  </Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="+33 6 12 34 56 78"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  style={[
+                    styles.input,
+                    { color: settings.textColor },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Notes
+                  </Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Something to remember about this contact..."
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="sentences"
+                  style={[
+                    styles.input,
+                    styles.notesInput,
+                    { color: settings.textColor },
+                  ]}
+                  multiline
+                  textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.actionsRow}>
               <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={openBirthdayPicker}
-                style={[styles.input, styles.dateInput]}
+                style={styles.secondaryButton}
+                onPress={() => navigation.goBack()}
+                disabled={saving}
               >
                 <Text
-                  style={birthday ? styles.dateText : styles.datePlaceholder}
-                  >
-                  {birthday || "1990-07-21"}
+                  style={[
+                    styles.secondaryButtonText,
+                    { color: settings.textColor },
+                  ]}
+                >
+                  Cancel
                 </Text>
-                <Text style={styles.dateIcon}>📅</Text>
               </TouchableOpacity>
 
-              {showBirthdayPicker && (
-                <DateTimePicker
-                  value={birthdayDate || new Date(1990, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onBirthdayChange}
-                  maximumDate={new Date()}
-                />
-              )}
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.optionalTag}>Optional</Text>
-              </View>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@example.com"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={styles.input}
-                />
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Phone</Text>
-                <Text style={styles.optionalTag}>Optional</Text>
-              </View>
-              <TextInput
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+33 6 12 34 56 78"
-                keyboardType="phone-pad"
-                style={styles.input}
-                />
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Notes</Text>
-                <Text style={styles.optionalTag}>Optional</Text>
-              </View>
-              <TextInput
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Something to remember about this contact..."
-                autoCapitalize="sentences"
-                style={[styles.input, styles.notesInput]}
-                multiline
-                textAlignVertical="top"
-                onFocus={() => {
-                  // small delay so keyboard opens then we scroll
-                  setTimeout(() => {
-                    scrollRef.current?.scrollToEnd({ animated: true });
-                  }, 150);
-                }}
-              />
-            </View>
-          </View>
-
-          {/* Actions */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.goBack()}
-              disabled={saving}
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  { backgroundColor: settings.buttonColor },
+                  saving && styles.primaryButtonDisabled,
+                ]}
+                onPress={onSubmit}
+                disabled={saving}
               >
-              <Text style={styles.secondaryButtonText}>Cancel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                saving && styles.primaryButtonDisabled,
-              ]}
-              onPress={onSubmit}
-              disabled={saving}
-              >
-              <Text style={styles.primaryButtonText}>
-                {saving ? "Saving..." : "Save"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-  </Screen>
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: settings.buttonTextColor },
+                  ]}
+                >
+                  {saving ? "Saving..." : "Save"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </Screen>
     </KeyboardAvoidingView>
   );
 }
@@ -250,10 +348,9 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   scrollContent: {
-    paddingBottom: 80, // extra space so last field is above keyboard
+    paddingBottom: 80,
   },
   card: {
-    backgroundColor: "#fafafa",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -262,7 +359,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#333",
     marginBottom: 8,
   },
   fieldGroup: {
@@ -277,7 +373,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#333",
     marginBottom: 4,
   },
   labelHint: {
@@ -341,7 +436,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#333",
   },
   primaryButton: {
     flex: 1,
@@ -349,7 +443,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 10,
     alignItems: "center",
-    backgroundColor: "#007AFF",
   },
   primaryButtonDisabled: {
     opacity: 0.6,
@@ -357,6 +450,5 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#fff",
   },
 });

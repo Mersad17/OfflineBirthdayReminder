@@ -7,11 +7,12 @@ import {
   StyleSheet,
   Modal,
   Image,
+  TextInput,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 import { useAppearance, ThemeMode } from "../../appearance/AppearanceContext";
-import * as ImagePicker from 'expo-image-picker';
+import * as ImagePicker from "expo-image-picker";
 import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<SettingsStackParamsList, "Appearance">;
@@ -50,10 +51,12 @@ const bigPalette = [
 type ActivePicker =
   | "primary"
   | "background"
+  | "card"
   | "title"
   | "text"
   | "buttonBg"
   | "buttonText"
+  | "card"
   | null;
 
 export default function AppearanceScreen({}: Props) {
@@ -68,9 +71,13 @@ export default function AppearanceScreen({}: Props) {
     setButtonTextColor,
     setBackgroundImageUri,
     setBackgroundResizeMode,
+    setCardColor,
   } = useAppearance();
 
   const [activePicker, setActivePicker] = useState<ActivePicker>(null);
+  const [customHex, setCustomHex] = useState("#4F46E5");
+
+  // ---------- helpers ----------
 
   function renderThemeButton(mode: ThemeMode, label: string) {
     const selected = settings.themeMode === mode;
@@ -80,7 +87,11 @@ export default function AppearanceScreen({}: Props) {
         style={[styles.themeButton, selected && styles.themeButtonSelected]}
         onPress={() => setThemeMode(mode)}
       >
-        <Text style={selected ? styles.themeButtonTextSelected : styles.themeButtonText}>
+        <Text
+          style={
+            selected ? styles.themeButtonTextSelected : styles.themeButtonText
+          }
+        >
           {label}
         </Text>
       </TouchableOpacity>
@@ -92,7 +103,7 @@ export default function AppearanceScreen({}: Props) {
     current: string,
     onSelect: (c: string) => void
   ) {
-    const selected = color === current;
+    const selected = color.toLowerCase() === current.toLowerCase();
     return (
       <TouchableOpacity
         key={color}
@@ -105,24 +116,29 @@ export default function AppearanceScreen({}: Props) {
       />
     );
   }
-  function renderBgFitButton(mode: "cover" | "contain" | "center"|"repeat", label: string) {
+
+  function renderBgFitButton(
+    mode: "cover" | "contain" | "center" | "repeat",
+    label: string
+  ) {
     const selected = (settings.backgroundResizeMode || "cover") === mode;
     return (
       <TouchableOpacity
         key={mode}
-        style={[
-          styles.themeButton,
-          selected && styles.themeButtonSelected,
-        ]}
+        style={[styles.themeButton, selected && styles.themeButtonSelected]}
         onPress={() => setBackgroundResizeMode(mode)}
       >
-        <Text style={selected ? styles.themeButtonTextSelected : styles.themeButtonText}>
+        <Text
+          style={
+            selected ? styles.themeButtonTextSelected : styles.themeButtonText
+          }
+        >
           {label}
         </Text>
       </TouchableOpacity>
     );
   }
-  
+
   // block (label + small swatches + "More colors" button)
   function renderColorPickerSection(
     label: string,
@@ -134,7 +150,6 @@ export default function AppearanceScreen({}: Props) {
     const palette = [current, ...basePalette.filter((c) => c !== current)];
 
     return (
-
       <View style={{ marginTop: 16 }}>
         <Text style={styles.sectionTitle}>{label}</Text>
         <View style={styles.row}>
@@ -142,7 +157,13 @@ export default function AppearanceScreen({}: Props) {
         </View>
         <TouchableOpacity
           style={styles.moreColorsButton}
-          onPress={() => setActivePicker(kind)}
+          onPress={() => {
+            // pre-fill custom hex with current color
+            setCustomHex(
+              current.startsWith("#") ? current.toUpperCase() : `#${current}`
+            );
+            setActivePicker(kind);
+          }}
         >
           <Text style={styles.moreColorsText}>More colors</Text>
         </TouchableOpacity>
@@ -150,25 +171,25 @@ export default function AppearanceScreen({}: Props) {
     );
   }
 
-    async function onUploadBackground() {
-        // ask permission
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-          alert("Permission required to pick an image.");
-          return;
-        }
-      
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-          quality: 0.8,
-        });
-      
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-          const uri = result.assets[0].uri;
-          setBackgroundImageUri(uri);
-        }
-      }
-      
+  async function onUploadBackground() {
+    const { status } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      alert("Permission required to pick an image.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const uri = result.assets[0].uri;
+      setBackgroundImageUri(uri);
+    }
+  }
+
   function onClearBackgroundImage() {
     setBackgroundImageUri(null);
   }
@@ -180,6 +201,9 @@ export default function AppearanceScreen({}: Props) {
         break;
       case "background":
         setBackgroundColor(color);
+        break;
+      case "card":
+        setCardColor(color);
         break;
       case "title":
         setTitleColor(color);
@@ -202,128 +226,235 @@ export default function AppearanceScreen({}: Props) {
   function getActiveLabel() {
     switch (activePicker) {
       case "primary":
-        return "Primary color";
+        return "primary color";
       case "background":
-        return "Background color";
+        return "background color";
+      case "card":
+        return "card color";
       case "title":
-        return "Title color";
+        return "title color";
       case "text":
-        return "Text color";
+        return "text color";
       case "buttonBg":
-        return "Button background color";
+        return "button background";
       case "buttonText":
-        return "Button text color";
+        return "button text";
       default:
         return "";
     }
   }
 
+  function getActiveCurrentColor(): string {
+    switch (activePicker) {
+      case "primary":
+        return settings.primaryColor;
+      case "background":
+        return settings.backgroundColor;
+      case "card":
+        return settings.cardColor;
+      case "title":
+        return settings.titleColor;
+      case "text":
+        return settings.textColor;
+      case "buttonBg":
+        return settings.buttonColor;
+      case "buttonText":
+        return settings.buttonTextColor;
+      default:
+        return settings.primaryColor;
+    }
+  }
+
+  function validateAndUseCustomHex() {
+    let value = customHex.trim().toUpperCase();
+
+    if (!value.startsWith("#")) {
+      value = `#${value}`;
+    }
+
+    const isValid = /^#[0-9A-F]{6}$/i.test(value);
+    if (!isValid) {
+      alert("Please enter a valid hex color (e.g. #4F46E5).");
+      return;
+    }
+
+    handlePickFromModal(value);
+  }
+
+  // ---------- UI ----------
+
   return (
     <>
       <Screen scroll>
+        <ScrollView contentContainerStyle={{ paddingBottom: 25 }}>
+          <View style={styles.container}>
+            {/* Header + Preview */}
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.title}>Appearance</Text>
+                <Text style={styles.subtitle}>
+                  Tune colors, background and vibe of your app.
+                </Text>
+              </View>
+            </View>
 
-      <ScrollView contentContainerStyle={{paddingBlockEnd:25}}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Appearance</Text>
+            {/* Live preview */}
+            <View style={styles.previewCardWrapper}>
+              <Text style={styles.previewLabel}>Live preview</Text>
+              <View
+                style={[
+                  styles.previewCard,
+                  { backgroundColor: settings.cardColor },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.previewTitle,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  Friendly reminder
+                </Text>
+                <Text
+                  style={[
+                    styles.previewText,
+                    { color: settings.textColor },
+                  ]}
+                >
+                  Exemple de texte de description avec tes couleurs.
+                </Text>
+                <View style={styles.previewButtonRow}>
+                  <View
+                    style={[
+                      styles.previewButton,
+                      { backgroundColor: settings.buttonColor },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.previewButtonText,
+                        { color: settings.buttonTextColor },
+                      ]}
+                    >
+                      Primary button
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
 
-          {/* Theme */}
-          <Text style={styles.sectionTitle}>Theme</Text>
-          <View style={styles.row}>
-            {renderThemeButton("light", "Light")}
-            {renderThemeButton("dark", "Dark")}
-            {renderThemeButton("system", "System")}
+            {/* Theme mode */}
+            <Text style={styles.sectionTitle}>Theme</Text>
+            <View style={styles.row}>
+              {renderThemeButton("light", "Light")}
+              {renderThemeButton("dark", "Dark")}
+              {renderThemeButton("system", "System")}
+              {renderThemeButton('custom','Custom')}
+            </View>
+
+            {/* Colors */}
+            {renderColorPickerSection(
+              "Primary color",
+              settings.primaryColor,
+              setPrimaryColor,
+              "primary"
+            )}
+
+            {renderColorPickerSection(
+              "Background color",
+              settings.backgroundColor,
+              setBackgroundColor,
+              "background"
+            )}
+
+            {renderColorPickerSection(
+              "Card color",
+              settings.cardColor,
+              setCardColor,
+              "card"
+            )}
+
+            {renderColorPickerSection(
+              "Title color",
+              settings.titleColor,
+              setTitleColor,
+              "title"
+            )}
+
+            {renderColorPickerSection(
+              "Text color",
+              settings.textColor,
+              setTextColor,
+              "text"
+            )}
+
+            {renderColorPickerSection(
+              "Button background color",
+              settings.buttonColor,
+              setButtonColor,
+              "buttonBg"
+            )}
+
+            {renderColorPickerSection(
+              "Button text color",
+              settings.buttonTextColor,
+              setButtonTextColor,
+              "buttonText"
+            )}
+
+            {/* Background image */}
+            <Text style={styles.sectionTitle}>Background image</Text>
+            <View style={{ gap: 8 }}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={onUploadBackground}
+              >
+                <Text style={styles.actionButtonText}>
+                  Upload background image
+                </Text>
+              </TouchableOpacity>
+
+              {settings.backgroundImageUri && (
+                <>
+                  <View style={{ marginTop: 8 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "#6B7280",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Current background
+                    </Text>
+                    <Image
+                      source={{ uri: settings.backgroundImageUri }}
+                      style={{ width: "100%", height: 120, borderRadius: 8 }}
+                      resizeMode="cover"
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.actionButtonSecondary}
+                    onPress={onClearBackgroundImage}
+                  >
+                    <Text style={styles.actionButtonSecondaryText}>
+                      Remove background image
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
+            {/* Background fit */}
+            <Text style={styles.sectionTitle}>Background fit</Text>
+            <View style={styles.row}>
+              {renderBgFitButton("cover", "Cover")}
+              {renderBgFitButton("contain", "Contain")}
+              {renderBgFitButton("center", "Center")}
+              {renderBgFitButton("repeat", "Repeat")}
+            </View>
           </View>
-
-          {/* Colors */}
-          {renderColorPickerSection(
-            "Primary color",
-            settings.primaryColor,
-            setPrimaryColor,
-            "primary"
-          )}
-
-          {renderColorPickerSection(
-            "Background color",
-            settings.backgroundColor,
-            setBackgroundColor,
-            "background"
-          )}
-
-          {renderColorPickerSection(
-            "Title color",
-            settings.titleColor,
-            setTitleColor,
-            "title"
-          )}
-
-          {renderColorPickerSection(
-            "Text color",
-            settings.textColor,
-            setTextColor,
-            "text"
-          )}
-
-          {renderColorPickerSection(
-            "Button background color",
-            settings.buttonColor,
-            setButtonColor,
-            "buttonBg"
-          )}
-
-          {renderColorPickerSection(
-            "Button text color",
-            settings.buttonTextColor,
-            setButtonTextColor,
-            "buttonText"
-          )}
-
-          {/* Background image */}
-         {/* Background image */}
-<Text style={styles.sectionTitle}>Background image</Text>
-<View style={{ gap: 8 }}>
-  <TouchableOpacity style={styles.actionButton} onPress={onUploadBackground}>
-    <Text style={styles.actionButtonText}>
-      Upload background image
-    </Text>
-  </TouchableOpacity>
-
-  {settings.backgroundImageUri && (
-    <>
-      <View style={{ marginTop: 8 }}>
-        <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 4 }}>
-          Current background
-        </Text>
-        <Image
-          source={{ uri: settings.backgroundImageUri }}
-          style={{ width: "100%", height: 120, borderRadius: 8 }}
-          resizeMode="cover"
-        />
-      </View>
-
-      <TouchableOpacity
-        style={styles.actionButtonSecondary}
-        onPress={onClearBackgroundImage}
-      >
-        <Text style={styles.actionButtonSecondaryText}>
-          Remove background image
-        </Text>
-      </TouchableOpacity>
-    </>
-  )}
-</View>
-
-{/* NEW: background fit / position */}
-<Text style={styles.sectionTitle}>Background fit</Text>
-<View style={styles.row}>
-  {renderBgFitButton("cover", "Cover")}
-  {renderBgFitButton("contain", "Contain")}
-  {renderBgFitButton("center", "Center")}
-  {renderBgFitButton("repeat", "Repeat")}
-</View>
-
-
-        </View>
-      </ScrollView>
+        </ScrollView>
       </Screen>
 
       {/* Modal color picker */}
@@ -335,7 +466,26 @@ export default function AppearanceScreen({}: Props) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Choose {getActiveLabel()}</Text>
+            <Text style={styles.modalTitle}>
+              Choose {getActiveLabel()}
+            </Text>
+
+            {/* Current color preview */}
+            <View style={styles.modalCurrentRow}>
+              <View style={styles.modalCurrentColorRow}>
+                <View
+                  style={[
+                    styles.modalCurrentColor,
+                    { backgroundColor: getActiveCurrentColor() },
+                  ]}
+                />
+                <Text style={styles.modalCurrentLabel}>
+                  Current: {getActiveCurrentColor()}
+                </Text>
+              </View>
+            </View>
+
+            {/* Predefined palette */}
             <View style={styles.modalPalette}>
               {bigPalette.map((c) => (
                 <TouchableOpacity
@@ -345,6 +495,27 @@ export default function AppearanceScreen({}: Props) {
                 />
               ))}
             </View>
+
+            {/* Custom hex input */}
+            <View style={styles.hexRow}>
+              <Text style={styles.hexLabel}>Custom HEX</Text>
+              <TextInput
+                value={customHex}
+                onChangeText={setCustomHex}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={styles.hexInput}
+                placeholder="#4F46E5"
+                maxLength={7}
+              />
+              <TouchableOpacity
+                style={styles.hexButton}
+                onPress={validateAndUseCustomHex}
+              >
+                <Text style={styles.hexButtonText}>Use</Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={() => setActivePicker(null)}
@@ -352,13 +523,13 @@ export default function AppearanceScreen({}: Props) {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-
         </View>
-
       </Modal>
     </>
   );
 }
+
+// ---------- styles ----------
 
 const styles = StyleSheet.create({
   container: {
@@ -366,11 +537,56 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
+  headerRow: {
     marginBottom: 8,
   },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#6B7280",
+  },
+
+  // preview
+  previewCardWrapper: {
+    marginTop: 8,
+  },
+  previewLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  previewCard: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  previewText: {
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  previewButtonRow: {
+    flexDirection: "row",
+  },
+  previewButton: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  previewButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: "500",
@@ -383,6 +599,8 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: "wrap",
   },
+
+  // theme buttons
   themeButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -402,6 +620,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#FFFFFF",
   },
+
+  // color swatches
   colorCircle: {
     width: 28,
     height: 28,
@@ -425,12 +645,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#4B5563",
   },
+
+  // background image
   actionButton: {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: "#E5E7EB",
-    marginTop: 16,
+    marginTop: 4,
   },
   actionButtonText: {
     fontSize: 14,
@@ -441,11 +663,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: "#FEE2E2",
+    marginTop: 8,
   },
   actionButtonSecondaryText: {
     fontSize: 14,
     color: "#B91C1C",
   },
+
   // modal
   modalOverlay: {
     flex: 1,
@@ -462,14 +686,14 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   modalPalette: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
     justifyContent: "center",
-    marginBottom: 16,
+    marginVertical: 12,
   },
   modalColorCircle: {
     width: 32,
@@ -484,5 +708,56 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 14,
     color: "#4B5563",
+  },
+
+  modalCurrentRow: {
+    marginBottom: 6,
+  },
+  modalCurrentColorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalCurrentColor: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  modalCurrentLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+
+  // hex input row
+  hexRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  hexLabel: {
+    fontSize: 12,
+    color: "#4B5563",
+  },
+  hexInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 13,
+  },
+  hexButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#4F46E5",
+  },
+  hexButtonText: {
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

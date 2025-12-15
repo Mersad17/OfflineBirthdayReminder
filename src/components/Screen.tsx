@@ -22,21 +22,32 @@ export function Screen({ children, scroll = false, style }: Props) {
 
   const Container = scroll ? ScrollView : View;
 
-  // 👇 ICI : on force le type
-  const Background: React.ElementType = hasBgImage ? ImageBackground : View;
+  const backgroundStyle = [
+    styles.background,
+    !hasBgImage && { backgroundColor: settings.backgroundColor },
+  ];
 
-  const backgroundProps = hasBgImage
-    ? {
-        source: { uri: settings.backgroundImageUri! },
-        resizeMode,
-      }
-    : { style: { backgroundColor: settings.backgroundColor } };
+  if (hasBgImage) {
+    return (
+      <ImageBackground
+        source={{ uri: settings.backgroundImageUri! }}
+        resizeMode={resizeMode}
+        style={backgroundStyle}
+      >
+        <Container
+          {...(scroll
+            ? { contentContainerStyle: [styles.contentScroll, style] }
+            : { style: [styles.content, style] })}
+        >
+          {children}
+        </Container>
+      </ImageBackground>
+    );
+  }
 
+  // no image → plain background color
   return (
-    <Background
-      {...backgroundProps}
-      style={[styles.background, backgroundProps.style]}
-    >
+    <View style={backgroundStyle}>
       <Container
         {...(scroll
           ? { contentContainerStyle: [styles.contentScroll, style] }
@@ -44,7 +55,7 @@ export function Screen({ children, scroll = false, style }: Props) {
       >
         {children}
       </Container>
-    </Background>
+    </View>
   );
 }
 

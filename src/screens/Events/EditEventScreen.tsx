@@ -21,6 +21,7 @@ import { EventsStackParamList } from "../../navigation/EventsStack";
 import { fetchEventById, updateEvent } from "../../events/api";
 import { EventDTO } from "../../events/types";
 import { Screen } from "../../components/Screen";
+import { useAppearance } from "../../appearance/AppearanceContext";
 
 // 👇 Keep this in sync with your Django EventTypes IntEnum
 type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
@@ -38,6 +39,7 @@ type Props = NativeStackScreenProps<EventsStackParamList, "EditEvent">;
 
 export default function EditEventScreen({ route, navigation }: Props) {
   const { eventId, eventTitle, contactId: routeContactId } = route.params;
+  const { settings } = useAppearance();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -191,8 +193,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
         time: timeString ? `${timeString}:00` : undefined,
         is_recurring: isRecurring,
         is_active: isActive,
-        // ⚠️ usually you DON'T change contact on edit,
-        // so we don't send it (backend keeps existing contact)
+        // contact left unchanged
       });
 
       Alert.alert("Saved", "Event updated.");
@@ -216,8 +217,10 @@ export default function EditEventScreen({ route, navigation }: Props) {
     return (
       <Screen scroll>
         <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={{ marginTop: 8 }}>Loading event…</Text>
+          <ActivityIndicator color={settings.primaryColor} />
+          <Text style={{ marginTop: 8, color: settings.textColor }}>
+            Loading event…
+          </Text>
         </View>
       </Screen>
     );
@@ -227,7 +230,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
     return (
       <Screen scroll>
         <View style={styles.center}>
-          <Text>Event not found.</Text>
+          <Text style={{ color: settings.textColor }}>Event not found.</Text>
         </View>
       </Screen>
     );
@@ -247,41 +250,106 @@ export default function EditEventScreen({ route, navigation }: Props) {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
           >
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: settings.cardColor,
+                  borderColor: settings.cardColor + "40",
+                },
+              ]}
+            >
               {/* Contact info */}
-              <Text style={styles.sectionTitle}>Contact</Text>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                Contact
+              </Text>
               <TouchableOpacity
                 activeOpacity={0.8}
-                style={styles.contactPill}
+                style={[
+                  styles.contactPill,
+                  { backgroundColor: settings.backgroundColor },
+                ]}
                 disabled
               >
-                <Text style={styles.contactPillLabel}>For</Text>
-                <Text style={styles.contactPillName} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.contactPillLabel,
+                    { color: settings.textColor + "AA" },
+                  ]}
+                >
+                  For
+                </Text>
+                <Text
+                  style={[
+                    styles.contactPillName,
+                    { color: settings.titleColor },
+                  ]}
+                  numberOfLines={1}
+                >
                   {contactName}
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.divider} />
+              <View
+                style={[
+                  styles.divider,
+                  { backgroundColor: settings.cardColor + "40" },
+                ]}
+              />
 
               {/* Basic info */}
-              <Text style={styles.sectionTitle}>Basic info</Text>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                Basic info
+              </Text>
 
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Event title</Text>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Event title
+                  </Text>
                 </View>
                 <TextInput
                   value={title}
                   onChangeText={setTitle}
                   placeholder="Birthday party, First date, Coffee, etc."
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: settings.cardColor,
+                      borderColor: settings.cardColor + "60",
+                      color: settings.textColor,
+                    },
+                  ]}
+                  placeholderTextColor={settings.textColor + "66"}
                   autoCapitalize="sentences"
                   returnKeyType="done"
                 />
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Type</Text>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  Type
+                </Text>
                 <View style={styles.typeRow}>
                   {EVENT_TYPE_OPTIONS.map((t) => {
                     const active = type === t.value;
@@ -290,14 +358,22 @@ export default function EditEventScreen({ route, navigation }: Props) {
                         key={t.value}
                         style={[
                           styles.typeChip,
-                          active && styles.typeChipActive,
+                          {
+                            backgroundColor: active
+                              ? settings.buttonColor
+                              : settings.backgroundColor,
+                          },
                         ]}
                         onPress={() => setType(t.value)}
                       >
                         <Text
                           style={[
                             styles.typeChipText,
-                            active && styles.typeChipTextActive,
+                            {
+                              color: active
+                                ? settings.buttonTextColor
+                                : settings.textColor,
+                            },
                           ]}
                         >
                           {t.label}
@@ -308,29 +384,69 @@ export default function EditEventScreen({ route, navigation }: Props) {
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View
+                style={[
+                  styles.divider,
+                  { backgroundColor: settings.cardColor + "40" },
+                ]}
+              />
 
               {/* Date and time */}
-              <Text style={styles.sectionTitle}>When</Text>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                When
+              </Text>
 
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Date</Text>
-                  <Text style={styles.labelHint}>Required</Text>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Date
+                  </Text>
+                  <Text
+                    style={[
+                      styles.labelHint,
+                      { color: settings.textColor + "99" },
+                    ]}
+                  >
+                    Required
+                  </Text>
                 </View>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={openDatePicker}
-                  style={[styles.input, styles.dateInput]}
+                  style={[
+                    styles.input,
+                    styles.dateInput,
+                    {
+                      backgroundColor: settings.cardColor,
+                      borderColor: settings.cardColor + "60",
+                    },
+                  ]}
                 >
                   <Text
                     style={
-                      dateString ? styles.dateText : styles.datePlaceholder
+                      dateString
+                        ? [styles.dateText, { color: settings.textColor }]
+                        : [
+                            styles.datePlaceholder,
+                            { color: settings.textColor + "66" },
+                          ]
                     }
                   >
                     {dateString || "Pick a date"}
                   </Text>
-                  <Text style={styles.dateIcon}>📅</Text>
+                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
+                    📅
+                  </Text>
                 </TouchableOpacity>
 
                 {showDatePicker && (
@@ -345,22 +461,50 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Time</Text>
-                  <Text style={styles.optionalTag}>Optional</Text>
+                  <Text
+                    style={[
+                      styles.label,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    Time
+                  </Text>
+                  <Text
+                    style={[
+                      styles.optionalTag,
+                      { color: settings.textColor + "99" },
+                    ]}
+                  >
+                    Optional
+                  </Text>
                 </View>
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={openTimePicker}
-                  style={[styles.input, styles.dateInput]}
+                  style={[
+                    styles.input,
+                    styles.dateInput,
+                    {
+                      backgroundColor: settings.cardColor,
+                      borderColor: settings.cardColor + "60",
+                    },
+                  ]}
                 >
                   <Text
                     style={
-                      timeString ? styles.dateText : styles.datePlaceholder
+                      timeString
+                        ? [styles.dateText, { color: settings.textColor }]
+                        : [
+                            styles.datePlaceholder,
+                            { color: settings.textColor + "66" },
+                          ]
                     }
                   >
                     {timeString || "No specific time"}
                   </Text>
-                  <Text style={styles.dateIcon}>⏰</Text>
+                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
+                    ⏰
+                  </Text>
                 </TouchableOpacity>
 
                 {showTimePicker && (
@@ -375,19 +519,35 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
               {/* Recurrence */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Repeat</Text>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  Repeat
+                </Text>
                 <View style={styles.repeatRow}>
                   <TouchableOpacity
                     style={[
                       styles.repeatChip,
-                      isRecurring && styles.repeatChipActive,
+                      {
+                        backgroundColor: isRecurring
+                          ? settings.buttonColor
+                          : settings.backgroundColor,
+                        marginRight: 6,
+                      },
                     ]}
                     onPress={() => setIsRecurring(true)}
                   >
                     <Text
                       style={[
                         styles.repeatChipText,
-                        isRecurring && styles.repeatChipTextActive,
+                        {
+                          color: isRecurring
+                            ? settings.buttonTextColor
+                            : settings.textColor,
+                        },
                       ]}
                     >
                       Every year
@@ -396,14 +556,23 @@ export default function EditEventScreen({ route, navigation }: Props) {
                   <TouchableOpacity
                     style={[
                       styles.repeatChip,
-                      !isRecurring && styles.repeatChipActive,
+                      {
+                        backgroundColor: !isRecurring
+                          ? settings.buttonColor
+                          : settings.backgroundColor,
+                        marginRight: 0,
+                      },
                     ]}
                     onPress={() => setIsRecurring(false)}
                   >
                     <Text
                       style={[
                         styles.repeatChipText,
-                        !isRecurring && styles.repeatChipTextActive,
+                        {
+                          color: !isRecurring
+                            ? settings.buttonTextColor
+                            : settings.textColor,
+                        },
                       ]}
                     >
                       One-time only
@@ -414,19 +583,35 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
               {/* Status */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Status</Text>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: settings.titleColor },
+                  ]}
+                >
+                  Status
+                </Text>
                 <View style={styles.repeatRow}>
                   <TouchableOpacity
                     style={[
                       styles.repeatChip,
-                      isActive && styles.repeatChipActive,
+                      {
+                        backgroundColor: isActive
+                          ? settings.buttonColor
+                          : settings.backgroundColor,
+                        marginRight: 6,
+                      },
                     ]}
                     onPress={() => setIsActive(true)}
                   >
                     <Text
                       style={[
                         styles.repeatChipText,
-                        isActive && styles.repeatChipTextActive,
+                        {
+                          color: isActive
+                            ? settings.buttonTextColor
+                            : settings.textColor,
+                        },
                       ]}
                     >
                       Active
@@ -435,14 +620,23 @@ export default function EditEventScreen({ route, navigation }: Props) {
                   <TouchableOpacity
                     style={[
                       styles.repeatChip,
-                      !isActive && styles.repeatChipActive,
+                      {
+                        backgroundColor: !isActive
+                          ? settings.buttonColor
+                          : settings.backgroundColor,
+                        marginRight: 0,
+                      },
                     ]}
                     onPress={() => setIsActive(false)}
                   >
                     <Text
                       style={[
                         styles.repeatChipText,
-                        !isActive && styles.repeatChipTextActive,
+                        {
+                          color: !isActive
+                            ? settings.buttonTextColor
+                            : settings.textColor,
+                        },
                       ]}
                     >
                       Paused
@@ -455,22 +649,40 @@ export default function EditEventScreen({ route, navigation }: Props) {
             {/* Actions */}
             <View style={styles.actionsRow}>
               <TouchableOpacity
-                style={styles.secondaryButton}
+                style={[
+                  styles.secondaryButton,
+                  { borderColor: settings.cardColor + "60" },
+                ]}
                 onPress={() => navigation.goBack()}
                 disabled={saving}
               >
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+                <Text
+                  style={[
+                    styles.secondaryButtonText,
+                    { color: settings.textColor },
+                  ]}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  saving && styles.primaryButtonDisabled,
+                  {
+                    backgroundColor: settings.buttonColor,
+                    opacity: saving ? 0.6 : 1,
+                  },
                 ]}
                 onPress={onSave}
                 disabled={saving}
               >
-                <Text style={styles.primaryButtonText}>
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: settings.buttonTextColor },
+                  ]}
+                >
                   {saving ? "Saving..." : "Save changes"}
                 </Text>
               </TouchableOpacity>
@@ -482,7 +694,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
   );
 }
 
-// ---------- styles (same style language as AddEvent) ----------
+// ---------- styles (structure only, colors overridden with settings) ----------
 
 const styles = StyleSheet.create({
   center: {
@@ -499,21 +711,17 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   card: {
-    backgroundColor: "#fafafa",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#eee",
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#333",
     marginBottom: 8,
   },
   divider: {
     height: 1,
-    backgroundColor: "#eee",
     marginVertical: 12,
   },
   fieldGroup: {
@@ -528,24 +736,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#333",
     marginBottom: 4,
   },
   labelHint: {
     fontSize: 11,
-    color: "#999",
   },
   optionalTag: {
     fontSize: 11,
-    color: "#777",
   },
   input: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#fff",
     fontSize: 14,
   },
   contactPill: {
@@ -554,17 +757,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: "#f1f1f1",
   },
   contactPillLabel: {
     fontSize: 12,
-    color: "#666",
     marginRight: 6,
   },
   contactPillName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
     flexShrink: 1,
   },
   typeRow: {
@@ -576,20 +776,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: "#eee",
     alignItems: "center",
     justifyContent: "center",
   },
-  typeChipActive: {
-    backgroundColor: "#007AFF",
-  },
   typeChipText: {
     fontSize: 13,
-    color: "#333",
     fontWeight: "500",
-  },
-  typeChipTextActive: {
-    color: "#fff",
   },
   dateInput: {
     flexDirection: "row",
@@ -598,11 +790,9 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 14,
-    color: "#333",
   },
   datePlaceholder: {
     fontSize: 14,
-    color: "#999",
   },
   dateIcon: {
     fontSize: 16,
@@ -614,22 +804,13 @@ const styles = StyleSheet.create({
   },
   repeatChip: {
     flex: 1,
-    marginRight: 6,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#eee",
     alignItems: "center",
-  },
-  repeatChipActive: {
-    backgroundColor: "#007AFF",
   },
   repeatChipText: {
     fontSize: 13,
-    color: "#333",
     fontWeight: "500",
-  },
-  repeatChipTextActive: {
-    color: "#fff",
   },
   actionsRow: {
     flexDirection: "row",
@@ -640,14 +821,12 @@ const styles = StyleSheet.create({
     marginRight: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#ddd",
     paddingVertical: 10,
     alignItems: "center",
   },
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#333",
   },
   primaryButton: {
     flex: 1,
@@ -655,7 +834,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 10,
     alignItems: "center",
-    backgroundColor: "#007AFF",
   },
   primaryButtonDisabled: {
     opacity: 0.6,
@@ -663,6 +841,5 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#fff",
   },
 });

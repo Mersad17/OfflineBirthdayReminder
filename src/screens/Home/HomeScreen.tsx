@@ -90,22 +90,18 @@ export default function HomeScreen({ navigation }: Props) {
     try {
       setLoading(true);
       const summary: HomeSummaryDTO = await fetchHomeSummary();
-  
-      // today
+
       const mappedToday = summary.today.map(mapDtoToHomeItem);
-  
-      // upcoming brut
+
       const mappedUpcomingRaw = summary.upcoming.map(mapDtoToHomeItem);
-  
-      // on enlève aujourd’hui ici
+
       const mappedUpcoming = mappedUpcomingRaw
         .filter((item) => !item.isToday && item.daysUntil > 0)
         .sort((a, b) => a.daysUntil - b.daysUntil);
-  
+
       setTodayItems(mappedToday);
       setUpcoming(mappedUpcoming);
-  
-      // 🔥 insights basés uniquement sur mappedUpcoming
+
       const typeCountMap: Record<EventTypeValue, number> = {
         1: 0,
         2: 0,
@@ -114,11 +110,11 @@ export default function HomeScreen({ navigation }: Props) {
         5: 0,
         6: 0,
       };
-  
+
       mappedUpcoming.forEach((item) => {
         typeCountMap[item.type] = (typeCountMap[item.type] ?? 0) + 1;
       });
-  
+
       const insights: TypeInsight[] = (Object.entries(typeCountMap) as [
         string,
         number
@@ -128,9 +124,9 @@ export default function HomeScreen({ navigation }: Props) {
           type: Number(type) as EventTypeValue,
           count,
         }));
-  
+
       setTypeInsights(insights);
-  
+
       setUpcomingWeekCount(summary.meta.upcoming_week_count ?? 0);
       setTotalContacts(summary.meta.total_contacts ?? 0);
     } catch (e) {
@@ -139,7 +135,6 @@ export default function HomeScreen({ navigation }: Props) {
       setLoading(false);
     }
   }, []);
-  
 
   // initial
   useEffect(() => {
@@ -170,12 +165,12 @@ export default function HomeScreen({ navigation }: Props) {
   // ---- RENDER ROW ----
   function renderItemRow(item: HomeItem) {
     const meta = EVENT_TYPE_META[item.type];
-    const accentColor = item.isToday ? "#F97316" : "#4F46E5";
+    const accentColor = item.isToday ? "#F97316" : settings.primaryColor;
 
     return (
       <TouchableOpacity
         key={item.id}
-        style={styles.eventCard}
+        style={[styles.eventCard, { backgroundColor: settings.cardColor }]}
         onPress={() =>
           navigation.navigate("ContactDetail", {
             contactId: item.contactId,
@@ -188,7 +183,7 @@ export default function HomeScreen({ navigation }: Props) {
           <View
             style={[
               styles.timelineDot,
-              { borderColor: accentColor, backgroundColor: "#FFFFFF" },
+              { borderColor: accentColor, backgroundColor: settings.cardColor },
             ]}
           >
             <View
@@ -212,8 +207,18 @@ export default function HomeScreen({ navigation }: Props) {
                 >
                   {item.name}
                 </Text>
-                <View style={styles.typeChip}>
-                  <Text style={styles.typeChipText}>
+                <View
+                  style={[
+                    styles.typeChip,
+                    { backgroundColor: settings.primaryColor + "1A" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.typeChipText,
+                      { color: settings.primaryColor },
+                    ]}
+                  >
                     {meta.icon} {meta.label}
                   </Text>
                 </View>
@@ -231,8 +236,18 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text style={styles.datePillText}>{item.dateLabel}</Text>
               </View>
               {!item.isToday && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
+                <View
+                  style={[
+                    styles.badge,
+                    { backgroundColor: settings.primaryColor + "1A" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      { color: settings.primaryColor },
+                    ]}
+                  >
                     {formatShortCountdownFr(item.daysUntil)}
                   </Text>
                 </View>
@@ -278,8 +293,17 @@ export default function HomeScreen({ navigation }: Props) {
           {/* TOP BAR */}
           <View style={styles.appBar}>
             <View style={styles.appTitleRow}>
-              <View style={styles.appIconCircle}>
-                <Ionicons name="sparkles-outline" size={18} color="#4F46E5" />
+              <View
+                style={[
+                  styles.appIconCircle,
+                  { backgroundColor: settings.primaryColor + "20" },
+                ]}
+              >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={18}
+                  color={settings.primaryColor}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text
@@ -298,8 +322,18 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.appActions}>
-              <View style={styles.userChip}>
-                <Text style={styles.userChipText}>
+              <View
+                style={[
+                  styles.userChip,
+                  { backgroundColor: settings.primaryColor + "20" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.userChipText,
+                    { color: settings.primaryColor },
+                  ]}
+                >
                   {user?.first_name
                     ? user.first_name[0]?.toUpperCase()
                     : "?"}
@@ -309,15 +343,25 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
 
           {/* HERO */}
-          <View style={styles.heroCard}>
+          <View
+            style={[
+              styles.heroCard,
+              { backgroundColor: settings.primaryColor },
+            ]}
+          >
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.heroGreeting, { color: settings.titleColor }]}>
+              <Text
+                style={[styles.heroGreeting, { color: settings.buttonTextColor }]}
+              >
                 {user?.first_name
                   ? `Salut, ${user.first_name} 👋`
                   : "Salut 👋"}
               </Text>
               <Text
-                style={[styles.heroSubtitle, { color: settings.textColor }]}
+                style={[
+                  styles.heroSubtitle,
+                  { color: settings.buttonTextColor },
+                ]}
                 numberOfLines={2}
               >
                 {hasEvents
@@ -336,19 +380,33 @@ export default function HomeScreen({ navigation }: Props) {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  { backgroundColor: settings.buttonColor ?? "#4F46E5" },
+                  { backgroundColor: settings.buttonColor ?? settings.primaryColor },
                 ]}
                 onPress={() => navigation.navigate("AddContact")}
               >
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>
+                <Ionicons name="add" size={18} color={settings.buttonTextColor} />
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: settings.buttonTextColor },
+                  ]}
+                >
                   Nouveau contact
                 </Text>
               </TouchableOpacity>
 
               <View style={styles.secondaryHeroRow}>
-                <Ionicons name="information-circle-outline" size={14} color="#E5E7EB" />
-                <Text style={styles.secondaryHeroText}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={14}
+                  color={settings.buttonTextColor}
+                />
+                <Text
+                  style={[
+                    styles.secondaryHeroText,
+                    { color: settings.buttonTextColor },
+                  ]}
+                >
                   On te rappelle à l’avance, jamais en retard.
                 </Text>
               </View>
@@ -357,22 +415,52 @@ export default function HomeScreen({ navigation }: Props) {
 
           {/* STATS */}
           <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <View style={styles.statIconBubble}>
-                <Ionicons name="people-outline" size={16} color="#2563EB" />
+            <View
+              style={[styles.statCard, { backgroundColor: settings.cardColor }]}
+            >
+              <View
+                style={[
+                  styles.statIconBubble,
+                  { backgroundColor: settings.primaryColor + "20" },
+                ]}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={16}
+                  color={settings.primaryColor}
+                />
               </View>
-              <Text style={styles.statLabel}>Contacts</Text>
-              <Text style={styles.statValue}>{totalContacts}</Text>
-              <Text style={styles.statHint}>personnes suivies</Text>
+              <Text style={[styles.statLabel, { color: settings.textColor }]}>
+                Contacts
+              </Text>
+              <Text style={[styles.statValue, { color: settings.titleColor }]}>
+                {totalContacts}
+              </Text>
+              <Text style={[styles.statHint, { color: settings.textColor }]}>
+                personnes suivies
+              </Text>
             </View>
 
-            <View style={styles.statCard}>
-              <View style={[styles.statIconBubble, { backgroundColor: "#FEF3C7" }]}>
+            <View
+              style={[styles.statCard, { backgroundColor: settings.cardColor }]}
+            >
+              <View
+                style={[
+                  styles.statIconBubble,
+                  { backgroundColor: "#FEF3C7" },
+                ]}
+              >
                 <Ionicons name="calendar-outline" size={16} color="#D97706" />
               </View>
-              <Text style={styles.statLabel}>Cette semaine</Text>
-              <Text style={styles.statValue}>{upcomingWeekCount}</Text>
-              <Text style={styles.statHint}>moments à venir</Text>
+              <Text style={[styles.statLabel, { color: settings.textColor }]}>
+                Cette semaine
+              </Text>
+              <Text style={[styles.statValue, { color: settings.titleColor }]}>
+                {upcomingWeekCount}
+              </Text>
+              <Text style={[styles.statHint, { color: settings.textColor }]}>
+                moments à venir
+              </Text>
             </View>
           </View>
 
@@ -382,11 +470,29 @@ export default function HomeScreen({ navigation }: Props) {
               {typeInsights.map(({ type, count }) => {
                 const meta = EVENT_TYPE_META[type];
                 return (
-                  <View key={type} style={styles.insightChip}>
+                  <View
+                    key={type}
+                    style={[
+                      styles.insightChip,
+                      { backgroundColor: settings.cardColor },
+                    ]}
+                  >
                     <Text style={styles.insightIcon}>{meta.icon}</Text>
                     <View>
-                      <Text style={styles.insightCount}>{count}</Text>
-                      <Text style={styles.insightLabel}>
+                      <Text
+                        style={[
+                          styles.insightCount,
+                          { color: settings.titleColor },
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.insightLabel,
+                          { color: settings.textColor },
+                        ]}
+                      >
                         {meta.label.toLowerCase()}
                       </Text>
                     </View>
@@ -439,7 +545,12 @@ export default function HomeScreen({ navigation }: Props) {
                 )}
               </>
             ) : (
-              <View style={styles.todayEmptyCard}>
+              <View
+                style={[
+                  styles.todayEmptyCard,
+                  { backgroundColor: settings.cardColor },
+                ]}
+              >
                 <View style={styles.todayEmptyIconBubble}>
                   <Ionicons
                     name="sparkles-outline"
@@ -477,7 +588,12 @@ export default function HomeScreen({ navigation }: Props) {
             {loading ? (
               <Text style={{ color: settings.textColor }}>Chargement…</Text>
             ) : !hasEvents ? (
-              <View style={styles.emptyState}>
+              <View
+                style={[
+                  styles.emptyState,
+                  { backgroundColor: settings.cardColor },
+                ]}
+              >
                 <Text
                   style={[styles.emptyTitle, { color: settings.titleColor }]}
                 >
@@ -552,7 +668,12 @@ export default function HomeScreen({ navigation }: Props) {
             >
               Récemment célébré
             </Text>
-            <View style={styles.recentCard}>
+            <View
+              style={[
+                styles.recentCard,
+                { backgroundColor: settings.cardColor },
+              ]}
+            >
               <Ionicons
                 name="chatbubble-ellipses-outline"
                 size={18}
@@ -576,7 +697,12 @@ export default function HomeScreen({ navigation }: Props) {
 
           {/* Plan + notifications */}
           <View style={styles.bottomRow}>
-            <View style={styles.planCard}>
+            <View
+              style={[
+                styles.planCard,
+                { backgroundColor: settings.cardColor },
+              ]}
+            >
               <Text
                 style={[styles.planTitle, { color: settings.titleColor }]}
               >
@@ -590,11 +716,16 @@ export default function HomeScreen({ navigation }: Props) {
               </Text>
             </View>
 
-            <View style={styles.noticeCard}>
+            <View
+              style={[
+                styles.noticeCard,
+                { backgroundColor: settings.cardColor },
+              ]}
+            >
               <Ionicons
                 name="notifications-outline"
                 size={18}
-                color="#1D4ED8"
+                color={settings.primaryColor}
               />
               <View style={{ marginLeft: 8, flex: 1 }}>
                 <Text
@@ -620,11 +751,11 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[
             styles.fab,
-            { backgroundColor: settings.buttonColor ?? "#2563EB" },
+            { backgroundColor: settings.buttonColor ?? settings.primaryColor },
           ]}
           onPress={() => navigation.navigate("AddContact")}
         >
-          <Ionicons name="add" size={26} color="#FFFFFF" />
+          <Ionicons name="add" size={26} color={settings.buttonTextColor} />
         </TouchableOpacity>
       </View>
     </Screen>
@@ -647,9 +778,7 @@ function buildRelativeLabelFr(daysUntil: number) {
   if (daysUntil < 7) return `Dans ${daysUntil} jours`;
   if (daysUntil < 30) {
     const weeks = Math.ceil(daysUntil / 7);
-    return weeks === 1
-      ? "Dans 1 semaine"
-      : `Dans ${weeks} semaines`;
+    return weeks === 1 ? "Dans 1 semaine" : `Dans ${weeks} semaines`;
   }
   return `Dans ${daysUntil} jours`;
 }
@@ -667,7 +796,7 @@ function buildUpcomingSections(items: HomeItem[]): UpcomingSection[] {
   const month: HomeItem[] = [];
 
   for (const item of items) {
-    if (item.daysUntil === 0) continue; // sécurité en plus, mais normalement filtré avant
+    if (item.daysUntil === 0) continue;
     if (item.daysUntil <= 7) {
       week.push(item);
     } else {
@@ -703,18 +832,29 @@ type FilterChipProps = {
 };
 
 function FilterChip({ label, selected, onPress }: FilterChipProps) {
+  const { settings } = useAppearance();
   return (
     <TouchableOpacity
       onPress={onPress}
       style={[
         styles.filterChip,
-        selected && styles.filterChipSelected,
+        selected && [
+          styles.filterChipSelected,
+          {
+            borderColor: settings.primaryColor,
+            shadowColor: settings.primaryColor,
+            backgroundColor: settings.primaryColor + "15",
+          },
+        ],
       ]}
     >
       <Text
         style={[
           styles.filterChipText,
-          selected && styles.filterChipTextSelected,
+          selected && [
+            styles.filterChipTextSelected,
+            { color: settings.primaryColor },
+          ],
         ]}
       >
         {label}
@@ -753,7 +893,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#E0E7FF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -774,14 +913,12 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#DBEAFE",
     alignItems: "center",
     justifyContent: "center",
   },
   userChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1D4ED8",
   },
 
   // Hero
@@ -790,17 +927,14 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     borderRadius: 20,
     padding: 14,
-    backgroundColor: "#1D4ED8",
     marginBottom: 12,
   },
   heroGreeting: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#FFFFFF",
   },
   heroSubtitle: {
     fontSize: 13,
-    color: "#E5E7EB",
   },
   heroCTAColumn: {
     marginLeft: 12,
@@ -817,7 +951,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -828,7 +961,6 @@ const styles = StyleSheet.create({
   },
   secondaryHeroText: {
     fontSize: 11,
-    color: "#E5E7EB",
     marginLeft: 4,
   },
 
@@ -841,7 +973,6 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
     padding: 10,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -853,7 +984,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#DBEAFE",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -862,7 +992,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.6,
-    color: "#6B7280",
   },
   statValue: {
     fontSize: 18,
@@ -871,7 +1000,6 @@ const styles = StyleSheet.create({
   },
   statHint: {
     fontSize: 11,
-    color: "#6B7280",
     marginTop: 2,
   },
 
@@ -888,7 +1016,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -906,7 +1033,6 @@ const styles = StyleSheet.create({
   insightLabel: {
     fontSize: 11,
     textTransform: "lowercase",
-    color: "#6B7280",
   },
 
   // Sections
@@ -954,7 +1080,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 16,
     padding: 12,
-    backgroundColor: "#FFFFFF",
   },
   todayEmptyIconBubble: {
     width: 32,
@@ -970,7 +1095,6 @@ const styles = StyleSheet.create({
   eventCard: {
     flexDirection: "row",
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
     marginBottom: 8,
     paddingVertical: 8,
     shadowColor: "#000",
@@ -1081,22 +1205,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#EEF2FF",
   },
   badgeText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#4F46E5",
   },
   typeChip: {
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    backgroundColor: "#EEF2FF",
   },
   typeChipText: {
     fontSize: 11,
-    color: "#4F46E5",
     fontWeight: "500",
   },
 
@@ -1116,9 +1236,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   filterChipSelected: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#4F46E5",
-    shadowColor: "#4F46E5",
     shadowOpacity: 0.12,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -1129,7 +1246,6 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   filterChipTextSelected: {
-    color: "#4F46E5",
     fontWeight: "600",
   },
 
@@ -1151,7 +1267,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
     gap: 6,
   },
   emptyStateInline: {
@@ -1175,7 +1290,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     padding: 10,
-    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -1203,7 +1317,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     padding: 10,
-    backgroundColor: "#FFFFFF",
   },
   planTitle: {
     fontSize: 14,
@@ -1221,7 +1334,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DBEAFE",
     padding: 10,
-    backgroundColor: "#EFF6FF",
     alignItems: "center",
   },
   noticeTitle: {

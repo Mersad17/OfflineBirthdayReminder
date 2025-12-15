@@ -1,5 +1,6 @@
+// src/screens/events/EventDetailsScreen.tsx (or EventDetails.tsx)
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { createContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { EventsStackParamList } from "../../navigation/EventsStack";
 
 import {
@@ -27,6 +28,7 @@ import { EVENT_TYPE_META, EventDTO, EventTypeValue } from "../../events/types";
 import { useIsFocused } from "@react-navigation/native";
 import { formatDateTime } from "../../reminders/utils";
 import { Screen } from "../../components/Screen";
+import { useAppearance } from "../../appearance/AppearanceContext";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -44,8 +46,13 @@ function ReminderModal({
     absolute_datetime: string | null;
     time_of_day?: string | null;
   }) => void;
-  initial?: { days_before: number | null; absolute_datetime: string | null, time_of_day?: string | null; };
+  initial?: {
+    days_before: number | null;
+    absolute_datetime: string | null;
+    time_of_day?: string | null;
+  };
 }) {
+  const { settings } = useAppearance();
   const fade = React.useRef(new Animated.Value(0)).current;
 
   const [daysBefore, setDaysBefore] = useState<number | null>(
@@ -56,12 +63,22 @@ function ReminderModal({
       ? new Date(initial.absolute_datetime)
       : new Date()
   );
-  const [relativeTime, setRelativeTime] = useState<Date>(new Date());
+  const [relativeTime, setRelativeTime] = useState<Date>(
+    initial?.time_of_day
+      ? (() => {
+          const now = new Date();
+          const [h, m] = initial.time_of_day.split(":").map(Number);
+          now.setHours(h || 9);
+          now.setMinutes(m || 0);
+          return now;
+        })()
+      : new Date()
+  );
   const [showRelativeTimePicker, setShowRelativeTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // "relative" = days_before, "absolute" = exact datetime
+  // "relative" = days_before + time_of_day, "absolute" = exact datetime
   const [mode, setMode] = useState<"relative" | "absolute">("relative");
 
   useEffect(() => {
@@ -77,6 +94,14 @@ function ReminderModal({
           : new Date()
       );
 
+      if (initial?.time_of_day) {
+        const now = new Date();
+        const [h, m] = initial.time_of_day.split(":").map(Number);
+        now.setHours(h || 9);
+        now.setMinutes(m || 0);
+        setRelativeTime(now);
+      }
+
       Animated.timing(fade, {
         toValue: 1,
         duration: 150,
@@ -85,7 +110,7 @@ function ReminderModal({
     } else {
       fade.setValue(0);
     }
-  }, [visible, initial]);
+  }, [visible, initial, fade]);
 
   if (!visible) return null;
 
@@ -121,40 +146,65 @@ function ReminderModal({
         Alert.alert("Validation", "Please enter how many days before.");
         return;
       }
-      // Convert relativeTime into "HH:MM" string for backend
       const hours = relativeTime.getHours().toString().padStart(2, "0");
       const minutes = relativeTime.getMinutes().toString().padStart(2, "0");
       const timeStr = `${hours}:${minutes}`;
-      onSave({ days_before: daysBefore, absolute_datetime: null ,time_of_day: timeStr,});
+      onSave({
+        days_before: daysBefore,
+        absolute_datetime: null,
+        time_of_day: timeStr,
+      });
     } else {
-      // absolute mode
       if (!tempDate) {
         Alert.alert("Validation", "Please choose a date and time.");
         return;
       }
-      onSave({ days_before: null, absolute_datetime: tempDate.toISOString(),time_of_day: null, });
+      onSave({
+        days_before: null,
+        absolute_datetime: tempDate.toISOString(),
+        time_of_day: null,
+      });
     }
   }
 
   return (
     <Animated.View style={[modalStyles.overlay, { opacity: fade }]}>
-      <View style={modalStyles.container}>
-        <Text style={modalStyles.title}>
+      <View
+        style={[
+          modalStyles.container,
+          { backgroundColor: settings.cardColor },
+        ]}
+      >
+        <Text
+          style={[
+            modalStyles.title,
+            { color: settings.primaryColor },
+          ]}
+        >
           {initial ? "Edit Reminder" : "Add Reminder"}
         </Text>
 
         {/* MODE TOGGLE */}
-        <View style={modalStyles.toggleRow}>
+        <View
+          style={[
+            modalStyles.toggleRow,
+            { backgroundColor: settings.backgroundColor },
+          ]}
+        >
           <TouchableOpacity
             style={[
               modalStyles.toggleButton,
-              mode === "relative" && modalStyles.toggleButtonActive,
+              mode === "relative" && {
+                ...modalStyles.toggleButtonActive,
+                backgroundColor: settings.primaryColor,
+              },
             ]}
             onPress={() => setMode("relative")}
           >
             <Text
               style={[
                 modalStyles.toggleText,
+                { color: settings.textColor },
                 mode === "relative" && modalStyles.toggleTextActive,
               ]}
             >
@@ -165,13 +215,17 @@ function ReminderModal({
           <TouchableOpacity
             style={[
               modalStyles.toggleButton,
-              mode === "absolute" && modalStyles.toggleButtonActive,
+              mode === "absolute" && {
+                ...modalStyles.toggleButtonActive,
+                backgroundColor: settings.primaryColor,
+              },
             ]}
             onPress={() => setMode("absolute")}
           >
             <Text
               style={[
                 modalStyles.toggleText,
+                { color: settings.textColor },
                 mode === "absolute" && modalStyles.toggleTextActive,
               ]}
             >
@@ -183,48 +237,100 @@ function ReminderModal({
         {/* RELATIVE MODE */}
         {mode === "relative" && (
           <>
-            <Text style={modalStyles.label}>Days Before</Text>
+            <Text
+              style={[
+                modalStyles.label,
+                { color: settings.titleColor },
+              ]}
+            >
+              Days Before
+            </Text>
             <TextInput
-              style={modalStyles.input}
+              style={[
+                modalStyles.input,
+                {
+                  backgroundColor: settings.cardColor,
+                  borderColor: settings.cardColor + "60",
+                  color: settings.textColor,
+                },
+              ]}
               keyboardType="numeric"
               value={daysBefore !== null ? String(daysBefore) : ""}
               onChangeText={(v) => setDaysBefore(v ? Number(v) : null)}
               placeholder="E.g. 3"
+              placeholderTextColor={settings.textColor + "66"}
             />
-             <Text style={modalStyles.label}>Time of day</Text>
-    <TouchableOpacity
-      style={modalStyles.dateButton}
-      onPress={() => setShowRelativeTimePicker(true)}
-    >
-      <Text style={modalStyles.dateButtonText}>
-        {relativeTime.toLocaleTimeString()}
-      </Text>
-    </TouchableOpacity>
-    {showRelativeTimePicker && (
-      <DateTimePicker
-        value={relativeTime}
-        mode="time"
-        display="default"
-        onChange={(e, selected) => {
-          setShowRelativeTimePicker(false);
-          if (selected) {
-            setRelativeTime(selected);
-          }
-        }}
-      />
-    )}
+
+            <Text
+              style={[
+                modalStyles.label,
+                { color: settings.titleColor },
+              ]}
+            >
+              Time of day
+            </Text>
+            <TouchableOpacity
+              style={[
+                modalStyles.dateButton,
+                {
+                  backgroundColor: settings.primaryColor + "15",
+                  borderColor: settings.primaryColor + "60",
+                },
+              ]}
+              onPress={() => setShowRelativeTimePicker(true)}
+            >
+              <Text
+                style={[
+                  modalStyles.dateButtonText,
+                  { color: settings.primaryColor },
+                ]}
+              >
+                {relativeTime.toLocaleTimeString()}
+              </Text>
+            </TouchableOpacity>
+            {showRelativeTimePicker && (
+              <DateTimePicker
+                value={relativeTime}
+                mode="time"
+                display="default"
+                onChange={(e, selected) => {
+                  setShowRelativeTimePicker(false);
+                  if (selected) {
+                    setRelativeTime(selected);
+                  }
+                }}
+              />
+            )}
           </>
         )}
 
         {/* ABSOLUTE MODE */}
         {mode === "absolute" && (
           <>
-            <Text style={modalStyles.label}>Exact Date & Time</Text>
+            <Text
+              style={[
+                modalStyles.label,
+                { color: settings.titleColor },
+              ]}
+            >
+              Exact Date & Time
+            </Text>
             <TouchableOpacity
-              style={modalStyles.dateButton}
+              style={[
+                modalStyles.dateButton,
+                {
+                  backgroundColor: settings.primaryColor + "15",
+                  borderColor: settings.primaryColor + "60",
+                },
+              ]}
               onPress={openDatePicker}
             >
-              <Text style={modalStyles.dateButtonText}>
+              <Text
+                style={[
+                  modalStyles.dateButtonText,
+                  { color: settings.primaryColor },
+                ]}
+              >
                 {tempDate.toLocaleString()}
               </Text>
             </TouchableOpacity>
@@ -252,11 +358,31 @@ function ReminderModal({
         {/* ACTIONS */}
         <View style={modalStyles.row}>
           <TouchableOpacity onPress={onClose} style={modalStyles.cancelBtn}>
-            <Text style={modalStyles.cancelText}>Cancel</Text>
+            <Text
+              style={[
+                modalStyles.cancelText,
+                { color: settings.textColor },
+              ]}
+            >
+              Cancel
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={modalStyles.saveBtn} onPress={handleSave}>
-            <Text style={modalStyles.saveText}>Save</Text>
+          <TouchableOpacity
+            style={[
+              modalStyles.saveBtn,
+              { backgroundColor: settings.buttonColor },
+            ]}
+            onPress={handleSave}
+          >
+            <Text
+              style={[
+                modalStyles.saveText,
+                { color: settings.buttonTextColor },
+              ]}
+            >
+              Save
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -271,7 +397,8 @@ function ReminderModal({
 type Props = NativeStackScreenProps<EventsStackParamList, "EventDetails">;
 
 export default function EventDetails({ route, navigation }: Props) {
-const { eventId, eventTitle, from, contactId } = route.params;
+  const { eventId, eventTitle, from, contactId } = route.params;
+  const { settings } = useAppearance();
 
   const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState<EventDTO | null>(null);
@@ -283,28 +410,30 @@ const { eventId, eventTitle, from, contactId } = route.params;
   // Load event
   async function load() {
     setLoading(true);
-      try {
-        setLoading(true);
-        const e = await fetchEventById(eventId);
-        setEvent(e);
-      } catch {
-        Alert.alert("Error", "Failed to load event.");
-      } finally {
-        setLoading(false);
-      }
+    try {
+      const e = await fetchEventById(eventId);
+      setEvent(e);
+    } catch {
+      Alert.alert("Error", "Failed to load event.");
+    } finally {
+      setLoading(false);
     }
-    useEffect(() => {
+  }
+
+  useEffect(() => {
     load();
-    }, [eventId]);
-    useEffect(() => {
+  }, [eventId]);
+
+  useEffect(() => {
     if (isFocused) {
-        load();
+      load();
     }
-    }, [isFocused]);
+  }, [isFocused]);
+
   // Set header
   useEffect(() => {
     if (!event) return;
-  
+
     navigation.setOptions({
       title: eventTitle || "Event",
       headerRight: () => (
@@ -312,41 +441,52 @@ const { eventId, eventTitle, from, contactId } = route.params;
           onPress={() =>
             navigation.navigate("EditEvent", {
               eventId,
-              eventTitle: event.title || eventTitle, 
-              from,                                  
-              contactId,                             
+              eventTitle: event.title || eventTitle,
+              from,
+              contactId,
             })
           }
         >
-          <Text style={{ color: "#1D4ED8", fontWeight: "700" }}>Edit</Text>
+          <Text
+            style={{
+              color: settings.primaryColor,
+              fontWeight: "700",
+            }}
+          >
+            Edit
+          </Text>
         </TouchableOpacity>
       ),
     });
-  }, [event, eventTitle, navigation, eventId, from, contactId]);
-  
-  
+  }, [event, eventTitle, navigation, eventId, from, contactId, settings.primaryColor]);
+
   if (loading || !event) {
     return (
-      <View style={styles.center}>
-        {loading ? (
-          <>
-            <ActivityIndicator />
-            <Text style={{ marginTop: 8 }}>Loading...</Text>
-          </>
-        ) : (
-          <Text>Event not found.</Text>
-        )}
-      </View>
+      <Screen>
+        <View style={styles.center}>
+          {loading ? (
+            <>
+              <ActivityIndicator color={settings.primaryColor} />
+              <Text style={{ marginTop: 8, color: settings.textColor }}>
+                Loading...
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: settings.textColor }}>
+              Event not found.
+            </Text>
+          )}
+        </View>
+      </Screen>
     );
   }
 
   // DELETE EVENT
-  
-function confirmDelete() {
-    if (!event) return; // TS: event is now narrowed to EventDTO
-  
-    const eventIdToDelete = event.id; // capture safely for the async callback
-  
+  function confirmDelete() {
+    if (!event) return;
+
+    const eventIdToDelete = event.id;
+
     Alert.alert("Delete Event", "Are you sure you want to delete this event?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -356,10 +496,8 @@ function confirmDelete() {
           try {
             await deleteEvent(eventIdToDelete);
             if (from === "events") {
-              // Came from Events list → go back to list
               navigation.navigate("EventsList");
             } else if (from === "contact") {
-              // Came from a Contact detail screen → just go back
               navigation.goBack();
             } else {
               navigation.goBack();
@@ -394,14 +532,13 @@ function confirmDelete() {
 
   function iconForType(t: number) {
     const meta = EVENT_TYPE_META[t as EventTypeValue];
-    return meta?.icon ?? "🎉"; // fallback just in case
+    return meta?.icon ?? "🎉";
   }
-  
+
   function typeLabel(t: number) {
     const meta = EVENT_TYPE_META[t as EventTypeValue];
     return meta?.label ?? "Event";
   }
-  
 
   function countdown(d: number) {
     if (d === 0) return "🎉 Today!";
@@ -413,116 +550,228 @@ function confirmDelete() {
 
   return (
     <Screen scroll>
-
-    <ScrollView contentContainerStyle={styles.page}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Text style={styles.headerEmoji}>{iconForType(event.type)}</Text>
-        <Text style={styles.headerName}>{event.contact_name}</Text>
-        <Text style={styles.headerTitle}>{event.title || "Untitled Event"}</Text>
-
-        {event.days_until < 30 && (
-          <View style={styles.countdownPill}>
-            <Text style={styles.countdownText}>{countdown(event.days_until)}</Text>
-          </View>
-        )}
-
-        <Text style={styles.confettiBottom}>✨🎊✨</Text>
-      </View>
-
-      {/* DETAILS */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Event Details</Text>
-
-        <DetailRow label="Type" value={typeLabel(event.type)} />
-        <DetailRow label="Next Occurrence" value={event.next_occurrence} />
-        <DetailRow label="Original Date" value={event.date} />
-        <DetailRow label="Recurring" value={event.is_recurring ? "Yes" : "No"} />
-        <DetailRow label="Status" value={event.is_active ? "Active" : "Inactive"} />
-      </View>
-
-      {/* REMINDERS */}
-      <View style={[styles.card, styles.reminderCard]}>
-        <Text style={styles.cardTitle}>Reminders</Text>
-
-        <TouchableOpacity
-          style={styles.addReminderBtn}
-          onPress={() => {
-            setEditingReminder(null);
-            setShowModal(true);
-          }}
+      <ScrollView contentContainerStyle={styles.page}>
+        {/* HEADER */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: settings.cardColor,
+              borderColor: settings.primaryColor + "40",
+            },
+          ]}
+        >
+          <Text style={styles.headerEmoji}>{iconForType(event.type)}</Text>
+          <Text
+            style={[
+              styles.headerName,
+              { color: settings.primaryColor },
+            ]}
           >
-          <Text style={styles.addReminderText}>+ Add Reminder</Text>
+            {event.contact_name}
+          </Text>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: settings.textColor },
+            ]}
+          >
+            {event.title || "Untitled Event"}
+          </Text>
+
+          {event.days_until < 30 && (
+            <View
+              style={[
+                styles.countdownPill,
+                {
+                  backgroundColor: settings.primaryColor + "20",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countdownText,
+                  { color: settings.primaryColor },
+                ]}
+              >
+                {countdown(event.days_until)}
+              </Text>
+            </View>
+          )}
+
+          <Text
+            style={[
+              styles.confettiBottom,
+              { color: settings.textColor },
+            ]}
+          >
+            ✨🎊✨
+          </Text>
+        </View>
+
+        {/* DETAILS */}
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: settings.cardColor,
+              borderColor: settings.cardColor + "40",
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: settings.titleColor },
+            ]}
+          >
+            Event Details
+          </Text>
+
+          <DetailRow label="Type" value={typeLabel(event.type)} />
+          <DetailRow label="Next Occurrence" value={event.next_occurrence} />
+          <DetailRow label="Original Date" value={event.date} />
+          <DetailRow
+            label="Recurring"
+            value={event.is_recurring ? "Yes" : "No"}
+          />
+          <DetailRow
+            label="Status"
+            value={event.is_active ? "Active" : "Inactive"}
+          />
+        </View>
+
+        {/* REMINDERS */}
+        <View
+          style={[
+            styles.card,
+            styles.reminderCard,
+            {
+              backgroundColor: settings.cardColor,
+              borderColor: settings.primaryColor + "33",
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: settings.titleColor },
+            ]}
+          >
+            Reminders
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.addReminderBtn,
+              { backgroundColor: settings.buttonColor + "20" },
+            ]}
+            onPress={() => {
+              setEditingReminder(null);
+              setShowModal(true);
+            }}
+          >
+            <Text
+              style={[
+                styles.addReminderText,
+                { color: settings.buttonColor },
+              ]}
+            >
+              + Add Reminder
+            </Text>
+          </TouchableOpacity>
+
+          {event.reminders.length === 0 ? (
+            <Text
+              style={[
+                styles.noReminder,
+                { color: settings.textColor },
+              ]}
+            >
+              ⚠ No reminders yet
+            </Text>
+          ) : (
+            event.reminders.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={[
+                  styles.reminderItem,
+                  {
+                    backgroundColor: settings.cardColor,
+                    borderColor: settings.cardColor + "60",
+                  },
+                ]}
+                onPress={() => {
+                  setEditingReminder(r);
+                  setShowModal(true);
+                }}
+              >
+                <Text style={styles.reminderBullet}>🔔</Text>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.reminderText,
+                      { color: settings.titleColor },
+                    ]}
+                  >
+                    {r.days_before !== null
+                      ? `Remind ${r.days_before} days before`
+                      : `On this exact date:`}
+                  </Text>
+
+                  {r.send_at && (
+                    <Text
+                      style={[
+                        styles.reminderSub,
+                        { color: settings.textColor },
+                      ]}
+                    >
+                      {formatDateTime(r.send_at)}
+                    </Text>
+                  )}
+                </View>
+
+                <TouchableOpacity onPress={() => confirmDeleteReminder(r.id)}>
+                  <Text style={styles.deleteIcon}>🗑️</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        {/* DELETE EVENT */}
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={confirmDelete}
+        >
+          <Text style={styles.deleteButtonText}>Delete Event</Text>
         </TouchableOpacity>
 
-        {event.reminders.length === 0 ? (
-          <Text style={styles.noReminder}>⚠ No reminders yet</Text>
-        ) : (
-          event.reminders.map((r) => (
-            <TouchableOpacity
-            key={r.id}
-              style={styles.reminderItem}
-              onPress={() => {
-                setEditingReminder(r);
-                setShowModal(true);
-              }}
-              >
-              <Text style={styles.reminderBullet}>🔔</Text>
+        {/* MODAL */}
+        <ReminderModal
+          visible={showModal}
+          initial={editingReminder}
+          onClose={() => setShowModal(false)}
+          onSave={async (data) => {
+            try {
+              if (editingReminder) {
+                await updateReminder(editingReminder.id, data);
+              } else {
+                await createReminder(event.id, data);
+              }
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reminderText}>
-
-                  {r.days_before !== null
-                    ? `Remind ${r.days_before} days before`
-                    
-                    : `On this exact date:`}
-                </Text>
-
-                {r.send_at && (
-                  <Text style={styles.reminderSub}>
-                   {formatDateTime(r.send_at)}
-                 </Text>
-               
-                )}
-              </View>
-
-              <TouchableOpacity onPress={() => confirmDeleteReminder(r.id)}>
-                <Text style={styles.deleteIcon}>🗑️</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-
-      {/* DELETE EVENT */}
-      <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
-        <Text style={styles.deleteButtonText}>Delete Event</Text>
-      </TouchableOpacity>
-
-      {/* MODAL */}
-      <ReminderModal
-        visible={showModal}
-        initial={editingReminder}
-        onClose={() => setShowModal(false)}
-        onSave={async (data) => {
-          try {
-            if (editingReminder) {
-              await updateReminder(editingReminder.id, data);
-            } else {
-              await createReminder(event.id, data);
+              const updated = await fetchEventById(eventId);
+              setEvent(updated);
+            } catch {
+              Alert.alert("Error", "Could not save reminder.");
+            } finally {
+              setShowModal(false);
             }
-            
-            const updated = await fetchEventById(eventId);
-            setEvent(updated);
-          } catch {
-            Alert.alert("Error", "Could not save reminder.");
-          } finally {
-            setShowModal(false);
-          }
-        }}
+          }}
         />
-    </ScrollView>
-        </Screen>
+      </ScrollView>
+    </Screen>
   );
 }
 
@@ -534,10 +783,25 @@ function DetailRow({
   label: string;
   value: string | number;
 }) {
+  const { settings } = useAppearance();
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text
+        style={[
+          styles.rowLabel,
+          { color: settings.textColor + "AA" },
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.rowValue,
+          { color: settings.titleColor },
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -553,56 +817,54 @@ const styles = StyleSheet.create({
     padding: 26,
     borderRadius: 22,
     alignItems: "center",
-    backgroundColor: "#E5F0FF",
     borderWidth: 2,
-    borderColor: "#C3D9FF",
   },
   headerEmoji: { fontSize: 60 },
-  headerName: { fontSize: 24, fontWeight: "800", color: "#1D4ED8", marginTop: 6 },
-  headerTitle: { fontSize: 16, color: "#4B5563", marginTop: 4 },
+  headerName: { fontSize: 24, fontWeight: "800", marginTop: 6 },
+  headerTitle: { fontSize: 16, marginTop: 4 },
   countdownPill: {
     marginTop: 12,
-    backgroundColor: "#DBEAFE",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
   },
-  countdownText: { color: "#1E40AF", fontWeight: "700" },
+  countdownText: { fontWeight: "700" },
   confettiBottom: { fontSize: 20, opacity: 0.7, marginTop: 8 },
 
-  card: { backgroundColor: "#FFF", padding: 20, borderRadius: 16, borderWidth: 1, borderColor: "#EEE" },
-  reminderCard: { backgroundColor: "#FFF6E3", borderColor: "#FFE3B0" },
-  cardTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12, color: "#1D4ED8" },
+  card: {
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  reminderCard: {},
+  cardTitle: { fontSize: 20, fontWeight: "700", marginBottom: 12 },
 
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10 },
-  rowLabel: { color: "#6B7280" },
-  rowValue: { fontWeight: "600", color: "#111827" },
+  rowLabel: {},
+  rowValue: { fontWeight: "600" },
 
   addReminderBtn: {
     padding: 10,
-    backgroundColor: "#DBEAFE",
     borderRadius: 10,
     alignItems: "center",
     marginBottom: 10,
   },
-  addReminderText: { color: "#1D4ED8", fontWeight: "700" },
+  addReminderText: { fontWeight: "700" },
 
-  noReminder: { marginTop: 6, fontStyle: "italic", color: "#7C5A00" },
+  noReminder: { marginTop: 6, fontStyle: "italic" },
 
   reminderItem: {
     flexDirection: "row",
-    backgroundColor: "#FFF",
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#FFE3B0",
     marginBottom: 6,
     alignItems: "center",
   },
 
   reminderBullet: { fontSize: 20, marginRight: 10 },
   reminderText: { fontWeight: "600", fontSize: 15 },
-  reminderSub: { color: "#777", marginTop: 3, fontSize: 13 },
+  reminderSub: { marginTop: 3, fontSize: 13 },
   deleteIcon: { fontSize: 18, marginLeft: 8 },
 
   deleteButton: {
@@ -631,7 +893,6 @@ const modalStyles = StyleSheet.create({
   },
   container: {
     width: "100%",
-    backgroundColor: "#FFF",
     padding: 22,
     borderRadius: 18,
     elevation: 5,
@@ -639,7 +900,6 @@ const modalStyles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#1D4ED8",
     marginBottom: 14,
     textAlign: "center",
   },
@@ -647,7 +907,6 @@ const modalStyles = StyleSheet.create({
   // Toggle
   toggleRow: {
     flexDirection: "row",
-    backgroundColor: "#E5E7EB",
     borderRadius: 999,
     padding: 3,
     marginBottom: 12,
@@ -658,39 +917,32 @@ const modalStyles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
   },
-  toggleButtonActive: {
-    backgroundColor: "#1D4ED8",
-  },
-  toggleText: { fontSize: 13, color: "#4B5563", fontWeight: "600" },
+  toggleButtonActive: {},
+  toggleText: { fontSize: 13, fontWeight: "600" },
   toggleTextActive: { color: "#FFF" },
 
-  label: { marginTop: 10, fontWeight: "600", color: "#374151" },
+  label: { marginTop: 10, fontWeight: "600" },
   input: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
     padding: 12,
     borderRadius: 10,
-    backgroundColor: "#F9FAFB",
     marginTop: 6,
   },
   dateButton: {
     padding: 14,
-    backgroundColor: "#EEF2FF",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
     marginTop: 6,
   },
-  dateButtonText: { fontWeight: "600", color: "#1E3A8A" },
+  dateButtonText: { fontWeight: "600" },
 
   row: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
   cancelBtn: { padding: 10 },
-  cancelText: { color: "#6B7280", fontSize: 16 },
+  cancelText: { fontSize: 16 },
   saveBtn: {
-    backgroundColor: "#1D4ED8",
     paddingVertical: 12,
     paddingHorizontal: 26,
     borderRadius: 10,
   },
-  saveText: { color: "white", fontWeight: "700", fontSize: 16 },
+  saveText: { fontWeight: "700", fontSize: 16 },
 });
