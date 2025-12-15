@@ -8,7 +8,9 @@ import {
   StyleSheet,
   TextInput,
   ActivityIndicator,
+  Image,
 } from "react-native";
+
 import { useIsFocused } from "@react-navigation/native";
 
 import { fetchContacts } from "../../contacts/api";
@@ -81,21 +83,16 @@ export default function ContactScreen({ navigation }: Props) {
         style={[styles.card, { backgroundColor: settings.cardColor }]}
       >
         <View style={styles.cardLeft}>
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: settings.primaryColor },
-            ]}
-          >
-            <Text
-              style={[
-                styles.avatarText,
-                { color: settings.buttonTextColor },
-              ]}
-            >
-              {initials || "?"}
-            </Text>
+        {item.photo ? (
+          <Image source={{ uri: item.photo }} style={styles.avatarImage} />
+          ) : (
+          <View style={[styles.avatar, { backgroundColor: settings.primaryColor }]}>
+          <Text style={[styles.avatarText, { color: settings.buttonTextColor }]}>
+            {initials || "?"}
+          </Text>
           </View>
+          )}
+
 
           <View style={styles.cardText}>
             <Text
@@ -346,6 +343,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 4,
   },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  
   emptySubtitle: {
     fontSize: 14,
     textAlign: "center",

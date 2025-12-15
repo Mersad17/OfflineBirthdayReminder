@@ -7,28 +7,21 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Image,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
 
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
-
 import { Contact } from "../../contacts/types";
 import { deleteContact, fetchContactById } from "../../contacts/api";
 
-import {
-  EventDTO,
-  EventTypeValue,
-  EVENT_TYPE_META,
-} from "../../events/types";
+import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
 import { fetchAllEvents } from "../../events/api";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 
-type Props = NativeStackScreenProps<
-  ContactsStackParamList,
-  "ContactDetail"
->;
+type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
 export default function ContactDetailScreen({ route, navigation }: Props) {
   const { contactId, contactName } = route.params;
@@ -52,7 +45,6 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
       const allEvents = await fetchAllEvents();
 
-      // Only events for this contact
       const related = allEvents.filter((e: any) => {
         if (e.contact_id === contactId) return true;
         if (e.contact === contactId) return true;
@@ -62,7 +54,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       });
 
       setEvents(related);
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Failed to load contact details.");
     } finally {
       setLoading(false);
@@ -74,14 +66,12 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   }, [loadData]);
 
   useEffect(() => {
-    if (isFocused) {
-      loadData();
-    }
+    if (isFocused) loadData();
   }, [isFocused, loadData]);
 
-  // Update header (Edit button) once we know the contact
   useEffect(() => {
     if (!contact) return;
+
     navigation.setOptions({
       title: contactName || "Contact",
       headerRight: () => (
@@ -92,12 +82,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
             })
           }
         >
-          <Text
-            style={{
-              color: settings.primaryColor,
-              fontWeight: "700",
-            }}
-          >
+          <Text style={{ color: settings.primaryColor, fontWeight: "700" }}>
             Edit
           </Text>
         </TouchableOpacity>
@@ -136,9 +121,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       <Screen>
         <View style={styles.center}>
           <ActivityIndicator color={settings.primaryColor} />
-          <Text style={{ marginTop: 8, color: settings.textColor }}>
-            Loading…
-          </Text>
+          <Text style={{ marginTop: 8, color: settings.textColor }}>Loading…</Text>
         </View>
       </Screen>
     );
@@ -148,37 +131,35 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     return (
       <Screen>
         <View style={styles.center}>
-          <Text style={{ color: settings.textColor }}>
-            Contact not found.
-          </Text>
+          <Text style={{ color: settings.textColor }}>Contact not found.</Text>
         </View>
       </Screen>
     );
   }
 
+  // ✅ must be here (render scope)
+  const initials = `${contact.first_name?.[0] || ""}${contact.last_name?.[0] || ""}`.toUpperCase();
+
   function confirmDelete() {
-    if (!contact) return;
+    if (!contact) return; 
     const contactIdToDelete = contact.id;
-    Alert.alert(
-      "Delete Contact",
-      "Are you sure you want to delete this contact?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteContact(contactIdToDelete);
-              Alert.alert("Contact deleted successfully!");
-              navigation.navigate("ContactsList");
-            } catch {
-              Alert.alert("Error", "Could not delete contact.");
-            }
-          },
+
+    Alert.alert("Delete Contact", "Are you sure you want to delete this contact?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteContact(contactIdToDelete);
+            Alert.alert("Contact deleted successfully!");
+            navigation.navigate("ContactsList");
+          } catch {
+            Alert.alert("Error", "Could not delete contact.");
+          }
         },
-      ]
-    );
+      },
+    ]);
   }
 
   return (
@@ -194,43 +175,36 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
             },
           ]}
         >
-          <Text style={styles.headerEmoji}>🧑‍🤝‍🧑</Text>
+          {contact.photo ? (
+            <Image source={{ uri: contact.photo }} style={styles.headerAvatarImage} />
+          ) : (
+            <View
+              style={[
+                styles.headerAvatarFallback,
+                { backgroundColor: settings.primaryColor + "22" },
+              ]}
+            >
+              <Text style={[styles.headerAvatarText, { color: settings.primaryColor }]}>
+                {initials || "?"}
+              </Text>
+            </View>
+          )}
 
-          <Text
-            style={[
-              styles.headerName,
-              { color: settings.primaryColor },
-            ]}
-          >
+          <Text style={[styles.headerName, { color: settings.primaryColor }]}>
             {contact.first_name} {contact.last_name}
           </Text>
 
           {contact.birthday ? (
-            <Text
-              style={[
-                styles.headerTitle,
-                { color: settings.textColor },
-              ]}
-            >
+            <Text style={[styles.headerTitle, { color: settings.textColor }]}>
               🎂 Birthday: {contact.birthday}
             </Text>
           ) : (
-            <Text
-              style={[
-                styles.headerTitleMuted,
-                { color: settings.textColor },
-              ]}
-            >
+            <Text style={[styles.headerTitleMuted, { color: settings.textColor }]}>
               No birthday set
             </Text>
           )}
 
-          <Text
-            style={[
-              styles.confettiBottom,
-              { color: settings.textColor },
-            ]}
-          >
+          <Text style={[styles.confettiBottom, { color: settings.textColor }]}>
             ✨🎊✨
           </Text>
         </View>
@@ -238,50 +212,27 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
         {/* EVENTS SECTION */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                { color: settings.titleColor },
-              ]}
-            >
-              Events
-            </Text>
+            <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>Events</Text>
 
             <TouchableOpacity
-              style={[
-                styles.addButton,
-                { backgroundColor: settings.buttonColor },
-              ]}
+              style={[styles.addButton, { backgroundColor: settings.buttonColor }]}
               onPress={handleAddEvent}
             >
-              <Text
-                style={[
-                  styles.addButtonText,
-                  { color: settings.buttonTextColor },
-                ]}
-              >
+              <Text style={[styles.addButtonText, { color: settings.buttonTextColor }]}>
                 ＋ Add
               </Text>
             </TouchableOpacity>
           </View>
 
           {events.length === 0 && (
-            <View
-              style={[
-                styles.emptyBox,
-                { backgroundColor: settings.cardColor },
-              ]}
-            >
-              <Text style={{ color: settings.textColor }}>
-                No events yet for this contact.
-              </Text>
+            <View style={[styles.emptyBox, { backgroundColor: settings.cardColor }]}>
+              <Text style={{ color: settings.textColor }}>No events yet for this contact.</Text>
             </View>
           )}
 
           {events.map((item, index) => {
             const previous = index > 0 ? events[index - 1] : null;
-            const showMonthHeader =
-              !previous || previous.month_label !== item.month_label;
+            const showMonthHeader = !previous || previous.month_label !== item.month_label;
 
             return (
               <View key={item.id}>
@@ -300,10 +251,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
                 )}
 
                 <TouchableOpacity
-                  style={[
-                    styles.card,
-                    { backgroundColor: settings.cardColor },
-                  ]}
+                  style={[styles.card, { backgroundColor: settings.cardColor }]}
                   onPress={() =>
                     navigation.navigate("EventDetails", {
                       eventId: item.id,
@@ -313,25 +261,12 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
                     })
                   }
                 >
-                  <Text
-                    style={[
-                      styles.cardTitle,
-                      { color: settings.titleColor },
-                    ]}
-                    numberOfLines={1}
-                  >
+                  <Text style={[styles.cardTitle, { color: settings.titleColor }]} numberOfLines={1}>
                     {iconForType(item.type)} {typeLabel(item.type)}
                   </Text>
 
-                  <Text
-                    style={[
-                      styles.cardSub,
-                      { color: settings.textColor },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.title || "Untitled Event"} •{" "}
-                    {item.next_occurrence}
+                  <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
+                    {item.title || "Untitled Event"} • {item.next_occurrence}
                     {item.days_until < 30 && (
                       <Text style={{ color: settings.primaryColor }}>
                         {" "}
@@ -340,16 +275,9 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
                     )}
                   </Text>
 
-                  <Text
-                    style={[
-                      styles.cardStatus,
-                      { color: settings.textColor },
-                    ]}
-                  >
+                  <Text style={[styles.cardStatus, { color: settings.textColor }]}>
                     {item.has_reminder
-                      ? `🔔 ${item.reminder_count} reminder${
-                          item.reminder_count > 1 ? "s" : ""
-                        }`
+                      ? `🔔 ${item.reminder_count} reminder${item.reminder_count > 1 ? "s" : ""}`
                       : "⚠️ No reminder"}
                   </Text>
                 </TouchableOpacity>
@@ -358,10 +286,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           })}
         </View>
 
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={confirmDelete}
-        >
+        <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
           <Text style={styles.deleteButtonText}>Delete Contact</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -385,9 +310,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
   },
-  headerEmoji: {
-    fontSize: 60,
-  },
   headerName: {
     fontSize: 26,
     fontWeight: "800",
@@ -406,6 +328,28 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginTop: 8,
   },
+
+  // ✅ avatar in header
+  headerAvatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: 8,
+    resizeMode: "cover",
+  },
+  headerAvatarFallback: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  headerAvatarText: {
+    fontSize: 34,
+    fontWeight: "800",
+  },
+
   section: {
     marginTop: 10,
   },

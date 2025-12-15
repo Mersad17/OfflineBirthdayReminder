@@ -9,6 +9,7 @@ export type Contact = {
   phone?: string | null;
   created_at: string;  
   notes: string;
+  photo?: string | null; 
   next_event?: {
     type: EventTypeValue;
     date: string;
@@ -23,6 +24,7 @@ export type CreateContactInput = {
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
+  photo_uri?: string | null; 
 };
 
 export type CreateEventInput = {

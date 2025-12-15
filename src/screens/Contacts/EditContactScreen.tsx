@@ -14,8 +14,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Image,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 
@@ -37,6 +39,10 @@ export default function EditContactScreen({ route, navigation }: Props) {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
 
+  // 🔹 photo state
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
+
   const scrollRef = useRef<ScrollView | null>(null);
 
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -46,18 +52,21 @@ export default function EditContactScreen({ route, navigation }: Props) {
     (async () => {
       try {
         const c = await fetchContactById(contactId);
-        setContact(c);
+        setContact(c as any);
 
         setFirstName(c.first_name || "");
         setLastName(c.last_name || "");
         setBirthday(c.birthday || "");
-        // 👉 use c.birthday here (not the local birthday state which is still "")
         if (c.birthday) {
           setBirthdayDateObj(new Date(c.birthday));
         }
         setEmail(c.email || "");
         setPhone(c.phone || "");
         setNotes(c.notes || "");
+
+        // current photo URL from backend
+        setPhotoUri(c.photo || null);
+        setOriginalPhotoUri(c.photo || null);
       } catch {
         Alert.alert("Error", "Could not load Contact");
       } finally {
@@ -77,6 +86,34 @@ export default function EditContactScreen({ route, navigation }: Props) {
     const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
     const d = String(selectedDate.getDate()).padStart(2, "0");
     setBirthday(`${y}-${m}-${d}`);
+  }
+
+  // ---------- photo pick / remove ----------
+  async function pickPhoto() {
+    const { status } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Please allow photo access to pick a picture."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'], 
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setPhotoUri(result.assets[0].uri); // local file:// uri
+    }
+  }
+
+  function removePhoto() {
+    setPhotoUri(null);
   }
 
   async function onSave() {
@@ -99,7 +136,18 @@ export default function EditContactScreen({ route, navigation }: Props) {
         email,
         phone,
         notes,
+        // 👇 send our current choice to the API layer
+        // - undefined   → don't touch photo
+        // - null        → remove photo
+        // - file:// uri → upload new one
+        photo_uri:
+          photoUri === originalPhotoUri
+            ? undefined
+            : photoUri === null
+            ? null
+            : photoUri,
       });
+
       navigation.goBack();
     } catch {
       Alert.alert("Error", "Could not update Contact");
@@ -121,6 +169,12 @@ export default function EditContactScreen({ route, navigation }: Props) {
     );
   }
 
+  const initials = `${(firstName || (contact as any).first_name || "")
+    .charAt(0)
+    .toUpperCase()}${(lastName || (contact as any).last_name || "")
+    .charAt(0)
+    .toUpperCase()}`;
+
   return (
     <Screen scroll>
       <View style={{ flex: 1 }}>
@@ -135,14 +189,56 @@ export default function EditContactScreen({ route, navigation }: Props) {
               },
             ]}
           >
-            <Text style={{ fontSize: 60 }}>🧑‍🤝‍🧑</Text>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.avatar} />
+            ) : (
+              <View
+                style={[
+                  styles.avatarPlaceholder,
+                  { backgroundColor: settings.primaryColor + "22" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.avatarInitials,
+                    { color: settings.primaryColor },
+                  ]}
+                >
+                  {initials || "?"}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.photoButton,
+                { borderColor: settings.primaryColor + "80" },
+              ]}
+              onPress={pickPhoto}
+            >
+              <Text
+                style={[
+                  styles.photoButtonText,
+                  { color: settings.primaryColor },
+                ]}
+              >
+                {photoUri ? "Change photo" : "Add photo"}
+              </Text>
+            </TouchableOpacity>
+
+            {photoUri && (
+              <TouchableOpacity onPress={removePhoto}>
+                <Text style={styles.removePhotoText}>Remove photo</Text>
+              </TouchableOpacity>
+            )}
+
             <Text
               style={[
                 styles.headerContact,
                 { color: settings.primaryColor },
               ]}
             >
-              {contact.first_name} {contact.last_name}
+              {(contact as any).first_name} {(contact as any).last_name}
             </Text>
           </View>
 
@@ -438,5 +534,42 @@ const styles = StyleSheet.create({
   cancelText: {
     marginTop: 8,
     textAlign: "center",
+  },
+
+  // avatar / photo
+  avatar: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    marginBottom: 8,
+  },
+  avatarPlaceholder: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  avatarInitials: {
+    fontSize: 32,
+    fontWeight: "700",
+  },
+  photoButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  photoButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  removePhotoText: {
+    fontSize: 12,
+    color: "#B91C1C",
+    marginTop: 2,
   },
 });

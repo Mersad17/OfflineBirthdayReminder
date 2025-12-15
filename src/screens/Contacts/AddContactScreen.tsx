@@ -9,10 +9,13 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
+
 import { createContact } from "../../contacts/api";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
@@ -33,6 +36,9 @@ export default function AddContactScreen({ navigation }: Props) {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // 🔥 new: local image URI
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -57,6 +63,28 @@ export default function AddContactScreen({ navigation }: Props) {
     }
   }
 
+  // 🔥 pick a photo from gallery
+  async function pickPhoto() {
+    const { status } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Please allow photo access to pick a picture."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  }
+
   async function onSubmit() {
     if (!first.trim() || !last.trim()) {
       Alert.alert("Name required", "Please enter first and last name.");
@@ -71,6 +99,8 @@ export default function AddContactScreen({ navigation }: Props) {
         email: email || undefined,
         phone: phone || undefined,
         notes: notes || undefined,
+        // 🔥 send to API (make sure createContact handles photo_uri → multipart)
+        photo_uri: photoUri || undefined,
       });
       Alert.alert("Success", "Contact created.");
       navigation.goBack();
@@ -105,6 +135,52 @@ export default function AddContactScreen({ navigation }: Props) {
                 { backgroundColor: settings.cardColor },
               ]}
             >
+              {/* Photo */}
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: settings.titleColor },
+                ]}
+              >
+                Photo
+              </Text>
+
+              <View style={styles.photoRow}>
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={styles.photo} />
+                ) : (
+                  <View
+                    style={[
+                      styles.photoPlaceholder,
+                      { backgroundColor: settings.cardColor },
+                    ]}
+                  >
+                    <Text style={{ color: settings.textColor + "80" }}>
+                      No photo
+                    </Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    styles.photoButton,
+                    { backgroundColor: settings.buttonColor },
+                  ]}
+                  onPress={pickPhoto}
+                >
+                  <Text
+                    style={[
+                      styles.photoButtonText,
+                      { color: settings.buttonTextColor },
+                    ]}
+                  >
+                    {photoUri ? "Change photo" : "Add photo"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.divider} />
+
               {/* Name section */}
               <Text
                 style={[
@@ -356,6 +432,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
+
+  // 🔥 photo UI
+  photoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  photo: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  photoPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  photoButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
