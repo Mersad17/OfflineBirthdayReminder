@@ -22,6 +22,7 @@ import { fetchEventById, updateEvent } from "../../events/api";
 import { EventDTO } from "../../events/types";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 // 👇 Keep this in sync with your Django EventTypes IntEnum
 type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
@@ -442,7 +443,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
                           ]
                     }
                   >
-                    {dateString || "Pick a date"}
+                    {formatDateEU(dateString) || "Pick a date"}
                   </Text>
                   <Text style={[styles.dateIcon, { color: settings.textColor }]}>
                     📅

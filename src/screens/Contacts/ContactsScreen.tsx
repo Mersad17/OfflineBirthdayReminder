@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -17,100 +17,71 @@ import { fetchContacts } from "../../contacts/api";
 import { Contact } from "../../contacts/types";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 type Props = {
   navigation: any;
 };
-
-export default function ContactScreen({ navigation }: Props) {
-  const { settings } = useAppearance();
-
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
-  const isFocused = useIsFocused();
-
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await fetchContacts();
-      setContacts(data);
-    } catch {
-      alert("Failed to load contacts");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (isFocused) {
-      load();
-    }
-  }, [isFocused]);
-
-  async function onRefresh() {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }
-
-  const filteredContacts = contacts.filter((c) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const first = c.first_name?.toLowerCase() ?? "";
-    const last = c.last_name?.toLowerCase() ?? "";
-    return first.includes(q) || last.includes(q);
-  });
-
-  const renderItem = ({ item }: { item: Contact }) => {
-    const initials = `${item.first_name?.[0] || ""}${
-      item.last_name?.[0] || ""
-    }`.toUpperCase();
+const ContactRow = React.memo(
+  ({
+    item,
+    onPress,
+    colors,
+  }: {
+    item: Contact;
+    onPress: () => void;
+    colors: {
+      card: string;
+      primary: string;
+      text: string;
+      buttonText: string;
+    };
+  }) => {
+    const initials = `${item.first_name?.[0] || ""}${item.last_name?.[0] || ""}`.toUpperCase();
 
     return (
       <TouchableOpacity
-        onPress={() =>
-          navigation.navigate("ContactDetail", {
-            contactId: item.id,
-            contactName: `${item.first_name} ${item.last_name}`,
-          })
-        }
-        style={[styles.card, { backgroundColor: settings.cardColor }]}
+        onPress={onPress}
+        style={[styles.card, { backgroundColor: colors.card }]}
       >
         <View style={styles.cardLeft}>
-        {item.photo ? (
-          <Image source={{ uri: item.photo }} style={styles.avatarImage} />
+          {item.photo ? (
+            <Image source={{ uri: item.photo }} style={styles.avatarImage} />
           ) : (
-          <View style={[styles.avatar, { backgroundColor: settings.primaryColor }]}>
-          <Text style={[styles.avatarText, { color: settings.buttonTextColor }]}>
-            {initials || "?"}
-          </Text>
-          </View>
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: colors.primary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.avatarText,
+                  { color: colors.buttonText },
+                ]}
+              >
+                {initials || "?"}
+              </Text>
+            </View>
           )}
-
 
           <View style={styles.cardText}>
             <Text
-              style={[styles.cardName, { color: settings.titleColor }]}
+              style={[styles.cardName, { color: colors.text }]}
               numberOfLines={1}
-              ellipsizeMode="tail"
             >
               {item.first_name} {item.last_name}
             </Text>
+
             {item.birthday ? (
-              <Text style={[styles.cardSub, { color: settings.textColor }]}>
-                Birthday: {item.birthday}
+              <Text style={[styles.cardSub, { color: colors.text }]}>
+                Birthday: {formatDateEU(item.birthday)}
               </Text>
             ) : (
               <Text
                 style={[
                   styles.cardSubMuted,
-                  { color: settings.textColor },
+                  { color: colors.text },
                 ]}
               >
                 No birthday set
@@ -122,14 +93,104 @@ export default function ContactScreen({ navigation }: Props) {
         <Text
           style={[
             styles.cardChevron,
-            { color: settings.textColor + "80" }, // slightly faded
+            { color: colors.text + "80" },
           ]}
         >
           ›
         </Text>
       </TouchableOpacity>
     );
-  };
+  }
+);
+
+
+export default function ContactScreen({ navigation }: Props) {
+  const { settings } = useAppearance();
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const isFocused = useIsFocused();
+  const loadingRef = useRef(false);
+  async function load(pageToLoad = 1, reset = false) {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+  
+    setLoading(true);
+    try {
+      const res = await fetchContacts(pageToLoad);
+      setContacts(prev => {
+        const existingIds = new Set(prev.map(c => c.id));
+        const filtered = res.results.filter((c: { id: number; }) => !existingIds.has(c.id));
+        return reset ? res.results : [...prev, ...filtered];
+      });
+      setHasMore(!!res.next);
+      setPage(pageToLoad);
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }
+  
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      load(1, true); // reset
+    }
+  }, [isFocused]);
+
+useEffect(() => {
+  const t = setTimeout(() => setDebouncedSearch(search), 200);
+  return () => clearTimeout(t);
+}, [search]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load(1, true);
+    setRefreshing(false);
+  }
+  
+  
+  
+  const filteredContacts = useMemo(() => {
+    if (!debouncedSearch) return contacts;
+  
+    const q = debouncedSearch.toLowerCase();
+    return contacts.filter(c =>
+      (c.first_name?.toLowerCase() ?? "").includes(q) ||
+      (c.last_name?.toLowerCase() ?? "").includes(q)
+    );
+  }, [contacts, debouncedSearch]);
+  
+  const renderItem = useCallback(
+    ({ item }: { item: Contact }) => (
+      <ContactRow
+      item={item}
+          colors={{
+            card: settings.cardColor,
+            primary: settings.primaryColor,
+            text: settings.textColor,
+            buttonText: settings.buttonTextColor,
+          }}
+        onPress={() =>
+          navigation.navigate("ContactDetail", {
+            contactId: item.id,
+            contactName: `${item.first_name} ${item.last_name}`,
+          })
+        }
+      />
+    ),
+    [navigation, settings]
+  );
+  
 
   const isEmpty = !loading && filteredContacts.length === 0;
 
@@ -194,6 +255,11 @@ export default function ContactScreen({ navigation }: Props) {
         <FlatList
           data={filteredContacts}
           keyExtractor={(item) => String(item.id)}
+          getItemLayout={(_, index) => ({
+            length: 64,
+            offset: 64 * index,
+            index,
+          })}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -235,6 +301,21 @@ export default function ContactScreen({ navigation }: Props) {
             ) : null
           }
           renderItem={renderItem}
+          onEndReached={() => {
+            if (!debouncedSearch && hasMore && !loading) {
+              load(page + 1);
+            }
+          }}
+          onEndReachedThreshold={0.6}
+        
+          ListFooterComponent={
+            loading ? (
+              <ActivityIndicator
+                style={{ marginVertical: 16 }}
+                color={settings.primaryColor}
+              />
+            ) : null
+          }
         />
       </View>
     </Screen>

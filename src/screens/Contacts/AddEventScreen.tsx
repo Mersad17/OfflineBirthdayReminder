@@ -17,6 +17,7 @@ import DateTimePicker, {
 import { createEvent } from "../../events/api";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 type Props = {
   navigation: any;
@@ -337,7 +338,7 @@ export default function AddEventScreen({ navigation, route }: Props) {
                           ]
                     }
                   >
-                    {dateString || "Pick a date"}
+                    {formatDateEU(dateString) || "Pick a date"}
                   </Text>
                   <Text
                     style={[

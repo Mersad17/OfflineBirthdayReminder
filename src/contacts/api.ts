@@ -3,7 +3,7 @@ import { Contact, CreateContactInput, UpdateContactInput } from "./types";
 
 export async function fetchContacts(page = 1) {
   const res = await api.get(`/contacts/?page=${page}`);
-  return res.data.results || [];
+  return res.data; // { results, count, next, previous }
 }
 
 function isRemoteUrl(uri: string) {

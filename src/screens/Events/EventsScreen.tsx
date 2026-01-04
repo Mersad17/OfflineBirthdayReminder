@@ -11,12 +11,14 @@ import {
   RefreshControl,
   TouchableOpacity,
   Modal,
+  Image
 } from "react-native";
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { fetchEvents } from "../../events/api";
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
+import { formatDateEU } from "../../lib/date";
 
 type Tab = "upcoming" | "past";
 
@@ -66,8 +68,14 @@ export default function EventsScreen({ navigation }: any) {
       });
 
       const results = data.results || [];
-      setEvents((prev) => (merge ? [...prev, ...results] : results));
-      setPage(pageToLoad);
+      setEvents((prev) => {
+        if (!merge) return results;
+      
+        const map = new Map<number, EventDTO>();
+        [...prev, ...results].forEach((e) => map.set(e.id, e));
+        return Array.from(map.values());
+      });
+            setPage(pageToLoad);
       setHasNext(!!data.next);
     } catch (err) {
       console.log("❌ Failed to load events", err);
@@ -90,7 +98,49 @@ export default function EventsScreen({ navigation }: any) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, search, noReminderOnly, typeFilter]);
+  const AVATAR_COLORS = [
+    "#6366F1", // indigo
+    "#22C55E", // green
+    "#F59E0B", // amber
+    "#EF4444", // red
+    "#3B82F6", // blue
+    "#A855F7", // purple
+  ];
+  
+  function avatarColor(contactId: number) {
+    return AVATAR_COLORS[contactId % AVATAR_COLORS.length];
+  }
+  
+  function renderAvatar(item: EventDTO) {
+    const first = item.contact_first_name?.[0] ?? "";
+    const last = item.contact_last_name?.[0] ?? "";
+    const initials = `${first}${last}`.toUpperCase();
+  
+    return (
+      <View>
 
+        {item.contact_photo ? (
+          <Image
+          source={{ uri: item.contact_photo }}
+          style={styles.avatarImage}
+          />
+          
+        ) : (
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: avatarColor(item.contact) },
+            ]}
+          >
+            <Text style={[styles.avatarText, { color: "#fff" }]}>
+              {initials || "?"}
+            </Text>
+          </View>
+        )}
+        </View>
+    );
+  }
+  
   const onRefresh = async () => {
     setRefreshing(true);
     await load(1, false);
@@ -238,19 +288,28 @@ export default function EventsScreen({ navigation }: any) {
                   })
                 }
               >
-                <Text style={[styles.cardTitle, { color: settings.titleColor }]} numberOfLines={1}>
-                  {iconForType(item.type)} {item.contact_name}
-                </Text>
+                <View style={styles.cardRow}>
+                  
+                  {renderAvatar(item)}
 
-                <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
-                  {item.title || "Untitled Event"} • {item.next_occurrence}
-                  {tab === "upcoming" && item.days_until < 30 ? (
-                    <Text style={{ color: settings.primaryColor }}>
-                      {" "}
-                      • {friendlyCountdown(item.days_until)}
+                  <View style={styles.cardText}>
+                    <Text
+                      style={[styles.cardTitle, { color: settings.titleColor }]}
+                      numberOfLines={1}
+                    >
+                      {iconForType(item.type)} {item.contact_name}
                     </Text>
-                  ) : null}
-                </Text>
+
+                    <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
+                      {item.title || "Untitled Event"} • {formatDateEU(item.next_occurrence)}
+                      {tab === "upcoming" && item.days_until < 30 ? (
+                        <Text style={{ color: settings.primaryColor }}>
+                          {" "}• {friendlyCountdown(item.days_until)}
+                        </Text>
+                      ) : null}
+                    </Text>
+                  </View>
+                </View>
 
                 <Text style={[styles.cardStatus, { color: settings.textColor + "AA" }]}>
                   {item.has_reminder
@@ -417,4 +476,34 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   sheetBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  
+  cardText: {
+    flex: 1,
+  },
+  
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  
+  avatarText: {
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  
 });

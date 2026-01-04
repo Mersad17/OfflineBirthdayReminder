@@ -47,7 +47,7 @@ type UpcomingSection = {
   title: string;
   data: HomeItem[];
 };
-
+const HOME_UPCOMING_LIMIT = 5;
 type Props = {
   navigation: any;
 };
@@ -62,10 +62,11 @@ export default function HomeScreen({ navigation }: Props) {
   const [upcomingWeekCount, setUpcomingWeekCount] = useState(0);
   const [totalContacts, setTotalContacts] = useState(0);
   const [loading, setLoading] = useState(true);
+  
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
     EventTypeValue | "all"
   >("all");
-
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   // ---- mapping backend -> UI item ----
   const mapDtoToHomeItem = (dto: HomeEventDTO): HomeItem => {
     const d = new Date(dto.next_occurrence);
@@ -84,6 +85,9 @@ export default function HomeScreen({ navigation }: Props) {
       daysUntil,
     };
   };
+  useEffect(() => {
+    setShowAllUpcoming(false);
+  }, [selectedTypeFilter]);
 
   // ---- load from backend ----
   const loadHome = useCallback(async () => {
@@ -151,9 +155,14 @@ export default function HomeScreen({ navigation }: Props) {
   const hasEvents = todayItems.length > 0 || upcoming.length > 0;
 
   const filteredUpcoming = useMemo(() => {
-    if (selectedTypeFilter === "all") return upcoming;
-    return upcoming.filter((item) => item.type === selectedTypeFilter);
-  }, [upcoming, selectedTypeFilter]);
+    const list =
+      selectedTypeFilter === "all"
+        ? upcoming
+        : upcoming.filter((item) => item.type === selectedTypeFilter);
+
+    return showAllUpcoming ? list : list.slice(0, HOME_UPCOMING_LIMIT);
+  }, [upcoming, selectedTypeFilter, showAllUpcoming]);
+
 
   const upcomingSections: UpcomingSection[] = useMemo(
     () => buildUpcomingSections(filteredUpcoming),
@@ -578,37 +587,22 @@ export default function HomeScreen({ navigation }: Props) {
           {/* UPCOMING */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text
-                style={[styles.sectionTitle, { color: settings.titleColor }]}
-              >
+              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
                 À venir (30 jours)
               </Text>
             </View>
 
             {loading ? (
               <Text style={{ color: settings.textColor }}>Chargement…</Text>
-            ) : !hasEvents ? (
-              <View
-                style={[
-                  styles.emptyState,
-                  { backgroundColor: settings.cardColor },
-                ]}
-              >
-                <Text
-                  style={[styles.emptyTitle, { color: settings.titleColor }]}
-                >
-                  Aucun événement pour le moment
-                </Text>
-                <Text
-                  style={[styles.emptyText, { color: settings.textColor }]}
-                >
-                  Ajoute les personnes et les moments que tu ne veux pas
-                  oublier. On s’occupe des rappels pour toi.
+            ) : upcomingSections.length === 0 ? (
+              <View style={styles.emptyStateInline}>
+                <Text style={[styles.emptyText, { color: settings.textColor }]}>
+                  Aucun événement ne correspond à ce filtre.
                 </Text>
               </View>
             ) : (
               <>
-                {/* FILTRE PAR TYPE */}
+                {/* FILTERS */}
                 <View style={styles.filterRow}>
                   <FilterChip
                     label="Tout"
@@ -628,34 +622,25 @@ export default function HomeScreen({ navigation }: Props) {
                   })}
                 </View>
 
-                {upcomingSections.length === 0 ? (
-                  <View style={styles.emptyStateInline}>
-                    <Text
-                      style={[
-                        styles.emptyText,
-                        { color: settings.textColor },
-                      ]}
-                    >
-                      Aucun événement ne correspond à ce filtre.
+                {upcomingSections.map((section) => (
+                  <View key={section.key} style={styles.upcomingSectionBlock}>
+                    <Text style={[styles.upcomingSectionTitle, { color: settings.textColor }]}>
+                      {section.title}
                     </Text>
+                    {section.data.map((item) => renderItemRow(item))}
                   </View>
-                ) : (
-                  upcomingSections.map((section) => (
-                    <View
-                      key={section.key}
-                      style={styles.upcomingSectionBlock}
-                    >
-                      <Text
-                        style={[
-                          styles.upcomingSectionTitle,
-                          { color: settings.textColor },
-                        ]}
-                      >
-                        {section.title}
-                      </Text>
-                      {section.data.map((item) => renderItemRow(item))}
-                    </View>
-                  ))
+                ))}
+
+                {/* 🔹 NEW: Show more */}
+                {upcoming.length > HOME_UPCOMING_LIMIT && (
+                  <TouchableOpacity
+                    onPress={() => setShowAllUpcoming((v) => !v)}
+                    style={{ marginTop: 10, alignSelf: "center" }}
+                  >
+                   <Text style={{ color: settings.primaryColor, fontWeight: "600" }}>
+                  {showAllUpcoming ? "Afficher moins ▲" : "Afficher plus ▼"}
+                </Text>
+                  </TouchableOpacity>
                 )}
               </>
             )}

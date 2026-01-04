@@ -20,6 +20,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "EditContact">;
 
@@ -319,7 +320,7 @@ export default function EditContactScreen({ route, navigation }: Props) {
                     { color: settings.primaryColor },
                   ]}
                 >
-                  {birthday || "Pick a date"}
+                  {formatDateEU(birthday) || "Pick a date"}
                 </Text>
               </TouchableOpacity>
             </View>

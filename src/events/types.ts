@@ -16,6 +16,9 @@ export type EventDTO = {
   reminder_count: number;
   title: string;
   id: number;
+  contact_first_name:string;
+  contact_last_name:string;
+  contact_photo:string;
   contact: number;        // FK id
   contact_name:string;
   type: EventType;        // birthday / custom

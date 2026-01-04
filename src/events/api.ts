@@ -26,11 +26,6 @@ export async function fetchEvents(params?: {
   return res.data;
 }
 
-  export async function fetchAllEvents( page = 1) {
-    const res = await api.get(`/events/?page=${page}`);
-    return res.data.results || [];
-  }
- 
 export async function createEvent(payload: CreateEventInput):Promise<CreateEventInput>{
   const res = await api.post<EventDTO>('/events/',payload)
   return res.data
@@ -40,6 +35,17 @@ export async function fetchEventById(id: number): Promise<EventDTO>{
   const res = await api.get<EventDTO>(`/events/${id}/`);
   return res.data;
 }
+// events/api.ts
+export async function fetchEventsForContact(
+  contactId: number,
+  page = 1
+) {
+  const res = await api.get(
+    `/events/?contact=${contactId}&page=${page}`
+  );
+  return res.data; // { results, count }
+}
+
 
 export async function deleteEvent(id: number){
   return api.delete(`/events/${id}/`);

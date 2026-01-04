@@ -29,6 +29,7 @@ import { useIsFocused } from "@react-navigation/native";
 import { formatDateTime } from "../../reminders/utils";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -629,8 +630,8 @@ export default function EventDetails({ route, navigation }: Props) {
           </Text>
 
           <DetailRow label="Type" value={typeLabel(event.type)} />
-          <DetailRow label="Next Occurrence" value={event.next_occurrence} />
-          <DetailRow label="Original Date" value={event.date} />
+          <DetailRow label="Next Occurrence" value={formatDateEU(event.next_occurrence)} />
+          <DetailRow label="Original Date" value={formatDateEU(event.date)} />
           <DetailRow
             label="Recurring"
             value={event.is_recurring ? "Yes" : "No"}

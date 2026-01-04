@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo ,useRef} from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   TextInput,
+  Animated,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
@@ -18,9 +19,10 @@ import { Contact } from "../../contacts/types";
 import { deleteContact, fetchContactById, updateContact } from "../../contacts/api";
 
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
-import { fetchAllEvents } from "../../events/api";
+import {  fetchEventsForContact } from "../../events/api";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { formatDateEU } from "../../lib/date";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -47,50 +49,82 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const isFocused = useIsFocused();
   const { settings } = useAppearance();
 
-  const [loading, setLoading] = useState(true);
   const [contact, setContact] = useState<Contact | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
+  const [isEditingTalk, setIsEditingTalk] = useState(false);
+  const [loadingContact, setLoadingContact] = useState(true);
+const [loadingEvents, setLoadingEvents] = useState(true);
 
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsCount, setEventsCount] = useState(0);
+  const PAGE_SIZE = 20; // doit matcher DRF
+  
   // talk reminder
   const [talkEveryInput, setTalkEveryInput] = useState("");
   const [savingTalk, setSavingTalk] = useState(false);
-
+  const talkEnabled = !!contact?.talk_every_days;
+  const talkToggleAnim = useRef(
+    new Animated.Value(talkEnabled ? 1 : 0)
+  ).current;
+  
+  useEffect(() => {
+    Animated.spring(talkToggleAnim, {
+      toValue: talkEnabled ? 1 : 0,
+      useNativeDriver: false,
+      friction: 7,
+    }).start();
+  }, [talkEnabled]);
+  
   useEffect(() => {
     if (contactName) navigation.setOptions({ title: contactName });
   }, [contactName, navigation]);
-
-  const loadData = useCallback(async () => {
+  const loadContact = useCallback(async () => {
+    setLoadingContact(true);
     try {
-      setLoading(true);
-
       const c = await fetchContactById(contactId);
       setContact(c);
-
-      const allEvents = await fetchAllEvents();
-      const related = allEvents.filter((e: any) => {
-        if (e.contact_id === contactId) return true;
-        if (e.contact === contactId) return true;
-        if (e.contact && typeof e.contact === "object" && e.contact.id === contactId)
-          return true;
-        return false;
-      });
-
-      setEvents(related);
-    } catch {
-      Alert.alert("Error", "Failed to load contact details.");
     } finally {
-      setLoading(false);
+      setLoadingContact(false);
     }
   }, [contactId]);
-
+  
   useEffect(() => {
-    loadData();
-  }, [loadData]);
-
+    if (isFocused) {
+      loadContact();
+    }
+  }, [isFocused, loadContact]);
+  
+  const loadEvents = useCallback(
+    async (page: number) => {
+      setLoadingEvents(true);
+      try {
+        const res = await fetchEventsForContact(contactId, page);
+        setEvents(res.results);
+        setEventsCount(res.count);
+      } finally {
+        setLoadingEvents(false);
+      }
+    },
+    [contactId]
+  );
   useEffect(() => {
-    if (isFocused) loadData();
-  }, [isFocused, loadData]);
+    setEventsPage(1);
+  }, [contactId]);
+  
+  useEffect(() => {
+    loadEvents(eventsPage);
+    scrollRef.current?.scrollTo({ y: 420, animated: true });
+  }, [eventsPage, loadEvents]);
+  
+  const scrollRef = useRef<ScrollView>(null);
 
+// when page changes
+
+useEffect(() => {
+  setEventsPage(1);
+}, [contactId]);
+
+ 
   // sync input
   useEffect(() => {
     if (!contact) return;
@@ -118,7 +152,10 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       contactName: `${contact.first_name} ${contact.last_name}`,
     });
   }
-
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(eventsCount / PAGE_SIZE));
+  }, [eventsCount]);
+  
   function iconForType(type: number) {
     const meta = EVENT_TYPE_META[type as EventTypeValue];
     return meta?.icon ?? "🎉";
@@ -152,7 +189,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       return { label: "Disabled", bg: settings.textColor + "14", fg: settings.textColor };
     }
 
-    const next = parseYMD(contact.talk_next_at);
+    const next = parseYMD(formatDateEU(contact.talk_next_at));
     if (!next) {
       return { label: "Active", bg: settings.primaryColor + "22", fg: settings.primaryColor };
     }
@@ -179,29 +216,11 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     try {
       const updated = await updateContact(contact.id, { talk_every_days: n });
       setContact(updated);
-      // keep input consistent
       setTalkEveryInput(n ? String(n) : "");
+      setIsEditingTalk(false); // ✅ AUTO-CLOSE EDIT MODE
+
     } catch {
       Alert.alert("Error", "Could not save talk reminder.");
-    } finally {
-      setSavingTalk(false);
-    }
-  }
-
-  async function markTalkedToday() {
-    if (!contact) return;
-
-    if (!contact.talk_every_days) {
-      Alert.alert("Set a cadence first", "Choose how often you want to talk (days).");
-      return;
-    }
-
-    setSavingTalk(true);
-    try {
-      const updated = await updateContact(contact.id, { talk_last_at: todayStr() });
-      setContact(updated);
-    } catch {
-      Alert.alert("Error", "Could not update last talked date.");
     } finally {
       setSavingTalk(false);
     }
@@ -229,17 +248,41 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     ]);
   }
 
-  if (loading) {
+  if (loadingContact) {
     return (
       <Screen>
         <View style={styles.center}>
           <ActivityIndicator color={settings.primaryColor} />
-          <Text style={{ marginTop: 8, color: settings.textColor }}>Loading…</Text>
         </View>
       </Screen>
     );
   }
-
+  
+  function getVisiblePages(current: number, total: number) {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+  
+    const pages = new Set<number>();
+  
+    // first pages
+    pages.add(1);
+    pages.add(2);
+    pages.add(3);
+  
+    // around current
+    if (current > 3 && current < total - 2) {
+      pages.add(current - 1);
+      pages.add(current);
+      pages.add(current + 1);
+    }
+  
+    // last page
+    pages.add(total);
+  
+    return Array.from(pages).sort((a, b) => a - b);
+  }
+  
   if (!contact) {
     return (
       <Screen>
@@ -281,7 +324,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
           {contact.birthday ? (
             <Text style={[styles.headerTitle, { color: settings.textColor }]}>
-              🎂 Birthday: {contact.birthday}
+              🎂 Birthday: {formatDateEU(contact.birthday)}
             </Text>
           ) : (
             <Text style={[styles.headerTitleMuted, { color: settings.textColor }]}>No birthday set</Text>
@@ -291,94 +334,215 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
         </View>
 
         {/* ✅ COMPACT TALK REMINDER */}
-        <View
+       {/* 🔔 TALK TO CONTACT (REFACTORED) */}
+<View
+  style={[
+    styles.talkCard,
+    { backgroundColor: settings.cardColor, borderColor: settings.cardColor + "40" },
+  ]}
+>
+  {/* HEADER */}
+  <View style={styles.talkTopRow}>
+    <Text style={[styles.talkTitle, { color: settings.titleColor }]}>
+      Prendre des nouvelles
+    </Text>
+
+    {/* TOGGLE */}
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() =>
+        talkEnabled
+          ? saveTalkCadence("") // OFF
+          : saveTalkCadence("7") // ON default
+      }
+    >
+      <Animated.View
+        style={[
+          styles.toggle,
+          {
+            backgroundColor: talkToggleAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ["#E5E7EB", settings.primaryColor],
+            }),
+          },
+        ]}
+      >
+        <Animated.View
           style={[
-            styles.talkCard,
-            { backgroundColor: settings.cardColor, borderColor: settings.cardColor + "40" },
+            styles.toggleKnob,
+            {
+              transform: [
+                {
+                  translateX: talkToggleAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [2, 22],
+                  }),
+                },
+              ],
+            },
           ]}
-        >
-          <View style={styles.talkTopRow}>
-            <Text style={[styles.talkTitle, { color: settings.titleColor }]}>Talk</Text>
+        />
+      </Animated.View>
+    </TouchableOpacity>
+  </View>
 
-            <View style={[styles.statusPill, { backgroundColor: talkStatus.bg }]}>
-              <Text style={[styles.statusText, { color: talkStatus.fg }]}>{talkStatus.label}</Text>
-            </View>
+  {/* OFF STATE */}
+  {!talkEnabled && (
+    <Text style={{ marginTop: 8, color: settings.textColor + "AA", fontSize: 13 }}>
+      Aucun rappel actif pour ce contact.
+    </Text>
+  )}
 
-            <TouchableOpacity
-              disabled={savingTalk || !contact.talk_every_days}
-              onPress={markTalkedToday}
-              style={[
-                styles.smallBtnOutline,
-                { borderColor: settings.primaryColor + "55" },
-                (savingTalk || !contact.talk_every_days) && { opacity: 0.5 },
-              ]}
-            >
-              <Text style={{ color: settings.primaryColor, fontWeight: "900" }}>Talked</Text>
-            </TouchableOpacity>
-          </View>
+  {/* ON STATE */}
+{talkEnabled && (
+  <>
+    {/* ===== READ MODE ===== */}
+    {!isEditingTalk && (
+      <>
+        <Text style={{ marginTop: 10, fontSize: 13, color: settings.textColor }}>
+          Activé · Tous les{" "}
+          <Text style={{ fontWeight: "900" }}>
+            {contact.talk_every_days} jours
+          </Text>
+        </Text>
 
-          <View style={styles.talkBottomRow}>
-            <View style={styles.chipsRow}>
-              {[7, 14, 30].map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  disabled={savingTalk}
-                  onPress={() => saveTalkCadence(String(n))}
-                  style={[styles.chip, { borderColor: settings.primaryColor + "55" }]}
-                >
-                  <Text style={{ color: settings.primaryColor, fontWeight: "900" }}>{n}d</Text>
-                </TouchableOpacity>
-              ))}
+        <Text style={{ marginTop: 4, fontSize: 13, color: settings.textColor }}>
+          Prochain rappel :{" "}
+          <Text style={{ fontWeight: "700" }}>
+            {formatDateEU(contact.talk_next_at) || "—"}
+          </Text>
+        </Text>
 
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <TouchableOpacity
+            onPress={() => setIsEditingTalk(true)}
+            style={[
+              styles.smallBtn,
+              { backgroundColor: settings.textColor + "22" },
+            ]}
+          >
+            <Text style={{ fontWeight: "900", color: settings.textColor }}>
+              Modifier
+            </Text>
+          </TouchableOpacity>
+          
+        </View>
+      </>
+    )}
+
+    {/* ===== EDIT MODE ===== */}
+    {isEditingTalk && (
+      <>
+        {/* FREQUENCY CHIPS */}
+        <View style={{ marginTop: 12 }}>
+          <Text
+            style={{
+              color: settings.textColor + "AA",
+              fontWeight: "700",
+              marginBottom: 6,
+            }}
+          >
+            Tous les
+          </Text>
+
+          <View style={styles.chipsRow}>
+            {[7, 14, 30].map((n) => (
               <TouchableOpacity
+                key={n}
                 disabled={savingTalk}
-                onPress={() => saveTalkCadence("")}
-                style={[styles.chipDanger]}
-              >
-                <Text style={{ color: "#B91C1C", fontWeight: "900" }}>Off</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={{ color: settings.textColor + "AA", fontWeight: "700" }}>Every</Text>
-
-              <TextInput
-                value={talkEveryInput}
-                onChangeText={setTalkEveryInput}
-                placeholder="7"
-                keyboardType="number-pad"
-                placeholderTextColor={settings.textColor + "66"}
+                onPress={() => saveTalkCadence(String(n))}
                 style={[
-                  styles.talkInputCompact,
-                  {
-                    color: settings.titleColor,
-                    borderColor: settings.cardColor + "60",
-                    backgroundColor: settings.cardColor,
+                  styles.chip,
+                  contact.talk_every_days === n && {
+                    backgroundColor: settings.primaryColor + "22",
+                    borderColor: settings.primaryColor,
                   },
                 ]}
-              />
-
-              <Text style={{ color: settings.textColor + "AA", fontWeight: "700" }}>days</Text>
-
-              <TouchableOpacity
-                disabled={savingTalk}
-                onPress={() => saveTalkCadence()}
-                style={[
-                  styles.smallBtn,
-                  { backgroundColor: settings.buttonColor },
-                  savingTalk && { opacity: 0.6 },
-                ]}
               >
-                <Text style={{ color: settings.buttonTextColor, fontWeight: "900" }}>Save</Text>
+                <Text
+                  style={{
+                    color:
+                      contact.talk_every_days === n
+                        ? settings.primaryColor
+                        : settings.textColor,
+                    fontWeight: "900",
+                  }}
+                >
+                  {n} jours
+                </Text>
               </TouchableOpacity>
-            </View>
+            ))}
           </View>
-
-          {/* tiny detail line */}
-          <Text style={{ marginTop: 8, fontSize: 12, color: settings.textColor + "99" }}>
-            Next: {contact.talk_next_at || "—"} • Last: {contact.talk_last_at || "—"}
-          </Text>
         </View>
+
+        {/* MANUAL INPUT */}
+        <View style={{ marginTop: 10 }}>
+          <Text
+            style={{
+              color: settings.textColor + "AA",
+              fontWeight: "700",
+              marginBottom: 6,
+            }}
+          >
+            Ou tous les
+          </Text>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              value={talkEveryInput}
+              onChangeText={(v) => {
+                if (/^\d*$/.test(v)) setTalkEveryInput(v);
+              }}
+              keyboardType="number-pad"
+              placeholder="ex: 10"
+              style={[
+                styles.talkInputCompact,
+                {
+                  borderColor: settings.primaryColor + "55",
+                  color: settings.titleColor,
+                },
+              ]}
+              maxLength={3}
+            />
+
+            <Text style={{ fontWeight: "700", color: settings.textColor }}>
+              jours
+            </Text>
+
+            <TouchableOpacity
+              disabled={savingTalk || talkEveryInput.trim() === ""}
+              onPress={() => saveTalkCadence()}
+              style={[
+                styles.smallBtn,
+                {
+                  backgroundColor:
+                    talkEveryInput.trim() !== ""
+                      ? settings.primaryColor
+                      : settings.textColor + "22",
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color:
+                    talkEveryInput.trim() !== ""
+                      ? settings.buttonTextColor
+                      : settings.textColor,
+                  fontWeight: "900",
+                }}
+              >
+                Appliquer
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+       
+      </>
+    )}
+  </>
+)}
+</View>
 
         {/* EVENTS SECTION */}
         <View style={styles.section}>
@@ -432,7 +596,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
                   </Text>
 
                   <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
-                    {item.title || "Untitled Event"} • {item.next_occurrence}
+                    {item.title || "Untitled Event"} • {formatDateEU(item.next_occurrence)}
                     {item.days_until < 30 && (
                       <Text style={{ color: settings.primaryColor }}> • {friendlyCountdown(item.days_until)}</Text>
                     )}
@@ -447,7 +611,71 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
               </View>
             );
           })}
+          
         </View>
+
+        {totalPages > 1 && (
+  <View style={styles.pagination}>
+    {/* PREVIOUS */}
+    <TouchableOpacity
+      disabled={eventsPage === 1}
+      onPress={() => setEventsPage((p) => Math.max(1, p - 1))}
+      style={[
+        styles.pageBtn,
+        eventsPage === 1 && styles.pageBtnDisabled,
+      ]}
+    >
+      <Text>‹</Text>
+    </TouchableOpacity>
+
+    {/* PAGE NUMBERS */}
+    {getVisiblePages(eventsPage, totalPages).map((page, index, arr) => {
+  const prev = arr[index - 1];
+  const isGap = prev && page - prev > 1;
+  const isActive = page === eventsPage;
+
+  return (
+    <React.Fragment key={page}>
+      {isGap && <Text style={{ marginHorizontal: 4 }}>…</Text>}
+
+      <TouchableOpacity
+        onPress={() => setEventsPage(page)}
+        style={[
+          styles.pageBtn,
+          isActive && styles.pageBtnActive,
+        ]}
+      >
+        <Text
+          style={{
+            fontWeight: "900",
+            color: isActive
+              ? settings.buttonTextColor
+              : settings.textColor,
+          }}
+        >
+          {page}
+        </Text>
+      </TouchableOpacity>
+    </React.Fragment>
+  );
+})}
+
+
+    {/* NEXT */}
+    <TouchableOpacity
+      disabled={eventsPage === totalPages}
+      onPress={() =>
+        setEventsPage((p) => Math.min(totalPages, p + 1))
+      }
+      style={[
+        styles.pageBtn,
+        eventsPage === totalPages && styles.pageBtnDisabled,
+      ]}
+    >
+      <Text>›</Text>
+    </TouchableOpacity>
+  </View>
+)}
 
         <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
           <Text style={styles.deleteButtonText}>Delete Contact</Text>
@@ -663,4 +891,51 @@ const styles = StyleSheet.create({
     color: "#B91C1C",
     fontWeight: "700",
   },
+  toggle: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: "center",
+  },
+  
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    elevation: 2,
+  },
+  
+  talkedButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: "center",
+  },pagination: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  
+  pageBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  
+  pageBtnActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  
+  pageBtnDisabled: {
+    opacity: 0.4,
+  },
+  
+  
 });

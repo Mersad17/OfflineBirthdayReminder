@@ -21,9 +21,9 @@ export function formatDateTime(value?: string | null) {
   if (Number.isNaN(d.getTime())) return String(value);
 
   return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",   // "Dec"
     day: "2-digit",   // "10"
+    month: "short",   // "Dec"
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
