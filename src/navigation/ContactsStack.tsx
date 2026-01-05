@@ -6,6 +6,8 @@ import EventDetails from "../screens/Events/EventDetails";
 import AddEventScreen from "../screens/Contacts/AddEventScreen";
 import EditEventScreen from "../screens/Events/EditEventScreen";
 import EditContactScreen from "../screens/Contacts/EditContactScreen";
+import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";
+import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHistoryScreen";
 
 export type ContactsStackParamList = {
   ContactsList: undefined;
@@ -15,7 +17,8 @@ export type ContactsStackParamList = {
   ContactDetail: { contactId: number; contactName?: string };
   EventDetails: { eventId: number; eventTitle?: string, from:string, contactId: number };
   EditEvent: { eventId: number; eventTitle?: string, from:string, contactId: number };
-
+  LogInteraction: { contactId: number };
+  InteractionsHistory: { contactId: number };
 };
 
 const Stack = createNativeStackNavigator<ContactsStackParamList>();
@@ -30,6 +33,17 @@ export default function ContactsStack() {
       <Stack.Screen name="EditContact" component={EditContactScreen} options={{title:"Edit Contact"}}/>
       <Stack.Screen name="EventDetails" component={EventDetails} options={{ title: "EventDetails" }} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} options={{ title: "Edit Event" }} />
+      <Stack.Screen
+  name="LogInteraction"
+  component={LogInteractionScreen}
+  options={{ title: "Log Interaction" }}
+/>
+
+<Stack.Screen
+  name="InteractionsHistory"
+  component={InteractionsHistoryScreen}
+  options={{ title: "Interactions" }}
+/>
 
     </Stack.Navigator>
   );

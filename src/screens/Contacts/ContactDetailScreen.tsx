@@ -23,6 +23,8 @@ import {  fetchEventsForContact } from "../../events/api";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
+import { fetchInteractionForContact } from "../../interactions/api";
+import { Interaction } from "../../interactions/types";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -54,6 +56,8 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const [isEditingTalk, setIsEditingTalk] = useState(false);
   const [loadingContact, setLoadingContact] = useState(true);
 const [loadingEvents, setLoadingEvents] = useState(true);
+const [interactions, setInteractions] = useState<Interaction[]>([]);
+const [loadingInteractions, setLoadingInteractions] = useState(false);
 
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsCount, setEventsCount] = useState(0);
@@ -88,12 +92,23 @@ const [loadingEvents, setLoadingEvents] = useState(true);
     }
   }, [contactId]);
   
+
   useEffect(() => {
     if (isFocused) {
       loadContact();
     }
   }, [isFocused, loadContact]);
-  
+  const loadRecentInteractions = useCallback(async () => {
+  setLoadingInteractions(true);
+  try {
+    const res = await fetchInteractionForContact(contactId);
+
+    setInteractions(res); 
+  } finally {
+    setLoadingInteractions(false);
+  }
+}, [contactId]);
+
   const loadEvents = useCallback(
     async (page: number) => {
       setLoadingEvents(true);
@@ -124,7 +139,12 @@ useEffect(() => {
   setEventsPage(1);
 }, [contactId]);
 
- 
+useEffect(() => {
+  if (isFocused) {
+    loadRecentInteractions();
+  }
+}, [isFocused, loadRecentInteractions]);
+
   // sync input
   useEffect(() => {
     if (!contact) return;
@@ -165,7 +185,38 @@ useEffect(() => {
     const meta = EVENT_TYPE_META[type as EventTypeValue];
     return meta?.label ?? "Event";
   }
-
+  const interactionSummary = useMemo(() => {
+    if (!Array.isArray(interactions) || interactions.length === 0) {
+      return null;
+    }
+  
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+  
+    let countThisMonth = 0;
+    let durationThisMonth = 0;
+  
+    interactions.forEach((i) => {
+      const d = new Date(i.happened_at);
+      if (d.getMonth() === month && d.getFullYear() === year) {
+        countThisMonth += 1;
+        if (i.duration_minutes) {
+          durationThisMonth += i.duration_minutes;
+        }
+      }
+    });
+  
+    const last = interactions[0]; // newest first
+    const lastLabel = dayLabel(last.happened_at);
+  
+    return {
+      lastLabel,
+      countThisMonth,
+      durationThisMonth,
+    };
+  }, [interactions]);
+  
   function friendlyCountdown(days: number) {
     if (days === 0) return "🎉 Today!";
     if (days === 1) return "Tomorrow 🎈";
@@ -173,7 +224,23 @@ useEffect(() => {
     if (days < 30) return `in ${Math.ceil(days / 7)} weeks`;
     return "";
   }
-
+  function formatTime(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  
+  function dayLabel(iso: string) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+  
+    if (d.toDateString() === today.toDateString()) return "Today";
+    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  
+    return d.toLocaleDateString();
+  }
+  
   function todayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -543,6 +610,132 @@ useEffect(() => {
   </>
 )}
 </View>
+{/* INTERACTIONS */}
+<View style={styles.section}>
+  <View style={styles.sectionHeaderRow}>
+    <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
+      Interactions
+    </Text>
+
+    <TouchableOpacity
+      style={[styles.addButton, { backgroundColor: settings.buttonColor }]}
+      onPress={() =>
+        navigation.navigate("LogInteraction", { contactId })
+      }
+    >
+      <Text style={[styles.addButtonText, { color: settings.buttonTextColor }]}>
+        ＋ Log
+      </Text>
+    </TouchableOpacity>
+  </View>
+  {interactionSummary && (
+  <View
+    style={[
+      styles.summaryBox,
+      { backgroundColor: settings.cardColor },
+    ]}
+  >
+    <Text
+      style={[
+        styles.summaryText,
+        { color: settings.textColor },
+      ]}
+    >
+      Last talked:{" "}
+      <Text style={{ fontWeight: "800", color: settings.titleColor }}>
+        {interactionSummary.lastLabel}
+      </Text>
+    </Text>
+
+    <Text
+      style={[
+        styles.summaryText,
+        { color: settings.textColor },
+      ]}
+    >
+      This month:{" "}
+      <Text style={{ fontWeight: "800", color: settings.titleColor }}>
+        {interactionSummary.countThisMonth} interaction
+        {interactionSummary.countThisMonth !== 1 ? "s" : ""}
+      </Text>
+      {interactionSummary.durationThisMonth > 0 && (
+        <>
+          {" · "}
+          <Text style={{ fontWeight: "800", color: settings.titleColor }}>
+            ~{Math.round(interactionSummary.durationThisMonth / 60)}h
+          </Text>
+        </>
+      )}
+    </Text>
+  </View>
+)}
+
+  {loadingInteractions && (
+    <ActivityIndicator color={settings.primaryColor} />
+  )}
+
+  {!loadingInteractions && interactions.length === 0 && (
+    <View style={[styles.emptyBox, { backgroundColor: settings.cardColor }]}>
+      <Text style={{ color: settings.textColor }}>
+        No interactions yet.
+      </Text>
+    </View>
+  )}
+
+  {interactions.map((item, index) => {
+    const prev = interactions[index - 1];
+    const showDay =
+      !prev ||
+      dayLabel(prev.happened_at) !== dayLabel(item.happened_at);
+
+    return (
+      <View key={item.id}>
+        {showDay && (
+          <Text
+            style={[
+              styles.monthHeader,
+              { backgroundColor: settings.cardColor, color: settings.titleColor },
+            ]}
+          >
+            {dayLabel(item.happened_at)}
+          </Text>
+        )}
+
+        <View style={styles.card}>
+          <Text style={{ fontWeight: "700", color: settings.titleColor }}>
+            {formatTime(item.happened_at)}
+            {item.duration_minutes
+              ? ` · ${item.duration_minutes} min`
+              : ""}
+          </Text>
+
+          {item.note && (
+            <Text
+              numberOfLines={1}
+              style={{ marginTop: 4, color: settings.textColor }}
+            >
+              {item.note}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  })}
+
+  {interactions.length > 0 && (
+    <TouchableOpacity
+      onPress={() =>
+        navigation.navigate("InteractionsHistory", { contactId })
+      }
+      style={{ marginTop: 6 }}
+    >
+      <Text style={{ color: settings.primaryColor, fontWeight: "700" }}>
+        View all interactions →
+      </Text>
+    </TouchableOpacity>
+  )}
+</View>
+
 
         {/* EVENTS SECTION */}
         <View style={styles.section}>
@@ -935,6 +1128,16 @@ const styles = StyleSheet.create({
   
   pageBtnDisabled: {
     opacity: 0.4,
+  },
+  summaryBox: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   
   
