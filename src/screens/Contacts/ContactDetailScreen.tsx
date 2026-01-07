@@ -24,7 +24,7 @@ import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
 import { fetchInteractionForContact } from "../../interactions/api";
-import { Interaction } from "../../interactions/types";
+import { Interaction, interactionTypeLabel } from "../../interactions/types";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -241,14 +241,26 @@ useEffect(() => {
     return d.toLocaleDateString();
   }
   
-  function todayStr() {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
+  const toggleFavorite = async () => {
+    if (!contact) return;
+  
+    const nextValue = !contact.is_favorite;
+  
+    // optimistic UI
+    setContact({ ...contact, is_favorite: nextValue });
+  
+    try {
+      const updated = await updateContact(contact.id, {
+        is_favorite: nextValue,
+      });
+      setContact(updated);
+    } catch {
+      // rollback on error
+      setContact(contact);
+      Alert.alert("Error", "Could not update favorite.");
+    }
+  };
+  
   const talkStatus = useMemo(() => {
     if (!contact) return { label: "—", bg: settings.textColor + "14", fg: settings.textColor };
 
@@ -374,7 +386,15 @@ useEffect(() => {
               borderColor: settings.primaryColor + "40",
             },
           ]}
-        >
+        ><TouchableOpacity
+        onPress={toggleFavorite}
+        style={styles.favoriteBtn}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.favoriteIcon}>
+          {contact.is_favorite ? "⭐" : "☆"}
+        </Text>
+      </TouchableOpacity>
           {contact.photo ? (
             <Image source={{ uri: contact.photo }} style={styles.headerAvatarImage} />
           ) : (
@@ -707,6 +727,9 @@ useEffect(() => {
             {item.duration_minutes
               ? ` · ${item.duration_minutes} min`
               : ""}
+              <Text style={{ fontWeight: "600", color: settings.textColor + "AA" }}>
+                {item.type != null ? ` · ${interactionTypeLabel(item.type)}` : ""}
+              </Text>
           </Text>
 
           {item.note && (
@@ -888,7 +911,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
+  favoriteBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  
+  favoriteIcon: {
+    fontSize: 22,
+  },
+  
   header: {
     padding: 24,
     borderRadius: 22,

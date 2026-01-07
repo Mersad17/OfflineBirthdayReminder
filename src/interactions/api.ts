@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { Interaction, PaginatedResponse } from "./types";
+import { Interaction, PaginatedResponse ,CreateInteractionPayload, UpdateInteractionPayload} from "./types";
 
 
 export async function fetchInteractionForContact(
@@ -30,13 +30,19 @@ export async function fetchInteractionsPaginated(
     return res.data;
   }
   
-
-export async function createInteraction(payload: {
-    contact_id: number;
-    duration_minutes: number | null;
-    happened_at: string;
-    note: string | null;
-  }) {
+  
+  export async function createInteraction(
+    payload: CreateInteractionPayload
+  ) {
     return api.post("/interactions/", payload);
   }
+  export async function deleteInteraction(id:number) {
+    return  api.delete(`/interactions/${id}/`)
+  }
   
+export function updateInteraction(
+  id: number,
+  payload: UpdateInteractionPayload
+) {
+  return api.patch(`/interactions/${id}/`, payload);
+}

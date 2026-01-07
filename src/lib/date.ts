@@ -1,16 +1,16 @@
-   
-   
-   
-   
-   export function formatDateEU(dateString?: string | null) {
-    if (!dateString) return "";
-
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return dateString;
-
+export function formatDateEU(
+    value?: string | Date | null
+  ) {
+    if (!value) return "";
+  
+    const d = value instanceof Date ? value : new Date(value);
+  
+    if (Number.isNaN(d.getTime())) return "";
+  
     return d.toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
-    }
+  }
+  

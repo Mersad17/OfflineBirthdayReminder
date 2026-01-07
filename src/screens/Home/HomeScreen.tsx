@@ -51,6 +51,7 @@ const HOME_UPCOMING_LIMIT = 5;
 type Props = {
   navigation: any;
 };
+const HOME_TODAY_LIMIT = 5;
 
 export default function HomeScreen({ navigation }: Props) {
   const { settings } = useAppearance();
@@ -62,7 +63,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [upcomingWeekCount, setUpcomingWeekCount] = useState(0);
   const [totalContacts, setTotalContacts] = useState(0);
   const [loading, setLoading] = useState(true);
-  
+  const [showAllToday, setShowAllToday] = useState(false);
+
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
     EventTypeValue | "all"
   >("all");
@@ -151,8 +153,14 @@ export default function HomeScreen({ navigation }: Props) {
       loadHome();
     }, [loadHome])
   );
-
+  useEffect(() => {
+    setShowAllToday(false);
+  }, []);
+  
   const hasEvents = todayItems.length > 0 || upcoming.length > 0;
+  const visibleToday = showAllToday
+  ? todayItems
+  : todayItems.slice(0, HOME_TODAY_LIMIT);
 
   const filteredUpcoming = useMemo(() => {
     const list =
@@ -257,13 +265,13 @@ export default function HomeScreen({ navigation }: Props) {
                       { color: settings.primaryColor },
                     ]}
                   >
-                    {formatShortCountdownFr(item.daysUntil)}
+                    {formatShortCountdown(item.daysUntil)}
                   </Text>
                 </View>
               )}
               {item.isToday && (
                 <View style={styles.todayBadge}>
-                  <Text style={styles.todayBadgeText}>Aujourd’hui</Text>
+                  <Text style={styles.todayBadgeText}>TToday</Text>
                 </View>
               )}
             </View>
@@ -285,7 +293,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[styles.eventMeta, { color: settings.textColor }]}
               numberOfLines={1}
             >
-              Tap pour voir la fiche de {item.name.split(" ")[0] || "ce contact"}.
+              Tap to view {item.name.split(" ")[0] || "this contact"}.
             </Text>
           </View>
         </View>
@@ -325,7 +333,7 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[styles.appSubtitle, { color: settings.textColor }]}
                   numberOfLines={1}
                 >
-                  Un petit coup de pouce pour ne rien oublier ✨
+                  A gentle reminder so you don’t forget ✨
                 </Text>
               </View>
             </View>
@@ -363,8 +371,8 @@ export default function HomeScreen({ navigation }: Props) {
                 style={[styles.heroGreeting, { color: settings.buttonTextColor }]}
               >
                 {user?.first_name
-                  ? `Salut, ${user.first_name} 👋`
-                  : "Salut 👋"}
+                  ? `Hello, ${user.first_name} 👋`
+                  : "Hello 👋"}
               </Text>
               <Text
                 style={[
@@ -375,13 +383,13 @@ export default function HomeScreen({ navigation }: Props) {
               >
                 {hasEvents
                   ? upcomingWeekCount > 0
-                    ? `Tu as ${
+                    ? `You have ${
                         upcomingWeekCount === 1
-                          ? "1 moment à célébrer cette semaine."
-                          : `${upcomingWeekCount} moments à célébrer cette semaine.`
+                          ? "1 moment to celebrate this week."
+                          : `${upcomingWeekCount} moments to celebrate this week.`
                       }`
-                    : "Rien de prévu cette semaine pour l’instant."
-                  : "Commence par ajouter une personne à ne pas oublier."}
+                    : "Nothing planned this week"
+                  : "Add events so you never forget."}
               </Text>
             </View>
 
@@ -400,7 +408,7 @@ export default function HomeScreen({ navigation }: Props) {
                     { color: settings.buttonTextColor },
                   ]}
                 >
-                  Nouveau contact
+                  New contact
                 </Text>
               </TouchableOpacity>
 
@@ -416,7 +424,7 @@ export default function HomeScreen({ navigation }: Props) {
                     { color: settings.buttonTextColor },
                   ]}
                 >
-                  On te rappelle à l’avance, jamais en retard.
+                We remind you ahead of time, never too late.
                 </Text>
               </View>
             </View>
@@ -446,7 +454,7 @@ export default function HomeScreen({ navigation }: Props) {
                 {totalContacts}
               </Text>
               <Text style={[styles.statHint, { color: settings.textColor }]}>
-                personnes suivies
+                people tracked
               </Text>
             </View>
 
@@ -462,13 +470,13 @@ export default function HomeScreen({ navigation }: Props) {
                 <Ionicons name="calendar-outline" size={16} color="#D97706" />
               </View>
               <Text style={[styles.statLabel, { color: settings.textColor }]}>
-                Cette semaine
+              This week
               </Text>
               <Text style={[styles.statValue, { color: settings.titleColor }]}>
                 {upcomingWeekCount}
               </Text>
               <Text style={[styles.statHint, { color: settings.textColor }]}>
-                moments à venir
+                upcoming moments
               </Text>
             </View>
           </View>
@@ -517,7 +525,7 @@ export default function HomeScreen({ navigation }: Props) {
               <Text
                 style={[styles.sectionTitle, { color: settings.titleColor }]}
               >
-                Aujourd’hui
+                Today
               </Text>
             </View>
 
@@ -525,18 +533,14 @@ export default function HomeScreen({ navigation }: Props) {
               <>
                 <View style={styles.todayHighlightCard}>
                   <View style={{ flex: 1 }}>
-                    <Text
-                      style={[styles.todayTitle, { color: settings.titleColor }]}
-                    >
-                      {todayItems.length === 1
-                        ? "Un moment à célébrer aujourd’hui 🎉"
-                        : `${todayItems.length} moments à célébrer aujourd’hui 🎉`}
-                    </Text>
-                    <Text
-                      style={[styles.todayMeta, { color: settings.textColor }]}
-                    >
-                      Prends une minute pour envoyer un message ou appeler.
-                    </Text>
+                  <Text style={[styles.todayTitle, { color: settings.titleColor }]}>
+                    {todayItems.length === 1
+                      ? "One moment to celebrate today 🎉"
+                      : `${todayItems.length} moments to celebrate today 🎉`}
+                  </Text>
+                  <Text style={[styles.todayMeta, { color: settings.textColor }]}>
+                    Take a moment to send a message or make a call.
+                  </Text>
                   </View>
                   <View style={styles.todayIconCircle}>
                     <Ionicons
@@ -549,7 +553,7 @@ export default function HomeScreen({ navigation }: Props) {
 
                 {todayItems.length > 0 && (
                   <View style={{ marginTop: 10 }}>
-                    {todayItems.map((item) => renderItemRow(item))}
+                    {visibleToday.map((item) => renderItemRow(item))}
                   </View>
                 )}
               </>
@@ -568,36 +572,46 @@ export default function HomeScreen({ navigation }: Props) {
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text
-                    style={[styles.todayTitle, { color: settings.titleColor }]}
-                  >
-                    Rien à célébrer aujourd’hui
-                  </Text>
-                  <Text
-                    style={[styles.todayMeta, { color: settings.textColor }]}
-                  >
-                    Ajoute une personne importante et nous te rappellerons
-                    ses moments clés.
-                  </Text>
+                <Text style={[styles.todayTitle, { color: settings.titleColor }]}>
+                  Nothing to celebrate today
+                </Text>
+                <Text style={[styles.todayMeta, { color: settings.textColor }]}>
+                  Add someone important and we’ll remind you of their key moments.
+                </Text>
                 </View>
               </View>
             )}
           </View>
+          {todayItems.length > HOME_TODAY_LIMIT && (
+  <TouchableOpacity
+    onPress={() => setShowAllToday((v) => !v)}
+    style={{ marginTop: 8, alignSelf: "center" }}
+  >
+    <Text
+      style={{
+        color: settings.primaryColor,
+        fontWeight: "600",
+      }}
+    >
+      {showAllToday ? "Show less ▲" : "View all ▼"}
+      </Text>
+  </TouchableOpacity>
+)}
 
           {/* UPCOMING */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-                À venir (30 jours)
+              Upcoming (30 days)
               </Text>
             </View>
 
             {loading ? (
-              <Text style={{ color: settings.textColor }}>Chargement…</Text>
+              <Text style={{ color: settings.textColor }}>Loading…</Text>
             ) : upcomingSections.length === 0 ? (
               <View style={styles.emptyStateInline}>
                 <Text style={[styles.emptyText, { color: settings.textColor }]}>
-                  Aucun événement ne correspond à ce filtre.
+                No events match this filter.
                 </Text>
               </View>
             ) : (
@@ -605,7 +619,7 @@ export default function HomeScreen({ navigation }: Props) {
                 {/* FILTERS */}
                 <View style={styles.filterRow}>
                   <FilterChip
-                    label="Tout"
+                    label="All"
                     selected={selectedTypeFilter === "all"}
                     onPress={() => setSelectedTypeFilter("all")}
                   />
@@ -638,7 +652,7 @@ export default function HomeScreen({ navigation }: Props) {
                     style={{ marginTop: 10, alignSelf: "center" }}
                   >
                    <Text style={{ color: settings.primaryColor, fontWeight: "600" }}>
-                  {showAllUpcoming ? "Afficher moins ▲" : "Afficher plus ▼"}
+                  {showAllUpcoming ? "See less ▲" : "See more ▼"}
                 </Text>
                   </TouchableOpacity>
                 )}
@@ -651,7 +665,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Text
               style={[styles.sectionTitle, { color: settings.titleColor }]}
             >
-              Récemment célébré
+              Recently celebrated
             </Text>
             <View
               style={[
@@ -668,13 +682,12 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text
                   style={[styles.recentTitle, { color: settings.titleColor }]}
                 >
-                  Bientôt disponible
+                    Coming soon
                 </Text>
                 <Text
                   style={[styles.recentText, { color: settings.textColor }]}
                 >
-                  Après chaque événement, tu verras ici qui tu as déjà célébré
-                  pour ne pas oublier de faire un petit suivi. 💬
+                    After each event, you’ll see here who you’ve already celebrated, so you can follow up thoughtfully. 💬
                 </Text>
               </View>
             </View>
@@ -691,13 +704,12 @@ export default function HomeScreen({ navigation }: Props) {
               <Text
                 style={[styles.planTitle, { color: settings.titleColor }]}
               >
-                Offre gratuite
+                 Free plan
               </Text>
               <Text
                 style={[styles.planText, { color: settings.textColor }]}
               >
-                Suis tes personnes importantes et leurs moments clés.
-                Tu peux gérer jusqu’à 10 contacts pour le moment.
+                  Track the people who matter most. You can manage up to 10 contacts for now.
               </Text>
             </View>
 
@@ -724,8 +736,7 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text
                   style={[styles.noticeText, { color: settings.textColor }]}
                 >
-                  Assure-toi que les notifications système sont activées
-                  pour recevoir tes rappels à temps.
+                    Make sure system notifications are enabled to receive your reminders on time.
                 </Text>
               </View>
             </View>
@@ -758,22 +769,22 @@ function formatDateLabel(d: Date) {
 }
 
 function buildRelativeLabelFr(daysUntil: number) {
-  if (daysUntil === 0) return "Aujourd’hui";
-  if (daysUntil === 1) return "Dans 1 jour";
-  if (daysUntil < 7) return `Dans ${daysUntil} jours`;
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "In 1 day";
+  if (daysUntil < 7) return `In ${daysUntil} days`;
   if (daysUntil < 30) {
     const weeks = Math.ceil(daysUntil / 7);
-    return weeks === 1 ? "Dans 1 semaine" : `Dans ${weeks} semaines`;
+    return weeks === 1 ? "In 1 week" : `In ${weeks} weeks`;
   }
-  return `Dans ${daysUntil} jours`;
+  return `In ${daysUntil} days`;
 }
 
-function formatShortCountdownFr(daysUntil: number) {
-  if (daysUntil === 0) return "Aujourd’hui";
-  if (daysUntil === 1) return "1 j";
-  if (daysUntil < 7) return `${daysUntil} j`;
+function formatShortCountdown(daysUntil: number) {
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "1 d";
+  if (daysUntil < 7) return `${daysUntil} d`;
   const weeks = Math.ceil(daysUntil / 7);
-  return `${weeks} sem.`;
+  return `${weeks} weeks.`;
 }
 
 function buildUpcomingSections(items: HomeItem[]): UpcomingSection[] {
@@ -794,14 +805,14 @@ function buildUpcomingSections(items: HomeItem[]): UpcomingSection[] {
   if (week.length > 0) {
     sections.push({
       key: "week",
-      title: "Cette semaine",
+      title: "This week",
       data: week,
     });
   }
   if (month.length > 0) {
     sections.push({
       key: "month",
-      title: "Plus tard ce mois-ci",
+      title: "Later this month",
       data: month,
     });
   }

@@ -22,7 +22,7 @@ export type EventDTO = {
   contact: number;        // FK id
   contact_name:string;
   type: EventType;        // birthday / custom
-  date: string;           // "YYYY-MM-DD"
+  start_date: string;           // "YYYY-MM-DD"
   time?: string | null;   // "HH:MM:SS" or null
   is_recurring: boolean;
   is_active: boolean;
@@ -33,7 +33,7 @@ export type EventDTO = {
 
 export type UpdateEventPayload = {
   title: string;
-  date?: string;
+  start_date?: string;
   time?: string;
   type?: number;
   is_recurring?: boolean;

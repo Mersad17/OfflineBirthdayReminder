@@ -8,6 +8,7 @@ import EditEventScreen from "../screens/Events/EditEventScreen";
 import EditContactScreen from "../screens/Contacts/EditContactScreen";
 import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";
 import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHistoryScreen";
+import { Interaction } from "../interactions/types";
 
 export type ContactsStackParamList = {
   ContactsList: undefined;
@@ -17,7 +18,7 @@ export type ContactsStackParamList = {
   ContactDetail: { contactId: number; contactName?: string };
   EventDetails: { eventId: number; eventTitle?: string, from:string, contactId: number };
   EditEvent: { eventId: number; eventTitle?: string, from:string, contactId: number };
-  LogInteraction: { contactId: number };
+  LogInteraction: { contactId: number ,  interaction?: Interaction;};
   InteractionsHistory: { contactId: number };
 };
 

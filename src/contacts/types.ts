@@ -1,6 +1,7 @@
 import { EventTypeValue } from "../events/types";
 
 export type Contact = {
+  is_favorite: boolean | null;
   id: number;
   first_name: string;
   last_name: string;
@@ -21,6 +22,7 @@ export type Contact = {
 
 export type CreateContactInput = {
   first_name: string;
+  is_favorite: boolean| null;
   last_name?: string| null;
   birthday?: string | null;
   email?: string | null;
@@ -36,7 +38,7 @@ export type CreateEventInput = {
   contact: number;          
   title?: string;           
   type?: number;            
-  date: string;             
+  start_date: string;             
   time?: string | null;     
   is_recurring?: boolean;   
   

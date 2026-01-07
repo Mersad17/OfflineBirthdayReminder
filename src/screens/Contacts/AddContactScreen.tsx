@@ -101,6 +101,7 @@ export default function AddContactScreen({ navigation }: Props) {
         notes: notes || undefined,
         // 🔥 send to API (make sure createContact handles photo_uri → multipart)
         photo_uri: photoUri || undefined,
+        is_favorite: null
       });
       Alert.alert("Success", "Contact created.");
       navigation.goBack();

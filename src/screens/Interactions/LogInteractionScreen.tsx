@@ -6,75 +6,116 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-import { createInteraction } from "../../interactions/api";
+import { createInteraction, updateInteraction } from "../../interactions/api";
+import { InteractionType } from "../../interactions/types";
 
-type Props = {
-  route: {
-    params: {
-      contactId: number;
-    };
-  };
-  navigation: any;
-};
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { formatDateEU } from "../../lib/date";
+import { ContactsStackParamList } from "../../navigation/ContactsStack";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+type Props = NativeStackScreenProps<ContactsStackParamList, "LogInteraction">;
 
-function nowLocalString() {
-  const d = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
-    d.getDate()
-  )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
-function toISOFromLocal(value: string) {
-  // expects: YYYY-MM-DD HH:mm
-  const [date, time] = value.split(" ");
-  if (!date || !time) return null;
 
-  const [y, m, d] = date.split("-").map(Number);
-  const [hh, mm] = time.split(":").map(Number);
+/* ---------- interaction types ---------- */
 
-  if (!y || !m || !d || hh === undefined || mm === undefined) {
-    return null;
-  }
+const INTERACTION_TYPES = [
+  { id: InteractionType.CALL, label: "Call" },
+  { id: InteractionType.IN_PERSON, label: "In person" },
+  { id: InteractionType.MESSAGE, label: "Message" },
+  { id: InteractionType.VIDEO, label: "Video" },
+  { id: InteractionType.OTHER, label: "Other" },
+];
 
-  return new Date(y, m - 1, d, hh, mm).toISOString();
-}
+/* ---------- screen ---------- */
 
 export default function LogInteractionScreen({ route, navigation }: Props) {
   const { contactId } = route.params;
   const { settings } = useAppearance();
-
-  const [note, setNote] = useState("");
-  const [duration, setDuration] = useState("");
-  const [happenedAt, setHappenedAt] = useState(nowLocalString());
+  const interaction = route.params?.interaction;
+  const isEdit = !!interaction;
+  
+  const [type, setType] = useState(
+    interaction?.type ?? InteractionType.OTHER
+  );
+  
+  const [note, setNote] = useState(interaction?.note ?? "");
+  
+  const [duration, setDuration] = useState(
+    interaction?.duration_minutes?.toString() ?? ""
+  );
+  
+  const [happenedAtDate, setHappenedAtDate] = useState(
+    interaction ? new Date(interaction.happened_at) : new Date()
+  );
+  
+  const [showHappenedAtPicker, setShowHappenedAtPicker] =
+    useState(false);
+  
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     if (saving) return;
-
-    const iso = toISOFromLocal(happenedAt);
+  
+    const iso = happenedAtDate.toISOString();
     if (!iso) {
       alert("Please enter a valid date and time.");
       return;
     }
-
+  
     setSaving(true);
     try {
-      await createInteraction({
-        contact_id: contactId,
+      const payload = {
         happened_at: iso,
         duration_minutes: duration ? Number(duration) : null,
         note: note || null,
-      });
-
+        type,
+      };
+  
+      if (isEdit && interaction) {
+        // ✅ EDIT
+        await updateInteraction(interaction.id, payload);
+      } else {
+        // ✅ CREATE
+        await createInteraction({
+          contact_id: contactId,
+          ...payload,
+        });
+      }
+  
       navigation.goBack();
     } finally {
       setSaving(false);
     }
   }
+  
+  
+  function openHappenedAtPicker() {
+    setShowHappenedAtPicker(true);
+  }
+  
+  function onHappenedAtChange(
+    event: DateTimePickerEvent,
+    date?: Date
+  ) {
+    if (event.type === "dismissed") {
+      setShowHappenedAtPicker(false);
+      return;
+    }
+  
+    if (date) {
+      setHappenedAtDate(date);
+    }
+  
+    setShowHappenedAtPicker(false);
+  }
+  
 
   return (
     <Screen>
@@ -83,44 +124,139 @@ export default function LogInteractionScreen({ route, navigation }: Props) {
           Log interaction
         </Text>
 
+        {/* TYPE */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: settings.textColor }]}>
+            Type
+          </Text>
+
+          <View style={styles.typeRow}>
+            {INTERACTION_TYPES.map((t) => {
+              const selected = type === t.id;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => setType(t.id)}
+                  style={[
+                    styles.typeChip,
+                    {
+                      backgroundColor: selected
+                        ? settings.primaryColor + "22"
+                        : settings.cardColor,
+                      borderColor: selected
+                        ? settings.primaryColor
+                        : settings.cardColor + "55",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      color: selected
+                        ? settings.primaryColor
+                        : settings.textColor,
+                    }}
+                  >
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* WHEN */}
-        <TextInput
-          placeholder="When (YYYY-MM-DD HH:mm)"
-          placeholderTextColor={settings.textColor + "80"}
-          value={happenedAt}
-          onChangeText={setHappenedAt}
+      <View style={styles.section}>
+        <Text style={[styles.label, { color: settings.textColor }]}>
+          When
+        </Text>
+
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={openHappenedAtPicker}
           style={[
             styles.input,
-            { backgroundColor: settings.cardColor, color: settings.textColor },
+            styles.dateInput,
+            { backgroundColor: settings.cardColor },
           ]}
-        />
+        >
+          <Text style={{ color: settings.textColor }}>
+            {formatDateEU(happenedAtDate)} ·{" "}
+            {happenedAtDate.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
+        </TouchableOpacity>
+
+        {showHappenedAtPicker && Platform.OS === "ios" && (
+            <DateTimePicker
+              value={happenedAtDate}
+              mode="datetime"
+              display="spinner"
+              onChange={onHappenedAtChange}
+              maximumDate={new Date()}
+            />
+          )}
+
+          {showHappenedAtPicker && Platform.OS === "android" && (
+            <DateTimePicker
+              value={happenedAtDate}
+              mode="date"
+              onChange={onHappenedAtChange}
+              maximumDate={new Date()}
+            />
+          )}
+
+      </View>
+
 
         {/* NOTE */}
-        <TextInput
-          placeholder="What was it about? (optional)"
-          placeholderTextColor={settings.textColor + "80"}
-          value={note}
-          onChangeText={setNote}
-          multiline
-          style={[
-            styles.input,
-            { backgroundColor: settings.cardColor, color: settings.textColor },
-          ]}
-        />
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: settings.textColor }]}>
+            Note (optional)
+          </Text>
+
+          <TextInput
+            placeholder="What was it about?"
+            placeholderTextColor={settings.textColor + "80"}
+            value={note}
+            onChangeText={setNote}
+            multiline
+            style={[
+              styles.input,
+              {
+                backgroundColor: settings.cardColor,
+                color: settings.textColor,
+                minHeight: 80,
+              },
+            ]}
+          />
+        </View>
 
         {/* DURATION */}
-        <TextInput
-          placeholder="Duration in minutes (optional)"
-          placeholderTextColor={settings.textColor + "80"}
-          value={duration}
-          onChangeText={setDuration}
-          keyboardType="numeric"
-          style={[
-            styles.input,
-            { backgroundColor: settings.cardColor, color: settings.textColor },
-          ]}
-        />
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: settings.textColor }]}>
+            Duration (minutes)
+          </Text>
 
+          <TextInput
+            placeholder="Optional"
+            placeholderTextColor={settings.textColor + "80"}
+            value={duration}
+            onChangeText={setDuration}
+            keyboardType="numeric"
+            style={[
+              styles.input,
+              {
+                backgroundColor: settings.cardColor,
+                color: settings.textColor,
+              },
+            ]}
+          />
+        </View>
+
+        {/* SAVE */}
         <TouchableOpacity
           style={[
             styles.saveButton,
@@ -138,7 +274,7 @@ export default function LogInteractionScreen({ route, navigation }: Props) {
                 { color: settings.buttonTextColor },
               ]}
             >
-              Save
+              {isEdit ? "Update interaction" : "Save interaction"}
             </Text>
           )}
         </TouchableOpacity>
@@ -147,20 +283,75 @@ export default function LogInteractionScreen({ route, navigation }: Props) {
   );
 }
 
+/* ---------- styles ---------- */
+
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 22, fontWeight: "800", marginBottom: 16 },
+  container: {
+    padding: 16,
+    paddingBottom: 24,
+  },
+
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 16,
+  },
+
+  section: {
+    marginBottom: 14,
+  },
+
+  label: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+
   input: {
     borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
     fontSize: 14,
   },
+
+  typeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  typeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+
   saveButton: {
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 12,
   },
-  saveButtonText: { fontSize: 16, fontWeight: "800" },
+
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  dateInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  datePlaceholder: {
+    fontSize: 14,
+    color: "#999",
+  },
+  dateIcon: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
 });

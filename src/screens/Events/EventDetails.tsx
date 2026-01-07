@@ -631,7 +631,7 @@ export default function EventDetails({ route, navigation }: Props) {
 
           <DetailRow label="Type" value={typeLabel(event.type)} />
           <DetailRow label="Next Occurrence" value={formatDateEU(event.next_occurrence)} />
-          <DetailRow label="Original Date" value={formatDateEU(event.date)} />
+          <DetailRow label="Original Date" value={formatDateEU(event.start_date)} />
           <DetailRow
             label="Recurring"
             value={event.is_recurring ? "Yes" : "No"}
