@@ -26,11 +26,22 @@ Example:
 }
 
 
-This is configuration management (not hiding): the URL still ends up inside the app.
+React Native + Expo frontend for a Django API.
 
-✅ What should/shouldn’t be in the mobile app
+Start project:
+npm install
+npx expo start
 
-✅ OK in the app: API base URL, feature flags, non-secret config
+The app uses Django only through API calls.
 
-❌ Never put in the app: DJANGO_SECRET_KEY, JWT_SECRET_KEY, database passwords, Expo push server keys, etc.
-Those must stay on the backend only.
+Important parts:
+- assets: icons/images
+- env.ts: backend API URL
+- api.ts: API requests
+- types.ts: TypeScript data types
+- AuthContext: authentication state
+- RootNavigator: chooses auth screens or main app
+- AppTabs: bottom tabs for Home, Contacts, Events, Settings
+
+Basic flow:
+Screen → api.ts → Django API → data shown in app
