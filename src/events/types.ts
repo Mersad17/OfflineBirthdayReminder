@@ -9,6 +9,7 @@ export type ReminderDTO = {
 };
 
 export type EventDTO = {
+  duration_minutes?: number | null;
   next_occurrence: string;
   month_label: string;
   days_until: number;
@@ -19,11 +20,13 @@ export type EventDTO = {
   contact_first_name:string;
   contact_last_name:string;
   contact_photo:string;
-  contact: number;        // FK id
+  contact: number;        
   contact_name:string;
-  type: EventType;        // birthday / custom
-  start_date: string;           // "YYYY-MM-DD"
-  time?: string | null;   // "HH:MM:SS" or null
+  type: EventType;        
+  start_date: string;           
+  start_time?: string | null;   
+  end_date?: string | null;           
+  end_time?: string | null;   
   is_recurring: boolean;
   is_active: boolean;
   created_at: string;
@@ -34,7 +37,9 @@ export type EventDTO = {
 export type UpdateEventPayload = {
   title: string;
   start_date?: string;
-  time?: string;
+  start_time?: string;
+  end_date?: string;
+  end_time?: string;
   type?: number;
   is_recurring?: boolean;
   is_active?: boolean;

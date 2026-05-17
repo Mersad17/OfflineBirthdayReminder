@@ -38,8 +38,10 @@ export type CreateEventInput = {
   contact: number;          
   title?: string;           
   type?: number;            
-  start_date: string;             
-  time?: string | null;     
+  start_date: string; 
+  start_time?: string | null;     
+  end_date?: string |null;             
+  end_time?: string | null;     
   is_recurring?: boolean;   
   
 };

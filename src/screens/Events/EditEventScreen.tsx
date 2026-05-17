@@ -50,6 +50,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
   const [contactId, setContactId] = useState<number | null>(
     routeContactId ?? null
   );
+  
   const [contactName, setContactName] = useState<string>("Contact");
 
   const [title, setTitle] = useState("");
@@ -58,10 +59,19 @@ export default function EditEventScreen({ route, navigation }: Props) {
   const [dateString, setDateString] = useState("");
   const [date, setDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [hasEndDate, setHasEndDate] = useState(false);
 
-  const [timeString, setTimeString] = useState("");
-  const [time, setTime] = useState<Date | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [endDateString, setEndDateString] = useState("");
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  
+  const [endTimeString, setEndTimeString] = useState("");
+  const [endTime, setEndTime] = useState<Date | null>(null);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  
+  const [startTimeString, setStartTimeString] = useState("");
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
 
   const [isRecurring, setIsRecurring] = useState(true);
   const [isActive, setIsActive] = useState(true);
@@ -120,15 +130,27 @@ export default function EditEventScreen({ route, navigation }: Props) {
         setType((e.type as EventTypeValue) ?? 1);
 
         // Date
-        setDateString(e.date || "");
-        setDate(parseDateFromString(e.date));
+        setDateString(e.start_date || "");
+        setDate(parseDateFromString(e.start_date));
 
         // Time
-        if (e.time) {
-          const hhmm = e.time.slice(0, 5); // "HH:MM"
-          setTimeString(hhmm);
-          setTime(parseTimeFromString(hhmm));
+        if (e.start_time) {
+          const hhmm = e.start_time.slice(0, 5); // "HH:MM"
+          setStartTimeString(hhmm);
+          setStartTime(parseTimeFromString(hhmm));
         }
+          if (e.end_date) {
+            setHasEndDate(true);
+            setEndDateString(e.end_date);
+            setEndDate(parseDateFromString(e.end_date));
+          }
+
+          // End time
+          if (e.end_time) {
+            const hhmm = e.end_time.slice(0, 5);
+            setEndTimeString(hhmm);
+            setEndTime(parseTimeFromString(hhmm));
+          }
 
         setIsRecurring(e.is_recurring);
         setIsActive(e.is_active);
@@ -155,11 +177,11 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
   function onTimeChange(evt: DateTimePickerEvent, selectedTime?: Date) {
     if (Platform.OS === "android") {
-      setShowTimePicker(false);
+      setShowStartTimePicker(false);
     }
     if (selectedTime) {
-      setTime(selectedTime);
-      setTimeString(formatTime(selectedTime));
+      setStartTime(selectedTime);
+      setStartTimeString(formatTime(selectedTime));
     }
   }
 
@@ -168,9 +190,52 @@ export default function EditEventScreen({ route, navigation }: Props) {
   }
 
   function openTimePicker() {
-    setShowTimePicker(true);
+    setShowStartTimePicker(true);
   }
-
+  function openEndDatePicker() {
+    setShowEndDatePicker(true);
+  }
+  
+  function openEndTimePicker() {
+    setShowEndTimePicker(true);
+  }
+  
+  function onEndDateChange(evt: DateTimePickerEvent, selectedDate?: Date) {
+    if (Platform.OS === "android") {
+      setShowEndDatePicker(false);
+    }
+    if (selectedDate) {
+      setEndDate(selectedDate);
+      setEndDateString(formatDate(selectedDate));
+  
+      // reset end time when date changes
+      setEndTime(null);
+      setEndTimeString("");
+    }
+  }
+  
+  function onEndTimeChange(evt: DateTimePickerEvent, selectedTime?: Date) {
+    if (Platform.OS === "android") {
+      setShowEndTimePicker(false);
+    }
+    if (selectedTime) {
+      setEndTime(selectedTime);
+      setEndTimeString(formatTime(selectedTime));
+    }
+  }
+  
+  function toggleHasEndDate() {
+    setHasEndDate((prev) => {
+      if (prev) {
+        setEndDate(null);
+        setEndDateString("");
+        setEndTime(null);
+        setEndTimeString("");
+      }
+      return !prev;
+    });
+  }
+  
   // ---------- save ----------
 
   async function onSave() {
@@ -184,14 +249,44 @@ export default function EditEventScreen({ route, navigation }: Props) {
       Alert.alert("Title required", "Please add a title.");
       return;
     }
-
+    if (!isRecurring && endDateString && endDateString < dateString) {
+      Alert.alert(
+        "Invalid end date",
+        "End date cannot be earlier than start date."
+      );
+      return;
+    }
+    
+    if (
+      hasEndDate &&
+      endDateString === dateString &&
+      startTimeString &&
+      endTimeString &&
+      endTimeString <= startTimeString
+    ) {
+      Alert.alert(
+        "Invalid end time",
+        "End time must be after start time."
+      );
+      return;
+    }
+    
     setSaving(true);
     try {
       await updateEvent(eventId, {
         title: title.trim(),
         type,
-        date: dateString,
-        time: timeString ? `${timeString}:00` : undefined,
+        start_date: dateString,
+        start_time: startTimeString ? `${startTimeString}:00` : undefined,
+        end_date:
+          !isRecurring && hasEndDate && endDateString
+            ? endDateString
+            : undefined,
+
+        end_time:
+          !isRecurring && hasEndDate && endTimeString
+            ? `${endTimeString}:00`
+            : undefined,
         is_recurring: isRecurring,
         is_active: isActive,
         // contact left unchanged
@@ -410,7 +505,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
                       { color: settings.titleColor },
                     ]}
                   >
-                    Date
+                    {hasEndDate ? "Start Date" : "Date"}
                   </Text>
                   <Text
                     style={[
@@ -468,7 +563,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
                       { color: settings.titleColor },
                     ]}
                   >
-                    Time
+                  {hasEndDate ? "Start Time" : "Time"}
                   </Text>
                   <Text
                     style={[
@@ -493,7 +588,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
                 >
                   <Text
                     style={
-                      timeString
+                      startTimeString
                         ? [styles.dateText, { color: settings.textColor }]
                         : [
                             styles.datePlaceholder,
@@ -501,22 +596,128 @@ export default function EditEventScreen({ route, navigation }: Props) {
                           ]
                     }
                   >
-                    {timeString || "No specific time"}
+                    {startTimeString || "No specific time"}
                   </Text>
                   <Text style={[styles.dateIcon, { color: settings.textColor }]}>
                     ⏰
                   </Text>
                 </TouchableOpacity>
 
-                {showTimePicker && (
+                {showStartTimePicker && (
                   <DateTimePicker
-                    value={time || new Date()}
+                    value={startTime || new Date()}
                     mode="time"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={onTimeChange}
                   />
                 )}
               </View>
+              {!isRecurring &&(
+              <View style={styles.fieldGroup}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={toggleHasEndDate}
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 18, marginRight: 10 }}>
+                  {hasEndDate ? "☑️" : "⬜️"}
+                </Text>
+                <Text style={[styles.label, { color: settings.textColor }]}>
+                  This event has an end date
+                </Text>
+              </TouchableOpacity>
+            </View>
+                          )}
+            {!isRecurring && hasEndDate && (
+
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { color: settings.textColor }]}>
+                    End date
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={openEndDatePicker}
+                  style={[
+                    styles.input,
+                    styles.dateInput,
+                    {
+                      backgroundColor: settings.cardColor,
+                      borderColor: settings.cardColor + "60",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={
+                      endDateString
+                        ? [styles.dateText, { color: settings.textColor }]
+                        : [styles.datePlaceholder, { color: settings.textColor + "66" }]
+                    }
+                  >
+                    {formatDateEU(endDateString) || "No end date"}
+                  </Text>
+                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
+                    📅
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.fieldGroup}>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: settings.textColor }]}>
+                  End time
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={openEndTimePicker}
+                style={[
+                  styles.input,
+                  styles.dateInput,
+                  {
+                    backgroundColor: settings.cardColor,
+                    borderColor: settings.cardColor + "60",
+                  },
+                ]}
+              >
+                <Text
+                  style={
+                    endTimeString
+                      ? [styles.dateText, { color: settings.textColor }]
+                      : [styles.datePlaceholder, { color: settings.textColor + "66" }]
+                  }
+                >
+                  {endTimeString || "No end time"}
+                </Text>
+                <Text style={[styles.dateIcon, { color: settings.textColor }]}>
+                  ⏰
+                </Text>
+              </TouchableOpacity>
+
+              {showEndTimePicker && (
+                <DateTimePicker
+                  value={endTime || new Date()}
+                  mode="time"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  onChange={onEndTimeChange}
+                />
+              )}
+            </View>
+
+                {showEndDatePicker && (
+                  <DateTimePicker
+                    value={endDate || date || new Date()}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onEndDateChange}
+                  />
+                )}
+              </View>
+              
+            )}
+
+             
 
               {/* Recurrence */}
               <View style={styles.fieldGroup}>

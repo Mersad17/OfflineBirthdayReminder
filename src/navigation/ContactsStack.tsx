@@ -9,6 +9,7 @@ import EditContactScreen from "../screens/Contacts/EditContactScreen";
 import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";
 import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHistoryScreen";
 import { Interaction } from "../interactions/types";
+import { useAppearance } from "../appearance/AppearanceContext";
 
 export type ContactsStackParamList = {
   ContactsList: undefined;
@@ -25,9 +26,21 @@ export type ContactsStackParamList = {
 const Stack = createNativeStackNavigator<ContactsStackParamList>();
 
 export default function ContactsStack() {
+  const { settings } = useAppearance();
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="ContactsList" component={ContactsScreen} options={{headerShown:false}} />
+    <Stack.Navigator
+    screenOptions={{
+      headerStyle: {
+        backgroundColor: settings.cardColor, // 👈 HEADER BACKGROUND
+      },
+      headerTintColor: settings.titleColor,   // 👈 back button + title
+      headerTitleStyle: {
+        fontWeight: "700",
+      },
+      headerShadowVisible: false, // optional (iOS)
+    }}
+  >      
+  <Stack.Screen name="ContactsList" component={ContactsScreen} options={{headerShown:false}} />
       <Stack.Screen name="AddContact" component={AddContactScreen} options={{ title: "Add Contact" }} />
       <Stack.Screen name="AddEvent" component={AddEventScreen} options={{ title: "Add Event" }} />
       <Stack.Screen name="ContactDetail" component={ContactDetailScreen} options={{ title: "Contact" }} />

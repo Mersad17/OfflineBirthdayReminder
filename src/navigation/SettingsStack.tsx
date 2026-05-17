@@ -7,6 +7,7 @@ import AppearanceScreen from "../screens/Settings/AppearanceScreen";
 import PasswordAndSecurityScreen from "../screens/Settings/PasswordAndSecurityScreen";
 import ReportBugScreen from "../screens/Settings/ReportBugScreen";
 import FeedbackScreen from "../screens/Settings/FeedBackScreen";
+import { useAppearance } from "../appearance/AppearanceContext";
 
 export type SettingsStackParamsList ={
     SettingsHome: undefined;
@@ -21,8 +22,20 @@ export type SettingsStackParamsList ={
 
 const Stack = createNativeStackNavigator<SettingsStackParamsList>()
 export default function SettingsStack(){
-    return(
-        <Stack.Navigator >
+    const { settings } = useAppearance();
+  return (
+    <Stack.Navigator
+    screenOptions={{
+      headerStyle: {
+        backgroundColor: settings.cardColor, // 👈 HEADER BACKGROUND
+      },
+      headerTintColor: settings.titleColor,   // 👈 back button + title
+      headerTitleStyle: {
+        fontWeight: "700",
+      },
+      headerShadowVisible: false, // optional (iOS)
+    }}
+  >   
             <Stack.Screen name="SettingsHome" component={SettingsScreen} options={{headerShown:false}}/>
             <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown:true}}/>
             <Stack.Screen name="PasswordAndSecurity" component={PasswordAndSecurityScreen} options={{headerShown:true}}/>

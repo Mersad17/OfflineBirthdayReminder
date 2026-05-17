@@ -19,6 +19,7 @@ import { useAppearance } from "../../appearance/AppearanceContext";
 import { fetchEvents } from "../../events/api";
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
 import { formatDateEU } from "../../lib/date";
+import {  getEventTimeInfo } from "../../events/utils";
 
 type Tab = "upcoming" | "past";
 
@@ -55,7 +56,7 @@ export default function EventsScreen({ navigation }: any) {
     if (days < 30) return `in ${Math.ceil(days / 7)} weeks`;
     return "";
   }
-
+  
   async function load(pageToLoad = 1, merge = false) {
     setLoading(true);
     try {
@@ -269,7 +270,10 @@ export default function EventsScreen({ navigation }: any) {
               <ActivityIndicator style={{ marginVertical: 16 }} color={settings.primaryColor} />
             ) : null
           }
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const timeInfo = getEventTimeInfo(item);
+          
+            return (
             <View
               style={[
                 styles.card,
@@ -289,36 +293,53 @@ export default function EventsScreen({ navigation }: any) {
                 }
               >
                 <View style={styles.cardRow}>
-                  
                   {renderAvatar(item)}
 
-                  <View style={styles.cardText}>
-                    <Text
-                      style={[styles.cardTitle, { color: settings.titleColor }]}
-                      numberOfLines={1}
-                    >
-                      {iconForType(item.type)} {item.contact_name}
+                  <View style={styles.cardContent}>
+                    {/* LINE 1 */}
+                    <Text style={[styles.cardTopLine, { color: settings.titleColor }]} numberOfLines={1}>
+                      {iconForType(item.type)} {EVENT_TYPE_META[item.type as EventTypeValue]?.label} · {item.contact_name}
                     </Text>
 
-                    <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
-                      {item.title || "Untitled Event"} • {formatDateEU(item.next_occurrence)}
-                      {tab === "upcoming" && item.days_until < 30 ? (
+                    {/* LINE 2 */}
+                    <Text style={[styles.cardTitle, { color: settings.textColor }]} numberOfLines={1}>
+                      {item.title || "Untitled Event"}
+                    </Text>
+
+                    {/* LINE 3 */}
+                    <Text style={[styles.cardDate, { color: settings.textColor + "AA" }]}>
+                      📅 Next · {formatDateEU(item.next_occurrence)}
+                      {tab === "upcoming" && item.days_until < 30 && (
                         <Text style={{ color: settings.primaryColor }}>
-                          {" "}• {friendlyCountdown(item.days_until)}
+                          {" "}· {friendlyCountdown(item.days_until)}
                         </Text>
-                      ) : null}
+                      )}
                     </Text>
                   </View>
                 </View>
 
-                <Text style={[styles.cardStatus, { color: settings.textColor + "AA" }]}>
-                  {item.has_reminder
-                    ? `🔔 ${item.reminder_count} reminder${item.reminder_count > 1 ? "s" : ""}`
-                    : "⚠️ No reminder"}
+                {/* BOTTOM ROW */}
+                
+                <View style={styles.cardStatusRow}>
+              <View>
+                <Text style={styles.cardStatus}>{timeInfo?.main}</Text>
+                {timeInfo?.sub && (
+                <Text style={{ fontSize: 12, color: settings.textColor + "88" }}>
+                  {timeInfo.sub}
                 </Text>
+              )}
+              </View>
+
+              <Text style={styles.cardStatus}>
+                {item.has_reminder ? `🔔 ${item.reminder_count}` : "⚠️ No reminder"}
+              </Text>
+            </View>
+
+
+
               </TouchableOpacity>
             </View>
-          )}
+          )}}
         />
 
         {/* Filter Modal */}
@@ -504,6 +525,35 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
+  },
+  cardStatusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  
+  cardTopLine: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  
+  cardDate: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  
+  cardBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  
+  cardMeta: {
+    fontSize: 13,
   },
   
 });

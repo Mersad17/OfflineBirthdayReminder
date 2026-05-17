@@ -30,6 +30,7 @@ import { formatDateTime } from "../../reminders/utils";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
+import { getEventTimeInfo } from "../../events/utils";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -481,6 +482,7 @@ export default function EventDetails({ route, navigation }: Props) {
       </Screen>
     );
   }
+  const timeInfo = getEventTimeInfo(event);
 
   // DELETE EVENT
   function confirmDelete() {
@@ -548,6 +550,7 @@ export default function EventDetails({ route, navigation }: Props) {
     if (d < 30) return `In ${Math.ceil(d / 7)} weeks`;
     return "";
   }
+
 
   return (
     <Screen scroll>
@@ -630,12 +633,62 @@ export default function EventDetails({ route, navigation }: Props) {
           </Text>
 
           <DetailRow label="Type" value={typeLabel(event.type)} />
-          <DetailRow label="Next Occurrence" value={formatDateEU(event.next_occurrence)} />
-          <DetailRow label="Original Date" value={formatDateEU(event.start_date)} />
-          <DetailRow
-            label="Recurring"
-            value={event.is_recurring ? "Yes" : "No"}
-          />
+         {/* SCHEDULE */}
+<View style={styles.scheduleBlock}>
+  <Text
+    style={[
+      styles.scheduleTitle,
+      { color: settings.titleColor },
+    ]}
+  >
+    Schedule
+  </Text>
+
+  <Text
+    style={[
+      styles.scheduleMain,
+      { color: settings.textColor },
+    ]}
+  >
+    {timeInfo?.main ?? "—"}
+  </Text>
+
+  {timeInfo?.sub && (
+    <Text
+      style={[
+        styles.scheduleSub,
+        { color: settings.textColor + "99" },
+      ]}
+    >
+      {timeInfo.sub}
+    </Text>
+  )}
+
+  <View style={styles.scheduleDivider} />
+
+  {event.next_occurrence ? (
+  <Text
+    style={[
+      styles.scheduleNext,
+      { color: settings.primaryColor },
+    ]}
+  >
+    Next occurrence · {formatDateEU(event.next_occurrence)}
+  </Text>
+) : (
+  <Text
+    style={[
+      styles.scheduleNext,
+      { color: settings.textColor + "88" },
+    ]}
+  >
+    No upcoming date
+  </Text>
+)}
+
+</View>
+
+          
           <DetailRow
             label="Status"
             value={event.is_active ? "Active" : "Inactive"}
@@ -877,6 +930,38 @@ const styles = StyleSheet.create({
     borderColor: "#FCA5A5",
   },
   deleteButtonText: { color: "#B91C1C", fontWeight: "700" },
+  scheduleBlock: {
+    marginTop: 10,
+    paddingVertical: 8,
+  },
+  scheduleTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  
+  scheduleMain: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  
+  scheduleSub: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  
+  scheduleDivider: {
+    height: 1,
+    marginVertical: 10,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  
+  scheduleNext: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });
 
 // -----------------------------------------------------
@@ -946,4 +1031,11 @@ const modalStyles = StyleSheet.create({
     borderRadius: 10,
   },
   saveText: { fontWeight: "700", fontSize: 16 },
+  scheduleBlock: {
+    marginTop: 10,
+    paddingVertical: 8,
+  },
+  
+
+  
 });

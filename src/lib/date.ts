@@ -3,7 +3,19 @@ export function formatDateEU(
   ) {
     if (!value) return "";
   
-    const d = value instanceof Date ? value : new Date(value);
+    let d: Date;
+  
+    if (value instanceof Date) {
+      d = value;
+    } else {
+      // ✅ normalize date-only strings
+      const normalized =
+        typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+          ? `${value}T00:00:00`
+          : value;
+  
+      d = new Date(normalized);
+    }
   
     if (Number.isNaN(d.getTime())) return "";
   

@@ -9,6 +9,7 @@ import EventDetails from "../screens/Events/EventDetails";
 import AddEventScreen from "../screens/Contacts/AddEventScreen";
 import EditEventScreen from "../screens/Events/EditEventScreen";
 import EditContactScreen from "../screens/Contacts/EditContactScreen";
+import { useAppearance } from "../appearance/AppearanceContext";
 
 export type HomeStackParamList = {
     HomeScreen: undefined;
@@ -34,8 +35,21 @@ export type HomeStackParamList = {
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 
 export default function HomeStackNavigator() {
+  const { settings } = useAppearance();
+
   return (
-    <HomeStack.Navigator>
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: settings.cardColor,
+        },
+        headerTintColor: settings.titleColor,
+        headerTitleStyle: {
+          fontWeight: "700",
+        },
+        headerShadowVisible: false, // iOS: cleaner look
+      }}
+    >
       {/* 👇 point d’entrée de ce stack */}
       <HomeStack.Screen
         name="HomeScreen"

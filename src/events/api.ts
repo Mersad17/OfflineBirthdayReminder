@@ -41,7 +41,7 @@ export async function fetchEventsForContact(
   page = 1
 ) {
   const res = await api.get(
-    `/events/?contact=${contactId}&page=${page}`
+    `/events/?contact_id=${contactId}&page=${page}`
   );
   return res.data; // { results, count }
 }
