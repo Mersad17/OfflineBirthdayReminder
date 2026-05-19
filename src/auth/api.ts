@@ -63,3 +63,15 @@ export async function changePassword(
     throw fallback;
   }
 }
+
+
+export async function googleLogin(idToken: string): Promise<TokenPair> {
+  const res = await api.post("/accounts/auth/google/", {
+    id_token: idToken,
+  });
+
+  return {
+    access: res.data.access,
+    refresh: res.data.refresh,
+  };
+}

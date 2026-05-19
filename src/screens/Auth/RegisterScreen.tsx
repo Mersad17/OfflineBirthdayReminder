@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { useAuth } from "../../auth/AuthContext";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 type FieldErrors = {
   firstName?: string;
@@ -160,6 +161,20 @@ export default function RegisterScreen({ navigation }: any) {
               </Text>
 
               <View style={{ marginTop: 10, gap: 10 }}>
+              <GoogleSignInButton
+                backgroundColor={card}
+                textColor={title}
+                borderColor={primary + "33"}
+              />
+
+              <View style={styles.dividerRow}>
+                <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
+                <Text style={[styles.dividerText, { color: text + "99" }]}>
+                  or create with email
+                </Text>
+                <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
+              </View>
+
                 {/* First name */}
                 <View>
                   <Text style={[styles.label, { color: text + "CC" }]}>First name</Text>
@@ -390,7 +405,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 2,
   },
+dividerRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
 
+dividerLine: {
+  flex: 1,
+  height: 1,
+},
+
+dividerText: {
+  fontSize: 12,
+  fontWeight: "800",
+},
   errorText: {
     marginTop: 6,
     fontSize: 13,

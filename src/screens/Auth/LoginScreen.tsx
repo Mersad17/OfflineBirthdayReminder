@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../auth/AuthContext";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 type FieldErrors = {
   email?: string;
@@ -228,23 +229,35 @@ export default function LoginScreen({ navigation }: any) {
                 </View>
 
                 {/* Buttons */}
-                <View style={{ marginTop: 12, gap: 10 }}>
-                  <TouchableOpacity
-                    activeOpacity={0.88}
-                    onPress={onSubmit}
-                    disabled={!canSubmit || loading}
-                    style={[
-                      styles.primaryBtn,
-                      { backgroundColor: btn },
-                      (!canSubmit || loading) && { opacity: 0.6 },
-                    ]}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color={btnText} />
-                    ) : (
-                      <Text style={[styles.primaryBtnText, { color: btnText }]}>Log in</Text>
-                    )}
-                  </TouchableOpacity>
+              <View style={{ marginTop: 12, gap: 10 }}>
+                <GoogleSignInButton
+                  backgroundColor={card}
+                  textColor={title}
+                  borderColor={primary + "33"}
+                />
+
+                <View style={styles.dividerRow}>
+                  <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
+                  <Text style={[styles.dividerText, { color: text + "99" }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={onSubmit}
+                  disabled={!canSubmit || loading}
+                  style={[
+                    styles.primaryBtn,
+                    { backgroundColor: btn },
+                    (!canSubmit || loading) && { opacity: 0.6 },
+                  ]}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={btnText} />
+                  ) : (
+                    <Text style={[styles.primaryBtnText, { color: btnText }]}>Log in</Text>
+                  )}
+                </TouchableOpacity>
 
                   <TouchableOpacity
                     activeOpacity={0.88}
@@ -402,4 +415,19 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: "700",
   },
+  dividerRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
+
+dividerLine: {
+  flex: 1,
+  height: 1,
+},
+
+dividerText: {
+  fontSize: 12,
+  fontWeight: "800",
+},
 });

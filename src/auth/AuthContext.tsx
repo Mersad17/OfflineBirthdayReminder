@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { login as apiLogin, register as apiRegister, logout as apiLogout,getMe } from "./api";
+import { login as apiLogin, register as apiRegister, logout as apiLogout,getMe,   googleLogin as apiGoogleLogin, } from "./api";
 import { saveTokens, loadTokens, clearTokens } from "../lib/storage";
 import { registerLogoutHandler } from "../lib/authEvents";
 import { User } from "./types";
@@ -15,9 +15,10 @@ import { User } from "./types";
 type AuthState = {
   isAuthenticated: boolean;
   loading: boolean;
-  user: User | null; 
-   
+  user: User | null;
+
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   register: (
     email: string,
     password: string,
@@ -78,7 +79,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, []);
+const loginWithGoogle = useCallback(async (idToken: string) => {
+  setLoading(true);
 
+  try {
+    const tokens = await apiGoogleLogin(idToken);
+
+    await saveTokens(tokens.access, tokens.refresh);
+
+    const me = await getMe();
+
+    setUser(me);
+    setAuth(true);
+  } finally {
+    setLoading(false);
+  }
+}, []);
   const register = useCallback(
     async (
       email: string,
@@ -134,11 +150,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       user,
       login,
+      loginWithGoogle,
       register,
       logout,
       refreshUser, 
     }),
-    [isAuthenticated, loading, user, login, register, logout, refreshUser]
+    [isAuthenticated, loading, user, login, loginWithGoogle, register, logout, refreshUser]
   );
 
   useEffect(() => {
