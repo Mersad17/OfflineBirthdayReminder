@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { ChangePasswordErrorResponse, ChangePasswordPayload, LoginPayload,RegisterPayload,TokenPair, User } from "./types";
+import { ChangePasswordErrorResponse, ChangePasswordPayload, ForgotPasswordPayload, ForgotPasswordResponse, LoginPayload,RegisterPayload,ResetPasswordPayload,ResetPasswordResponse,TokenPair, User } from "./types";
 import axios from "axios";
 
 export async function login(payload:LoginPayload):Promise<TokenPair> {
@@ -74,4 +74,18 @@ export async function googleLogin(idToken: string): Promise<TokenPair> {
     access: res.data.access,
     refresh: res.data.refresh,
   };
+}
+
+export async function forgotPassword(
+  payload: ForgotPasswordPayload
+): Promise<ForgotPasswordResponse> {
+  const res = await api.post("/accounts/password/forgot/", payload);
+  return res.data;
+}
+
+export async function resetPassword(
+  payload: ResetPasswordPayload
+): Promise<ResetPasswordResponse> {
+  const res = await api.post("/accounts/password/reset/", payload);
+  return res.data;
 }

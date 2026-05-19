@@ -223,7 +223,7 @@ export default function LoginScreen({ navigation }: any) {
                     <Text style={[styles.link, { color: primary }]}>Create account</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => navigation?.navigate?.("ForgotPassword")} activeOpacity={0.85}>
+                  <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")} activeOpacity={0.85}>
                     <Text style={[styles.link, { color: primary }]}>Forgot?</Text>
                   </TouchableOpacity>
                 </View>

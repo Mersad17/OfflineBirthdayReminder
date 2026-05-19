@@ -27,3 +27,21 @@ export type ChangePasswordErrorResponse = {
   detail?: string;               // "Some error message"
   [key: string]: any;
 };
+
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
+export type ForgotPasswordResponse = {
+  detail: string;
+};
+
+export type ResetPasswordPayload = {
+  uid: string;
+  token: string;
+  new_password: string;
+};
+
+export type ResetPasswordResponse = {
+  detail: string;
+};
