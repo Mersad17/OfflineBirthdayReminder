@@ -45,3 +45,21 @@ export type ResetPasswordPayload = {
 export type ResetPasswordResponse = {
   detail: string;
 };
+
+export type VerifyEmailPayload = {
+  uid: string;
+  token: string;
+};
+
+export type VerifyEmailResponse = {
+  detail: string;
+};
+
+
+export type ResendVerificationEmailPayload = {
+  email: string;
+};
+
+export type ResendVerificationEmailResponse = {
+  detail: string;
+};

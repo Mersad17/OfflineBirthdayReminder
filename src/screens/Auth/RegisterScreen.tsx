@@ -94,7 +94,10 @@ export default function RegisterScreen({ navigation }: any) {
 
     try {
       await register(em, password, firstName.trim(), lastName.trim(), "Europe/Paris");
-      navigation.navigate("Login");
+
+      navigation.navigate("Login", {
+        message: "Account created. Please check your email to verify your account.",
+      });
     } catch (err: any) {
       const api = err?.response?.data;
       const e: FieldErrors = {};

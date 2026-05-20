@@ -1,5 +1,5 @@
 import { api } from "../lib/api";
-import { ChangePasswordErrorResponse, ChangePasswordPayload, ForgotPasswordPayload, ForgotPasswordResponse, LoginPayload,RegisterPayload,ResetPasswordPayload,ResetPasswordResponse,TokenPair, User } from "./types";
+import { ChangePasswordErrorResponse, ChangePasswordPayload, ForgotPasswordPayload, ForgotPasswordResponse, LoginPayload,RegisterPayload,ResendVerificationEmailResponse,ResetPasswordPayload,ResetPasswordResponse,TokenPair, User,ResendVerificationEmailPayload, VerifyEmailPayload, VerifyEmailResponse } from "./types";
 import axios from "axios";
 
 export async function login(payload:LoginPayload):Promise<TokenPair> {
@@ -87,5 +87,18 @@ export async function resetPassword(
   payload: ResetPasswordPayload
 ): Promise<ResetPasswordResponse> {
   const res = await api.post("/accounts/password/reset/", payload);
+  return res.data;
+}
+export async function verifyEmail(
+  payload: VerifyEmailPayload
+): Promise<VerifyEmailResponse> {
+  const res = await api.post("/accounts/email/verify/", payload);
+  return res.data;
+}
+
+export async function resendVerificationEmail(
+  payload: ResendVerificationEmailPayload
+): Promise<ResendVerificationEmailResponse> {
+  const res = await api.post("/accounts/email/resend-verification/", payload);
   return res.data;
 }
