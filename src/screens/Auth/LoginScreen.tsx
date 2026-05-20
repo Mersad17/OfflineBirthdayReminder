@@ -133,7 +133,7 @@ export default function LoginScreen({ navigation, route }: any) {
 
     setSuccessMessage(res.detail);
     setErrors({});
-    setResendCooldown(20);
+    setResendCooldown(60);
 
     const interval = setInterval(() => {
       setResendCooldown((prev) => {
