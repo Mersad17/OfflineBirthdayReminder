@@ -19,6 +19,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { resendVerificationEmail } from "../../auth/api";
 
 type FieldErrors = {
   email?: string;
@@ -26,7 +27,7 @@ type FieldErrors = {
   general?: string;
 };
 
-export default function LoginScreen({ navigation }: any) {
+export default function LoginScreen({ navigation, route }: any) {
   const { settings } = useAppearance();
   const { login, loading } = useAuth();
 
@@ -35,7 +36,11 @@ export default function LoginScreen({ navigation }: any) {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-
+  const [successMessage, setSuccessMessage] = useState(
+    route?.params?.message || ""
+  );
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const { width } = Dimensions.get("window");
   const CARD_W = Math.min(420, Math.max(300, width - 36));
 
@@ -78,7 +83,7 @@ export default function LoginScreen({ navigation }: any) {
     }
 
     setErrors({}); // clear previous errors
-
+    setShowResendVerification(false);
     try {
       await login(trimmedEmail, password);
     } catch (e: any) {
@@ -89,6 +94,12 @@ export default function LoginScreen({ navigation }: any) {
 
       if (apiErrors) {
         if (apiErrors.detail) apiFieldErrors.general = String(apiErrors.detail);
+        if (
+        apiErrors.detail &&
+        String(apiErrors.detail).toLowerCase().includes("verify")
+      ) {
+        setShowResendVerification(true);
+      }
 
         if (apiErrors.non_field_errors) {
           const msg = Array.isArray(apiErrors.non_field_errors)
@@ -105,6 +116,43 @@ export default function LoginScreen({ navigation }: any) {
       setErrors(apiFieldErrors);
     }
   }
+  async function onResendVerification() {
+  const trimmedEmail = email.trim().toLowerCase();
+
+  if (!trimmedEmail || !trimmedEmail.includes("@")) {
+    setErrors({ email: "Please enter a valid email first." });
+    return;
+  }
+
+  if (resendCooldown > 0) return;
+
+  try {
+    const res = await resendVerificationEmail({
+      email: trimmedEmail,
+    });
+
+    setSuccessMessage(res.detail);
+    setErrors({});
+    setResendCooldown(60);
+
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+  } catch (err: any) {
+    setErrors({
+      general:
+        err?.response?.data?.detail ||
+        "Could not resend verification email. Please try again.",
+    });
+  }
+}
 
   const keyboardVerticalOffset = Platform.OS === "ios" ? 40 : 0;
 
@@ -152,6 +200,11 @@ export default function LoginScreen({ navigation }: any) {
                 <Text style={[styles.subtitle, { color: text }]}>
                   Log in to see birthdays & talk reminders.
                 </Text>
+                {successMessage ? (
+              <Text style={[styles.successText, { marginTop: 10 }]}>
+                {successMessage}
+              </Text>
+            ) : null}
 
                 {/* Email */}
                 <View style={{ marginTop: 14 }}>
@@ -163,11 +216,12 @@ export default function LoginScreen({ navigation }: any) {
                       autoCorrect={false}
                       keyboardType="email-address"
                       value={email}
-                      onChangeText={(t) => {
-                        setEmail(t);
-                        if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
-                        if (errors.general) setErrors((prev) => ({ ...prev, general: undefined }));
-                      }}
+                     onChangeText={(t) => {
+                  setEmail(t);
+                  if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                  if (errors.general) setErrors((prev) => ({ ...prev, general: undefined }));
+                  if (successMessage) setSuccessMessage("");
+                }}
                       placeholder="you@example.com"
                       placeholderTextColor={text + "66"}
                     />
@@ -206,6 +260,7 @@ export default function LoginScreen({ navigation }: any) {
                         setPassword(t);
                         if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }));
                         if (errors.general) setErrors((prev) => ({ ...prev, general: undefined }));
+                        if (successMessage) setSuccessMessage("");
                       }}
                       placeholder="••••••••"
                       placeholderTextColor={text + "66"}
@@ -216,7 +271,27 @@ export default function LoginScreen({ navigation }: any) {
 
                 {/* Backend/general error */}
                 {errors.general ? <Text style={[styles.errorText, { marginTop: 10 }]}>{errors.general}</Text> : null}
-
+                {showResendVerification ? (
+                  <TouchableOpacity
+                    onPress={onResendVerification}
+                    disabled={resendCooldown > 0}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.resendBtn,
+                      {
+                        borderColor: primary + "55",
+                        backgroundColor: primary + "10",
+                        opacity: resendCooldown > 0 ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.resendText, { color: primary }]}>
+                      {resendCooldown > 0
+                        ? `Resend email in ${resendCooldown}s`
+                        : "Resend verification email"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
                 {/* Links */}
                 <View style={styles.linksRow}>
                   <TouchableOpacity onPress={() => navigation?.navigate?.("Register")} activeOpacity={0.85}>
@@ -302,6 +377,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
+  successText: {
+  color: "#16A34A",
+  fontSize: 13,
+  fontWeight: "800",
+  lineHeight: 18,
+},
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -351,6 +432,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
 
+resendBtn: {
+  marginTop: 10,
+  borderWidth: 1,
+  borderRadius: 14,
+  paddingVertical: 11,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+resendText: {
+  fontSize: 13,
+  fontWeight: "900",
+},
   pwdRow: {
     flexDirection: "row",
     alignItems: "center",

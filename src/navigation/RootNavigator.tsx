@@ -11,7 +11,18 @@ import {
   AppearanceProvider,
   useAppearance,
 } from "../appearance/AppearanceContext";
-
+const linking = {
+  prefixes: ["birthdayly://"],
+  config: {
+    screens: {
+      Login: "login",
+      Register: "register",
+      ForgotPassword: "forgot-password",
+      ResetPassword: "reset-password",
+      VerifyEmail: "verify-email",
+    },
+  },
+};
 export default function RootNavigator() {
   return (
     <AppearanceProvider>
@@ -41,7 +52,7 @@ function NavigationWithAppearance() {
   );
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} linking={linking}>
       {content}
     </NavigationContainer>
   );

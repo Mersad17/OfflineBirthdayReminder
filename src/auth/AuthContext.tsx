@@ -95,39 +95,36 @@ const loginWithGoogle = useCallback(async (idToken: string) => {
     setLoading(false);
   }
 }, []);
-  const register = useCallback(
-    async (
-      email: string,
-      password: string,
-      firstName: string,
-      lastName: string,
-      timezone: string
-    ) => {
-      setLoading(true);
-      try {
-        // 1) Create the user
-        await apiRegister({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-          timezone,
-        });
-  
-        // 2) Immediately log them in
-        const tokens = await apiLogin({ email, password });
-        await saveTokens(tokens.access, tokens.refresh);
-  
-        // 3) Load user profile
-        const me = await getMe();
-        setUser(me);
-        setAuth(true);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+const register = useCallback(
+  async (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    timezone: string
+  ) => {
+    setLoading(true);
+
+    try {
+      // Create the user only.
+      // Email/password users must verify their email before login.
+      await apiRegister({
+        email,
+        password,
+        first_name: firstName,
+        last_name: lastName,
+        timezone,
+      });
+
+      await clearTokens();
+      setUser(null);
+      setAuth(false);
+    } finally {
+      setLoading(false);
+    }
+  },
+  []
+);
   
   const logout = useCallback(async () => {
     setLoading(true);
