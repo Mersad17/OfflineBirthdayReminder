@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
-
+import { Ionicons } from "@expo/vector-icons";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
 import { Contact } from "../../contacts/types";
 import { deleteContact, fetchContactById, updateContact } from "../../contacts/api";
@@ -373,7 +373,16 @@ useEffect(() => {
   }
 
   const initials = `${contact.first_name?.[0] || ""}${contact.last_name?.[0] || ""}`.toUpperCase();
+const groupColor =
+  contact.group_detail?.color || settings.primaryColor;
 
+const groupIcon =
+  contact.group_detail?.icon || "people";
+
+const tags = contact.tags_detail || [];
+
+const hasRelationshipInfo =
+  !!contact.group_detail?.name || tags.length > 0;
   return (
     <Screen scroll>
       <ScrollView contentContainerStyle={styles.page}>
@@ -417,9 +426,61 @@ useEffect(() => {
             <Text style={[styles.headerTitleMuted, { color: settings.textColor }]}>No birthday set</Text>
           )}
 
-          <Text style={[styles.confettiBottom, { color: settings.textColor }]}>✨🎊✨</Text>
-        </View>
 
+          {hasRelationshipInfo && (
+            <View style={styles.relationshipWrap}>
+    {contact.group_detail?.name && (
+      <View
+        style={[
+          styles.groupPill,
+          {
+            backgroundColor: groupColor + "18",
+            borderColor: groupColor + "60",
+          },
+        ]}
+      >
+        <Ionicons
+          name={groupIcon as any}
+          size={13}
+          color={groupColor}
+        />
+
+        <Text
+          style={[styles.groupPillText, { color: groupColor }]}
+          numberOfLines={1}
+        >
+          {contact.group_detail.name}
+        </Text>
+      </View>
+    )}
+
+    {tags.map((tag) => {
+      const tagColor = tag.color || settings.primaryColor;
+
+      return (
+        <View
+          key={tag.id || tag.name}
+          style={[
+            styles.tagPill,
+            {
+              backgroundColor: tagColor + "18",
+              borderColor: tagColor + "45",
+            },
+          ]}
+        >
+          <Text
+            style={[styles.tagPillText, { color: tagColor }]}
+            numberOfLines={1}
+          >
+            #{tag.name}
+          </Text>
+        </View>
+      );
+    })}
+  </View>
+)}
+        </View>
+<Text style={[styles.confettiBottom, { color: settings.textColor }]}>✨🎊✨</Text>
         {/* ✅ COMPACT TALK REMINDER */}
        {/* 🔔 TALK TO CONTACT (REFACTORED) */}
 <View
@@ -1172,6 +1233,42 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 18,
   },
-  
+  relationshipWrap: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  gap: 8,
+  marginTop: 12,
+  paddingHorizontal: 8,
+},
+
+groupPill: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 5,
+  borderWidth: 1,
+  borderRadius: 999,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  maxWidth: 150,
+},
+
+groupPillText: {
+  fontSize: 12,
+  fontWeight: "800",
+},
+
+tagPill: {
+  borderWidth: 1,
+  borderRadius: 999,
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  maxWidth: 130,
+},
+
+tagPillText: {
+  fontSize: 12,
+  fontWeight: "800",
+},
   
 });

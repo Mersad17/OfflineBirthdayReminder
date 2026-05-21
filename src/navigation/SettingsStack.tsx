@@ -9,7 +9,7 @@ import ReportBugScreen from "../screens/Settings/ReportBugScreen";
 import FeedbackScreen from "../screens/Settings/FeedBackScreen";
 import { useAppearance } from "../appearance/AppearanceContext";
 import LanguageScreen from "../screens/Settings/LanguageScreen";
-
+import ManageGroupsTagsScreen from "../screens/Settings/ManageGroupsTagsScreen";
 export type SettingsStackParamsList ={
     SettingsHome: undefined;
     Profile:undefined;
@@ -20,6 +20,7 @@ export type SettingsStackParamsList ={
     ReportBug: undefined;
     Language: undefined;
     Feedback: undefined;
+    ManageGroupsTags: undefined;
 }
 
 const Stack = createNativeStackNavigator<SettingsStackParamsList>()
@@ -47,6 +48,7 @@ export default function SettingsStack(){
             <Stack.Screen name="Feedback" component={FeedbackScreen}/> 
             <Stack.Screen name="AppInfo" component={AppInfoScreen}/> 
             <Stack.Screen name="Language" component={LanguageScreen}/> 
+            <Stack.Screen name="ManageGroupsTags" component={ManageGroupsTagsScreen}/> 
         </Stack.Navigator>
     )
 }
