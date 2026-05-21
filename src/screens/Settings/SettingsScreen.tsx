@@ -27,7 +27,7 @@ export default function SettingsScreen({ navigation }: Props) {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.container}>
-          <Text style={[styles.title, { color: settings.textColor }]}>
+          <Text style={[styles.title, { color: settings.titleColor }]}>
             Settings
           </Text>
 
@@ -36,172 +36,100 @@ export default function SettingsScreen({ navigation }: Props) {
             Account
           </Text>
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="person-circle-outline"
+            title="Manage Profile"
             onPress={() => navigation.navigate("Profile")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="person-circle-outline" size={22} color={settings.textColor} />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Manage Profile
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            settings={settings}
+          />
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="lock-closed-outline"
+            title="Password and Security"
             onPress={() => navigation.navigate("PasswordAndSecurity")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="lock-closed-outline" size={22} color={settings.textColor} />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Password and Security
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            settings={settings}
+          />
 
           {/* Appearance */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
             Appearance
           </Text>
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="color-palette-outline"
+            title="Theme, colors & background"
             onPress={() => navigation.navigate("Appearance")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="color-palette-outline" size={22} color={settings.textColor} />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Theme, colors & background
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => navigation.navigate("Language")}
-    >
-      <View style={styles.rowLeft}>
-        <Ionicons
-          name="language-outline"
-          size={22}
-          color={settings.textColor}
-        />
-        <Text style={[styles.rowText, { color: settings.textColor }]}>
-          Language
-        </Text>
-      </View>
+            settings={settings}
+          />
 
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color={settings.textColor}
-      />
-    </TouchableOpacity>
+          <SettingsRow
+            icon="language-outline"
+            title="Language"
+            onPress={() => navigation.navigate("Language")}
+            settings={settings}
+          />
+
+          {/* Organization */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Organization
+          </Text>
+
+          <SettingsRow
+            icon="pricetags-outline"
+            title="Groups & Tags"
+            subtitle="Manage custom groups and tags"
+            onPress={() => navigation.navigate("ManageGroupsTags")}
+            settings={settings}
+          />
+
           {/* Notifications */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
             Notifications
           </Text>
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="notifications-outline"
+            title="Notification settings"
             onPress={() => navigation.navigate("Notifications")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="notifications-outline" size={22} color={settings.textColor} />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Notification settings
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            settings={settings}
+          />
 
           {/* Support */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
             Support
           </Text>
 
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate("ReportBug")}
-          >
-            <View style={styles.rowLeft}>
+          <SettingsRow
+            customIcon={
               <MaterialCommunityIcons
                 name="bug-outline"
                 size={22}
                 color={settings.textColor}
               />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Report a bug
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            }
+            title="Report a bug"
+            onPress={() => navigation.navigate("ReportBug")}
+            settings={settings}
+          />
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="chatbubble-ellipses-outline"
+            title="Send feedback"
             onPress={() => navigation.navigate("Feedback")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={22}
-                color={settings.textColor}
-              />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                Send feedback
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            settings={settings}
+          />
 
           {/* App */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
             App
           </Text>
 
-          <TouchableOpacity
-            style={styles.row}
+          <SettingsRow
+            icon="information-circle-outline"
+            title="About / Version"
             onPress={() => navigation.navigate("AppInfo")}
-          >
-            <View style={styles.rowLeft}>
-              <Ionicons name="information-circle-outline" size={22} color={settings.textColor} />
-              <Text style={[styles.rowText, { color: settings.textColor }]}>
-                About / Version
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={settings.textColor}
-            />
-          </TouchableOpacity>
+            settings={settings}
+          />
 
           <View style={styles.logoutWrapper}>
             <Button
@@ -216,6 +144,75 @@ export default function SettingsScreen({ navigation }: Props) {
   );
 }
 
+function SettingsRow({
+  icon,
+  customIcon,
+  title,
+  subtitle,
+  onPress,
+  settings,
+}: {
+  icon?: keyof typeof Ionicons.glyphMap;
+  customIcon?: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  settings: any;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.row,
+        {
+          backgroundColor: settings.cardColor,
+          borderColor: settings.textColor + "12",
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <View style={styles.rowLeft}>
+        <View
+          style={[
+            styles.iconBox,
+            { backgroundColor: settings.primaryColor + "15" },
+          ]}
+        >
+          {customIcon ? (
+            customIcon
+          ) : (
+            <Ionicons
+              name={icon || "ellipse-outline"}
+              size={22}
+              color={settings.primaryColor}
+            />
+          )}
+        </View>
+
+        <View style={styles.rowTextBox}>
+          <Text style={[styles.rowTitle, { color: settings.titleColor }]}>
+            {title}
+          </Text>
+
+          {subtitle ? (
+            <Text
+              style={[styles.rowSubtitle, { color: settings.textColor + "80" }]}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={settings.textColor + "80"}
+      />
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
@@ -226,34 +223,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    paddingTop: 20,
     gap: 8,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 12,
+    fontSize: 28,
+    fontWeight: "800",
+    marginBottom: 10,
   },
   sectionTitle: {
-    marginTop: 16,
-    marginBottom: 4,
-    fontSize: 16,
-    fontWeight: "600",
+    marginTop: 18,
+    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   row: {
-    paddingVertical: 10,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   rowLeft: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
-  rowText: {
+  iconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowTextBox: {
+    flex: 1,
+  },
+  rowTitle: {
     fontSize: 16,
+    fontWeight: "700",
+  },
+  rowSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
   },
   logoutWrapper: {
-    marginTop: 8,
+    marginTop: 18,
+    marginBottom: 30,
   },
 });

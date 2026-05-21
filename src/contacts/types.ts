@@ -1,5 +1,29 @@
 import { EventTypeValue } from "../events/types";
 
+export type ContactGroup = {
+  id: number;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  created_at?: string;
+};
+
+export type ContactTag = {
+  id: number;
+  name: string;
+  color?: string | null;
+  created_at?: string;
+};
+export type CreateContactGroupInput = {
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+};
+
+export type CreateContactTagInput = {
+  name: string;
+  color?: string | null;
+};
 export type Contact = {
   is_favorite: boolean | null;
   id: number;
@@ -8,6 +32,12 @@ export type Contact = {
   birthday?: string | null; 
   email?: string | null;
   phone?: string | null;
+  
+  group?: number | null;
+  group_detail?: ContactGroup | null;
+
+  tags?: number[];
+  tags_detail?: ContactTag[];
   created_at: string;  
   notes: string;
   photo?: string | null; 
@@ -27,6 +57,9 @@ export type CreateContactInput = {
   birthday?: string | null;
   email?: string | null;
   phone?: string | null;
+  group?: number | null;
+
+  tag_names?: string[];
   notes?: string | null;
   photo_uri?: string | null; 
   talk_every_days?: number | null;
