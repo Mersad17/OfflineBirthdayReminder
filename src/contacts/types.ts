@@ -80,3 +80,5 @@ export type CreateEventInput = {
 };
 
 export type UpdateContactInput = Partial<CreateContactInput>;
+
+
