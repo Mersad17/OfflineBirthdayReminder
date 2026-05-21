@@ -1,0 +1,76 @@
+{
+    "app": {
+      "title": "Friendly reminder",
+      "subtitle": "A gentle reminder so you don’t forget ✨"
+    },
+    "hero": {
+      "helloWithName": "Hello, {{name}} 👋",
+      "hello": "Hello 👋",
+      "oneMomentThisWeek": "You have 1 moment to celebrate this week.",
+      "manyMomentsThisWeek": "You have {{count}} moments to celebrate this week.",
+      "nothingThisWeek": "Nothing planned this week",
+      "addEvents": "Add events so you never forget.",
+      "newContact": "New contact",
+      "reminderHint": "We remind you ahead of time, never too late."
+    },
+    "stats": {
+      "contacts": "Contacts",
+      "peopleTracked": "people tracked",
+      "thisWeek": "This week",
+      "upcomingMoments": "upcoming moments"
+    },
+    "sections": {
+      "today": "Today",
+      "upcoming": "Upcoming (30 days)",
+      "recentlyCelebrated": "Recently celebrated"
+    },
+    "today": {
+      "oneMoment": "One moment to celebrate today 🎉",
+      "manyMoments": "{{count}} moments to celebrate today 🎉",
+      "meta": "Take a moment to send a message or make a call.",
+      "emptyTitle": "Nothing to celebrate today",
+      "emptyText": "Add someone important and we’ll remind you of their key moments.",
+      "badge": "Today"
+    },
+    "upcoming": {
+      "loading": "Loading…",
+      "emptyFilter": "No events match this filter.",
+      "all": "All",
+      "showLess": "Show less ▲",
+      "viewAll": "View all ▼",
+      "seeLess": "See less ▲",
+      "seeMore": "See more ▼",
+      "thisWeek": "This week",
+      "laterThisMonth": "Later this month"
+    },
+    "event": {
+      "tapToView": "Tap to view {{name}}.",
+      "unknownContact": "Unknown",
+      "thisContact": "this contact"
+    },
+    "relative": {
+      "today": "Today",
+      "inOneDay": "In 1 day",
+      "inDays": "In {{count}} days",
+      "inOneWeek": "In 1 week",
+      "inWeeks": "In {{count}} weeks"
+    },
+    "countdown": {
+      "today": "Today",
+      "oneDayShort": "1 d",
+      "daysShort": "{{count}} d",
+      "weeksShort": "{{count}} weeks"
+    },
+    "recent": {
+      "comingSoon": "Coming soon",
+      "text": "After each event, you’ll see here who you’ve already celebrated, so you can follow up thoughtfully. 💬"
+    },
+    "plan": {
+      "title": "Free plan",
+      "text": "Track the people who matter most. You can manage up to 10 contacts for now."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "text": "Make sure system notifications are enabled to receive your reminders on time."
+    }
+}

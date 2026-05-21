@@ -8,6 +8,7 @@ import PasswordAndSecurityScreen from "../screens/Settings/PasswordAndSecuritySc
 import ReportBugScreen from "../screens/Settings/ReportBugScreen";
 import FeedbackScreen from "../screens/Settings/FeedBackScreen";
 import { useAppearance } from "../appearance/AppearanceContext";
+import LanguageScreen from "../screens/Settings/LanguageScreen";
 
 export type SettingsStackParamsList ={
     SettingsHome: undefined;
@@ -17,6 +18,7 @@ export type SettingsStackParamsList ={
     Notifications: undefined;
     AppInfo: undefined;
     ReportBug: undefined;
+    Language: undefined;
     Feedback: undefined;
 }
 
@@ -44,6 +46,7 @@ export default function SettingsStack(){
             <Stack.Screen name="ReportBug" component={ReportBugScreen}/> 
             <Stack.Screen name="Feedback" component={FeedbackScreen}/> 
             <Stack.Screen name="AppInfo" component={AppInfoScreen}/> 
+            <Stack.Screen name="Language" component={LanguageScreen}/> 
         </Stack.Navigator>
     )
 }

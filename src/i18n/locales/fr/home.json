@@ -1,0 +1,76 @@
+{
+    "app": {
+      "title": "Rappel amical",
+      "subtitle": "Un petit rappel pour ne rien oublier ✨"
+    },
+    "hero": {
+      "helloWithName": "Bonjour, {{name}} 👋",
+      "hello": "Bonjour 👋",
+      "oneMomentThisWeek": "Tu as 1 moment à célébrer cette semaine.",
+      "manyMomentsThisWeek": "Tu as {{count}} moments à célébrer cette semaine.",
+      "nothingThisWeek": "Rien de prévu cette semaine",
+      "addEvents": "Ajoute des événements pour ne jamais oublier.",
+      "newContact": "Nouveau contact",
+      "reminderHint": "Nous te rappelons à l’avance, jamais trop tard."
+    },
+    "stats": {
+      "contacts": "Contacts",
+      "peopleTracked": "personnes suivies",
+      "thisWeek": "Cette semaine",
+      "upcomingMoments": "moments à venir"
+    },
+    "sections": {
+      "today": "Aujourd’hui",
+      "upcoming": "À venir (30 jours)",
+      "recentlyCelebrated": "Récemment célébrés"
+    },
+    "today": {
+      "oneMoment": "Un moment à célébrer aujourd’hui 🎉",
+      "manyMoments": "{{count}} moments à célébrer aujourd’hui 🎉",
+      "meta": "Prends un moment pour envoyer un message ou passer un appel.",
+      "emptyTitle": "Rien à célébrer aujourd’hui",
+      "emptyText": "Ajoute quelqu’un d’important et nous te rappellerons ses moments clés.",
+      "badge": "Aujourd’hui"
+    },
+    "upcoming": {
+      "loading": "Chargement…",
+      "emptyFilter": "Aucun événement ne correspond à ce filtre.",
+      "all": "Tous",
+      "showLess": "Afficher moins ▲",
+      "viewAll": "Voir tout ▼",
+      "seeLess": "Voir moins ▲",
+      "seeMore": "Voir plus ▼",
+      "thisWeek": "Cette semaine",
+      "laterThisMonth": "Plus tard ce mois-ci"
+    },
+    "event": {
+      "tapToView": "Appuie pour voir {{name}}.",
+      "unknownContact": "Inconnu",
+      "thisContact": "ce contact"
+    },
+    "relative": {
+      "today": "Aujourd’hui",
+      "inOneDay": "Dans 1 jour",
+      "inDays": "Dans {{count}} jours",
+      "inOneWeek": "Dans 1 semaine",
+      "inWeeks": "Dans {{count}} semaines"
+    },
+    "countdown": {
+      "today": "Aujourd’hui",
+      "oneDayShort": "1 j",
+      "daysShort": "{{count}} j",
+      "weeksShort": "{{count}} sem."
+    },
+    "recent": {
+      "comingSoon": "Bientôt disponible",
+      "text": "Après chaque événement, tu verras ici les personnes que tu as déjà célébrées, pour pouvoir faire un suivi attentionné. 💬"
+    },
+    "plan": {
+      "title": "Offre gratuite",
+      "text": "Suis les personnes qui comptent le plus. Tu peux gérer jusqu’à 10 contacts pour le moment."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "text": "Assure-toi que les notifications système sont activées pour recevoir tes rappels à temps."
+    }
+}
