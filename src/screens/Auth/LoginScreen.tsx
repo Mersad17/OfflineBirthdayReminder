@@ -20,7 +20,7 @@ import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { resendVerificationEmail } from "../../auth/api";
-
+import { useTranslation } from "react-i18next";
 type FieldErrors = {
   email?: string;
   password?: string;
@@ -30,6 +30,7 @@ type FieldErrors = {
 export default function LoginScreen({ navigation, route }: any) {
   const { settings } = useAppearance();
   const { login, loading } = useAuth();
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,9 +74,9 @@ export default function LoginScreen({ navigation, route }: any) {
     const newErrors: FieldErrors = {};
 
     // client-side validation
-    if (!trimmedEmail) newErrors.email = "Please enter your email.";
-    else if (!trimmedEmail.includes("@")) newErrors.email = "Please enter a valid email.";
-    if (!password) newErrors.password = "Please enter your password.";
+    if (!trimmedEmail) newErrors.email = t("auth:auth.login.emailRequired");
+    else if (!trimmedEmail.includes("@")) newErrors.email = t("auth:auth.login.emailInvalid");
+    if (!password) newErrors.password = t("auth:auth.login.passwordRequired");
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -110,7 +111,7 @@ export default function LoginScreen({ navigation, route }: any) {
       }
 
       if (!apiFieldErrors.general) {
-        apiFieldErrors.general = "Login failed. Please check your credentials and try again.";
+        apiFieldErrors.general = t("auth:auth.login.loginFailed");
       }
 
       setErrors(apiFieldErrors);
@@ -120,7 +121,7 @@ export default function LoginScreen({ navigation, route }: any) {
   const trimmedEmail = email.trim().toLowerCase();
 
   if (!trimmedEmail || !trimmedEmail.includes("@")) {
-    setErrors({ email: "Please enter a valid email first." });
+    setErrors({ email: t("auth:auth.login.validEmailFirst") });
     return;
   }
 
@@ -149,7 +150,7 @@ export default function LoginScreen({ navigation, route }: any) {
     setErrors({
       general:
         err?.response?.data?.detail ||
-        "Could not resend verification email. Please try again.",
+       t("auth:auth.login.resendFailed"),
     });
   }
 }
@@ -195,10 +196,10 @@ export default function LoginScreen({ navigation, route }: any) {
                 </View>
 
                 <Text style={[styles.title, { color: title }]}>
-                  Welcome <Text style={{ color: primary }}>back</Text>
-                </Text>
+  {t("auth:auth.login.title")}
+</Text>
                 <Text style={[styles.subtitle, { color: text }]}>
-                  Log in to see birthdays & talk reminders.
+                  {t("auth:auth.login.subtitle")}
                 </Text>
                 {successMessage ? (
               <Text style={[styles.successText, { marginTop: 10 }]}>
@@ -209,7 +210,7 @@ export default function LoginScreen({ navigation, route }: any) {
                 {/* Email */}
                 <View style={{ marginTop: 14 }}>
                   <View style={[styles.inputWrap, { borderColor: primary + "22" }]}>
-                    <Text style={[styles.inputLabel, { color: text + "AA" }]}>Email</Text>
+                    <Text style={[styles.inputLabel, { color: text + "AA" }]}>{t("auth:auth.login.email")}</Text>
                     <TextInput
                       style={[styles.input, { color: title }]}
                       autoCapitalize="none"
@@ -233,7 +234,7 @@ export default function LoginScreen({ navigation, route }: any) {
                 <View style={{ marginTop: 10 }}>
                   <View style={[styles.inputWrap, { borderColor: primary + "22" }]}>
                     <View style={styles.pwdRow}>
-                      <Text style={[styles.inputLabel, { color: text + "AA" }]}>Password</Text>
+                      <Text style={[styles.inputLabel, { color: text + "AA" }]}>{t("auth:auth.login.password")}</Text>
 
                       <TouchableOpacity
                         onPress={() => setShowPassword((prev) => !prev)}
@@ -247,7 +248,7 @@ export default function LoginScreen({ navigation, route }: any) {
                           color={primary}
                         />
                         <Text style={{ color: primary, fontWeight: "900", fontSize: 12, marginLeft: 6 }}>
-                          {showPassword ? "Hide" : "Show"}
+                          {showPassword ? t("auth:auth.login.hide") : t("auth:auth.login.show")}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -287,33 +288,29 @@ export default function LoginScreen({ navigation, route }: any) {
                   >
                     <Text style={[styles.resendText, { color: primary }]}>
                       {resendCooldown > 0
-                        ? `Resend email in ${resendCooldown}s`
-                        : "Resend verification email"}
+                        ? t("auth:auth.login.resendEmailIn", { seconds: resendCooldown })
+                        : t("auth:auth.login.resendVerification")}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
                 {/* Links */}
                 <View style={styles.linksRow}>
                   <TouchableOpacity onPress={() => navigation?.navigate?.("Register")} activeOpacity={0.85}>
-                    <Text style={[styles.link, { color: primary }]}>Create account</Text>
+                    <Text style={[styles.link, { color: primary }]}>{t("auth:auth.login.createAccount")}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")} activeOpacity={0.85}>
-                    <Text style={[styles.link, { color: primary }]}>Forgot?</Text>
+                    <Text style={[styles.link, { color: primary }]}>{t("auth:auth.login.forgotPassword")}</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Buttons */}
               <View style={{ marginTop: 12, gap: 10 }}>
-                <GoogleSignInButton
-                  backgroundColor={card}
-                  textColor={title}
-                  borderColor={primary + "33"}
-                />
+                <GoogleSignInButton />
 
                 <View style={styles.dividerRow}>
                   <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
-                  <Text style={[styles.dividerText, { color: text + "99" }]}>or</Text>
+                  <Text style={[styles.dividerText, { color: text + "99" }]}>{t("auth:auth.login.or")}</Text>
                   <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
                 </View>
 
@@ -330,7 +327,7 @@ export default function LoginScreen({ navigation, route }: any) {
                   {loading ? (
                     <ActivityIndicator color={btnText} />
                   ) : (
-                    <Text style={[styles.primaryBtnText, { color: btnText }]}>Log in</Text>
+                    <Text style={[styles.primaryBtnText, { color: btnText }]}>{t("auth:auth.login.button")}</Text>
                   )}
                 </TouchableOpacity>
 
@@ -339,10 +336,10 @@ export default function LoginScreen({ navigation, route }: any) {
                     onPress={() => navigation?.goBack?.()}
                     style={[styles.secondaryBtn, { borderColor: primary + "55", backgroundColor: primary + "10" }]}
                   >
-                    <Text style={[styles.secondaryBtnText, { color: primary }]}>Back</Text>
+                    <Text style={[styles.secondaryBtnText, { color: primary }]}>{t("common:common.back")}</Text>
                   </TouchableOpacity>
 
-                  <Text style={[styles.footer, { color: text + "AA" }]}>Secure login • Clean reminders</Text>
+                  <Text style={[styles.footer, { color: text + "AA" }]}>{t("auth:auth.login.footer")}</Text>
                 </View>
               </LinearGradient>
           </View>

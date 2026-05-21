@@ -1,0 +1,14 @@
+{
+  "common": {
+    "save": "Ruaj",
+    "cancel": "Anulo",
+    "delete": "Fshi",
+    "edit": "Ndrysho",
+    "back": "Kthehu",
+    "next": "Tjetër",
+    "done": "U krye",
+    "loading": "Duke u ngarkuar...",
+    "error": "Diçka shkoi keq.",
+    "tryAgain": "Provo përsëri"
+  }
+}

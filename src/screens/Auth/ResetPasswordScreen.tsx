@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { resetPassword } from "../../auth/api";
-
+import { useTranslation } from "react-i18next";
 type FieldErrors = {
   password?: string;
   password2?: string;
@@ -25,6 +25,7 @@ type FieldErrors = {
 };
 
 export default function ResetPasswordScreen({ navigation, route }: any) {
+  const { t } = useTranslation("auth");
   const { settings } = useAppearance();
 
   const primary = settings.primaryColor;
@@ -53,19 +54,19 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
     const e: FieldErrors = {};
 
     if (!uid || !token) {
-      e.general = "Invalid reset link.";
+      e.general = t("auth.resetPassword.invalidLink");
     }
 
     if (!password) {
-      e.password = "Please enter a new password.";
+      e.password = t("auth.resetPassword.passwordRequired");
     } else if (password.length < 8) {
-      e.password = "Password must be at least 8 characters.";
+      e.password = t("auth.resetPassword.passwordMin");
     }
 
     if (!password2) {
-      e.password2 = "Please confirm your new password.";
+      e.password2 = t("auth.resetPassword.password2Required");
     } else if (password2 !== password) {
-      e.password2 = "Passwords do not match.";
+      e.password2 = t("auth.resetPassword.passwordsDoNotMatch");
     }
 
     return e;
@@ -90,7 +91,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
         new_password: password,
       });
 
-      setSuccessMessage(res.detail || "Password reset successfully.");
+      setSuccessMessage( t("auth.resetPassword.success"));
 
       setTimeout(() => {
         navigation.navigate("Login");
@@ -101,10 +102,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
       const api = err?.response?.data;
 
       setErrors({
-        general:
-          api?.detail ||
-          api?.non_field_errors?.[0] ||
-          "Could not reset password. The link may be expired.",
+        general: t("auth.resetPassword.failed"),
       });
     } finally {
       setLoading(false);
@@ -146,21 +144,24 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                 style={[styles.backBtn, { backgroundColor: primary + "12" }]}
               >
                 <Ionicons name="arrow-back-outline" size={18} color={primary} />
-                <Text style={[styles.backText, { color: primary }]}>Back to login</Text>
+                <Text style={[styles.backText, { color: primary }]}>{t("auth.resetPassword.backToLogin")}</Text>
               </TouchableOpacity>
 
               <Text style={[styles.title, { color: title }]}>
-                Reset <Text style={{ color: primary }}>password</Text>
+                {t("auth.resetPassword.titleStart")}{" "}
+          <Text style={{ color: primary }}>
+            {t("auth.resetPassword.titleHighlight")}
+          </Text>
               </Text>
 
               <Text style={[styles.subtitle, { color: text }]}>
-                Choose a new password for your account.
+                {t("auth.resetPassword.subtitle")}
               </Text>
 
               <View style={{ marginTop: 16, gap: 10 }}>
                 <View>
                   <Text style={[styles.label, { color: text + "CC" }]}>
-                    New password
+                    {t("auth.resetPassword.newPassword")}
                   </Text>
 
                   <View
@@ -180,7 +181,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                         if (errors.general) setErrors((p) => ({ ...p, general: undefined }));
                       }}
                       secureTextEntry={!showPassword}
-                      placeholder="At least 8 characters"
+                      placeholder={t("auth.resetPassword.newPasswordPlaceholder")}
                       placeholderTextColor={text + "66"}
                       style={[styles.inputInner, { color: title }]}
                     />
@@ -201,7 +202,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
 
                 <View>
                   <Text style={[styles.label, { color: text + "CC" }]}>
-                    Confirm password
+                    {t("auth.resetPassword.confirmPassword")}
                   </Text>
 
                   <View
@@ -221,7 +222,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                         if (errors.general) setErrors((p) => ({ ...p, general: undefined }));
                       }}
                       secureTextEntry={!showPassword2}
-                      placeholder="Repeat your new password"
+                      placeholder={t("auth.resetPassword.confirmPasswordPlaceholder")}
                       placeholderTextColor={text + "66"}
                       style={[styles.inputInner, { color: title }]}
                     />
@@ -267,7 +268,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                   <ActivityIndicator color={btnText} />
                 ) : (
                   <Text style={[styles.primaryBtnText, { color: btnText }]}>
-                    Reset password
+                    {t("auth.resetPassword.button")}
                   </Text>
                 )}
               </TouchableOpacity>

@@ -13,21 +13,25 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-
-const ROTATING_WORDS = [
-  { text: "birthday" },
-  { text: "event" },
-  { text: "anniversary" },
-  { text: "reminder" },
-  { text: "check-in" },
-];
+import { useTranslation } from "react-i18next";
 
 export default function WelcomeScreen({ navigation }: any) {
   const { settings } = useAppearance();
   const { width } = Dimensions.get("window");
+const { t } = useTranslation("auth");
+
+  const ROTATING_WORDS = useMemo(
+    () => [
+      { text: t("auth.welcome.rotatingWords.birthday") },
+      { text: t("auth.welcome.rotatingWords.event") },
+      { text: t("auth.welcome.rotatingWords.anniversary") },
+      { text: t("auth.welcome.rotatingWords.reminder") },
+      { text: t("auth.welcome.rotatingWords.checkIn") },
+    ],
+    [t]
+  );
 
   const HERO_SIZE = Math.min(360, Math.max(280, width - 48));
-
   const wordIndex = useRef(0);
   const rotateX = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
@@ -91,21 +95,21 @@ export default function WelcomeScreen({ navigation }: any) {
     () => [
       {
         icon: "🎂",
-        title: "Birthday reminders",
-        desc: "Get notified before it’s too late.",
+        title: t("auth.welcome.features.birthdayReminders.title"),
+        desc: t("auth.welcome.features.birthdayReminders.desc"),
       },
       {
         icon: "🗓️",
-        title: "Events & notes",
-        desc: "Add custom events, save context, stay thoughtful.",
+        title: t("auth.welcome.features.eventsNotes.title"),
+        desc: t("auth.welcome.features.eventsNotes.desc"),
       },
       {
         icon: "💬",
-        title: "Talk cadence",
-        desc: "Set “talk every X days” and keep relationships warm.",
+        title: t("auth.welcome.features.talkCadence.title"),
+        desc: t("auth.welcome.features.talkCadence.desc"),
       },
     ],
-    []
+    [t]
   );
   
 
@@ -141,48 +145,47 @@ export default function WelcomeScreen({ navigation }: any) {
             {/* Badge */}
             <View style={[styles.badge, { borderColor: primary + "33" }]}>
               <Text style={[styles.badgeText, { color: primary }]}>
-                Birthdayly
+                {t("auth.welcome.badge")}
               </Text>
             </View>
 
             {/* TITLE */}
-            <View>
-              {/* LINE 1 */}
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Text style={[styles.heroTitle, { color: title }]}>
-                  Never miss a{" "}
-                </Text>
+           <View style={styles.heroTitleWrap}>
+          <Text style={[styles.heroTitle, { color: title }]}>
+            {t("auth.welcome.titleStart")}
+          </Text>
 
-                <Animated.Text
-                  style={[
-                    styles.heroTitle,
-                    {
-                      color: primary,
-                      opacity,
-                      transform: [
-                        { perspective: 800 },
-                        {
-                          rotateX: rotateX.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: ["0deg", "18deg", "0deg"],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  {currentWord.text}
-                </Animated.Text>
-              </View>
+          <Animated.Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            style={[
+              styles.heroTitle,
+              styles.rotatingWord,
+              {
+                color: primary,
+                opacity,
+                transform: [
+                  { perspective: 800 },
+                  {
+                    rotateX: rotateX.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: ["0deg", "18deg", "0deg"],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {currentWord.text}
+          </Animated.Text>
 
-              {/* LINE 2 */}
-              <Text style={[styles.heroTitle, { color: title, marginTop: -2 }]}>
-                again
-              </Text>
-            </View>
-
+          <Text style={[styles.heroTitle, { color: title }]}>
+            {t("auth.welcome.titleEnd")}
+          </Text>
+        </View>
             <Text style={[styles.heroSubtitle, { color: text }]}>
-              Keep your people close with reminders, events, and a simple “talk every X days” cadence.
+              {t("auth.welcome.subtitle")}
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -233,7 +236,7 @@ export default function WelcomeScreen({ navigation }: any) {
             onPress={() => navigation.navigate("Register")}
           >
             <Text style={[styles.primaryBtnText, { color: btnText }]}>
-              Create account
+              {t("auth.welcome.createAccount")}
             </Text>
           </TouchableOpacity>
 
@@ -242,7 +245,7 @@ export default function WelcomeScreen({ navigation }: any) {
             onPress={() => navigation.navigate("Login")}
           >
             <Text style={[styles.secondaryBtnText, { color: primary }]}>
-              I already have an account
+              {t("auth.welcome.alreadyHaveAccount")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -281,12 +284,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    lineHeight: 30,
-    letterSpacing: -0.4,
-  },
+ heroTitle: {
+  fontSize: 28,
+  fontWeight: "900",
+  lineHeight: 32,
+  letterSpacing: -0.4,
+},
 
   heroSubtitle: {
     marginTop: 10,
@@ -354,4 +357,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
+  heroTitleWrap: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  alignItems: "baseline",
+},
+
+rotatingWord: {
+  marginLeft: 6,
+  maxWidth: "100%",
+},
 });

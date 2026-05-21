@@ -1,28 +1,19 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+
 import { useAuth } from "../../auth/AuthContext";
 import { getGoogleIdToken } from "../../auth/googleAuth";
 
-
-
-type Props = {
-  backgroundColor?: string;
-  textColor?: string;
-  borderColor?: string;
-};
-
-export function GoogleSignInButton({
-  backgroundColor = "#FFFFFF",
-  textColor = "#111827",
-  borderColor = "#E5E7EB",
-}: Props) {
+export function GoogleSignInButton() {
   const { loginWithGoogle, loading } = useAuth();
+  const { t } = useTranslation("auth");
   const [error, setError] = useState<string | null>(null);
 
   async function onGooglePress() {
@@ -38,7 +29,7 @@ export function GoogleSignInButton({
       setError(
         e?.response?.data?.detail ||
           e?.message ||
-          "Google login failed. Please try again."
+          t("auth.google.loginFailed")
       );
     }
   }
@@ -49,22 +40,20 @@ export function GoogleSignInButton({
         activeOpacity={0.88}
         disabled={loading}
         onPress={onGooglePress}
-        style={[
-          styles.button,
-          {
-            backgroundColor,
-            borderColor,
-            opacity: loading ? 0.6 : 1,
-          },
-        ]}
+        style={[styles.button, loading && styles.disabled]}
       >
         {loading ? (
-          <ActivityIndicator color={textColor} />
+          <ActivityIndicator color="#1F1F1F" />
         ) : (
           <>
-            <Ionicons name="logo-google" size={18} color={textColor} />
-            <Text style={[styles.text, { color: textColor }]}>
-              Continue with Google
+            <Image
+              source={require("../../../assets/google-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+
+            <Text style={styles.text}>
+              {t("auth.google.continue")}
             </Text>
           </>
         )}
@@ -77,19 +66,38 @@ export function GoogleSignInButton({
 
 const styles = StyleSheet.create({
   button: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#DADCE0",
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 13,
+    borderRadius: 14,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
   },
+
+  disabled: {
+    opacity: 0.6,
+  },
+
+  logo: {
+    width: 20,
+    height: 20,
+  },
+
   text: {
+    color: "#1F1F1F",
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "800",
   },
+
   error: {
     marginTop: 6,
     color: "#DC2626",

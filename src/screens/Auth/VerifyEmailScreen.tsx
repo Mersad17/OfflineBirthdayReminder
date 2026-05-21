@@ -15,10 +15,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { verifyEmail } from "../../auth/api";
-
+import { useTranslation } from "react-i18next";
 export default function VerifyEmailScreen({ navigation, route }: any) {
   const { settings } = useAppearance();
-
+  const { t } = useTranslation("auth");
   const primary = settings.primaryColor;
   const text = settings.textColor;
   const title = settings.titleColor;
@@ -36,7 +36,7 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
   useEffect(() => {
     async function submitVerification() {
       if (!uid || !token) {
-        setErrorMessage("Invalid verification link.");
+        setErrorMessage(t("auth.verifyEmail.invalidLink"));
         setLoading(false);
         return;
       }
@@ -47,22 +47,18 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
           token,
         });
 
-        setSuccessMessage(res.detail || "Email verified successfully.");
+        setSuccessMessage( t("auth.verifyEmail.success"));
       } catch (err: any) {
         console.log("Verify email error", err?.response?.data || err);
 
-        setErrorMessage(
-          err?.response?.data?.detail ||
-            "Could not verify email. The link may be expired."
-        );
+       setSuccessMessage(t("auth.verifyEmail.success"));
       } finally {
         setLoading(false);
       }
     }
 
     submitVerification();
-  }, [uid, token]);
-
+  },  [uid, token, t]);
   return (
     <Screen>
       <StatusBar barStyle={Platform.OS === "ios" ? "dark-content" : "default"} />
@@ -100,15 +96,15 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
 
             <Text style={[styles.title, { color: title }]}>
               {loading
-                ? "Verifying email..."
+                ? t("auth.verifyEmail.loadingTitle")
                 : successMessage
-                ? "Email verified"
-                : "Verification failed"}
+                ? t("auth.verifyEmail.successTitle")
+                : t("auth.verifyEmail.failedTitle")}
             </Text>
 
             <Text style={[styles.subtitle, { color: text }]}>
               {loading
-                ? "Please wait while we verify your account."
+                ? t("auth.verifyEmail.loadingSubtitle")
                 : successMessage || errorMessage}
             </Text>
 
@@ -119,7 +115,7 @@ export default function VerifyEmailScreen({ navigation, route }: any) {
                 style={[styles.primaryBtn, { backgroundColor: btn }]}
               >
                 <Text style={[styles.primaryBtnText, { color: btnText }]}>
-                  Back to login
+                  {t("auth.verifyEmail.backToLogin")}
                 </Text>
               </TouchableOpacity>
             )}
