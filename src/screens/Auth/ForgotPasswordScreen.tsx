@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { forgotPassword } from "../../auth/api";
-
+import { useTranslation } from "react-i18next";
 type FieldErrors = {
   email?: string;
   general?: string;
@@ -32,7 +32,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   const card = settings.cardColor;
   const btn = settings.buttonColor;
   const btnText = settings.buttonTextColor;
-
+  const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
@@ -47,9 +47,9 @@ export default function ForgotPasswordScreen({ navigation }: any) {
     const em = email.trim().toLowerCase();
 
     if (!em) {
-      e.email = "Please enter your email.";
+      e.email = t("auth.forgotPassword.emailRequired");
     } else if (!em.includes("@")) {
-      e.email = "Please enter a valid email.";
+      e.email = t("auth.forgotPassword.emailInvalid");
     }
 
     return e;
@@ -72,16 +72,12 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         email: email.trim().toLowerCase(),
       });
 
-      setSuccessMessage(
-        res.detail || "If an account exists, a reset link has been sent."
-      );
+      setSuccessMessage(t("auth.forgotPassword.successFallback"));
     } catch (err: any) {
       console.log("Forgot password error", err?.response?.data || err);
 
       setErrors({
-        general:
-          err?.response?.data?.detail ||
-          "Could not send reset email. Please try again.",
+       general: t("auth.forgotPassword.sendFailed"),
       });
     } finally {
       setLoading(false);
@@ -123,19 +119,19 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 style={[styles.backBtn, { backgroundColor: primary + "12" }]}
               >
                 <Ionicons name="arrow-back-outline" size={18} color={primary} />
-                <Text style={[styles.backText, { color: primary }]}>Back to login</Text>
+                <Text style={[styles.backText, { color: primary }]}>{t("auth.forgotPassword.backToLogin")}</Text>
               </TouchableOpacity>
 
               <Text style={[styles.title, { color: title }]}>
-                Forgot <Text style={{ color: primary }}>password?</Text>
+                {t("auth.forgotPassword.titleStart")} <Text style={{ color: primary }}>{t("auth.forgotPassword.titleHighlight")}</Text>
               </Text>
 
               <Text style={[styles.subtitle, { color: text }]}>
-                Enter your email and we will send you a link to reset your password.
+                {t("auth.forgotPassword.subtitle")}
               </Text>
 
               <View style={{ marginTop: 16 }}>
-                <Text style={[styles.label, { color: text + "CC" }]}>Email</Text>
+                <Text style={[styles.label, { color: text + "CC" }]}>{t("auth.forgotPassword.email")}</Text>
 
                 <TextInput
                   value={email}
@@ -148,7 +144,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
-                  placeholder="you@example.com"
+                  placeholder={t("auth.forgotPassword.emailPlaceholder")}
                   placeholderTextColor={text + "66"}
                   style={[
                     styles.input,
@@ -189,7 +185,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                   <ActivityIndicator color={btnText} />
                 ) : (
                   <Text style={[styles.primaryBtnText, { color: btnText }]}>
-                    Send reset link
+                    {t("auth.forgotPassword.button")}
                   </Text>
                 )}
               </TouchableOpacity>

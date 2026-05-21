@@ -91,7 +91,27 @@ export default function SettingsScreen({ navigation }: Props) {
               color={settings.textColor}
             />
           </TouchableOpacity>
+    <TouchableOpacity
+      style={styles.row}
+      onPress={() => navigation.navigate("Language")}
+    >
+      <View style={styles.rowLeft}>
+        <Ionicons
+          name="language-outline"
+          size={22}
+          color={settings.textColor}
+        />
+        <Text style={[styles.rowText, { color: settings.textColor }]}>
+          Language
+        </Text>
+      </View>
 
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={settings.textColor}
+      />
+    </TouchableOpacity>
           {/* Notifications */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
             Notifications

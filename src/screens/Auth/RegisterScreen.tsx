@@ -1,5 +1,6 @@
 // src/screens/Auth/RegisterScreen.tsx
 import React, { useMemo, useState } from "react";
+
 import {
   View,
   Text,
@@ -18,6 +19,7 @@ import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { useAuth } from "../../auth/AuthContext";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { useTranslation } from "react-i18next";
 
 type FieldErrors = {
   firstName?: string;
@@ -30,7 +32,7 @@ type FieldErrors = {
 export default function RegisterScreen({ navigation }: any) {
   const { settings } = useAppearance();
   const { register, loading } = useAuth() as any;
-
+  const { t } = useTranslation(["auth", "common"]);
   const primary = settings.primaryColor;
   const text = settings.textColor;
   const title = settings.titleColor;
@@ -69,15 +71,15 @@ export default function RegisterScreen({ navigation }: any) {
     const e: FieldErrors = {};
     const em = email.trim().toLowerCase();
 
-    if (!firstName.trim()) e.firstName = "Please enter your first name.";
-    if (!em) e.email = "Please enter your email.";
-    else if (!em.includes("@")) e.email = "Please enter a valid email.";
+    if (!firstName.trim()) e.firstName = t("auth:auth.register.firstNameRequired");;
+    if (!em) e.email = t("auth:auth.register.emailRequired");
+    else if (!em.includes("@")) e.email = t("auth:auth.register.emailInvalid");
 
-    if (!password) e.password = "Please enter a password.";
-    else if (password.length < 8) e.password = "Password must be at least 8 characters.";
+    if (!password) e.password = t("auth:auth.register.passwordRequired");
+    else if (password.length < 8) e.password = t("auth:auth.register.passwordMin");
 
-    if (!password2) e.password2 = "Please repeat your password.";
-    else if (password2 !== password) e.password2 = "Passwords do not match.";
+    if (!password2) e.password2 = t("auth:auth.register.password2Required");
+    else if (password2 !== password) e.password2 = t("auth:auth.register.passwordsDoNotMatch");
 
     return e;
   }
@@ -96,7 +98,7 @@ export default function RegisterScreen({ navigation }: any) {
       await register(em, password, firstName.trim(), lastName.trim(), "Europe/Paris");
 
       navigation.navigate("Login", {
-        message: "Account created. Please check your email to verify your account.",
+        message: t("auth:auth.register.checkEmail"),
       });
     } catch (err: any) {
       const api = err?.response?.data;
@@ -115,7 +117,7 @@ export default function RegisterScreen({ navigation }: any) {
       }
 
       if (!e.general && Object.keys(e).length === 0) {
-        e.general = "Register failed. Please check your details or try again.";
+        e.general = t("auth:auth.register.registerFailed");
       }
 
       setErrors(e);
@@ -148,39 +150,36 @@ export default function RegisterScreen({ navigation }: any) {
             >
               <View style={styles.topRow}>
                 <View style={[styles.badge, { backgroundColor: primary + "1A", borderColor: primary + "33" }]}>
-                  <Text style={[styles.badgeText, { color: primary }]}>Birthdayly</Text>
+                  <Text style={[styles.badgeText, { color: primary }]}>{t("auth:auth.register.badge")}</Text>
                 </View>
 
                 <TouchableOpacity onPress={() => navigation.navigate("Login")} activeOpacity={0.85}>
-                  <Text style={{ color: primary, fontWeight: "900" }}>Log in</Text>
+                  <Text style={{ color: primary, fontWeight: "900" }}>{t("auth:auth.register.login")}</Text>
                 </TouchableOpacity>
               </View>
 
               <Text style={[styles.title, { color: title }]}>
-                Create account <Text style={{ color: primary }}>🎉</Text>
+                {t("auth:auth.register.title")} <Text style={{ color: primary }}>🎉</Text>
               </Text>
               <Text style={[styles.subtitle, { color: text }]}>
-                Save birthdays + reminders in one place.
+                {t("auth:auth.register.subtitle")}
               </Text>
 
               <View style={{ marginTop: 10, gap: 10 }}>
               <GoogleSignInButton
-                backgroundColor={card}
-                textColor={title}
-                borderColor={primary + "33"}
               />
 
               <View style={styles.dividerRow}>
                 <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
                 <Text style={[styles.dividerText, { color: text + "99" }]}>
-                  or create with email
+                  {t("auth:auth.register.orCreateWithEmail")}
                 </Text>
                 <View style={[styles.dividerLine, { backgroundColor: primary + "22" }]} />
               </View>
 
                 {/* First name */}
                 <View>
-                  <Text style={[styles.label, { color: text + "CC" }]}>First name</Text>
+                  <Text style={[styles.label, { color: text + "CC" }]}>{t("auth:auth.register.firstName")}</Text>
                   <TextInput
                     value={firstName}
                     onChangeText={(v) => {
@@ -188,7 +187,7 @@ export default function RegisterScreen({ navigation }: any) {
                       clearError("firstName");
                       clearError("general");
                     }}
-                    placeholder="First name"
+                    placeholder={t("auth:auth.register.firstNamePlaceholder")}
                     placeholderTextColor={text + "66"}
                     style={[styles.input, { color: title, borderColor: primary + "22", backgroundColor: card }]}
                   />
@@ -197,14 +196,14 @@ export default function RegisterScreen({ navigation }: any) {
 
                 {/* Last name */}
                 <View>
-                  <Text style={[styles.label, { color: text + "CC" }]}>Last name</Text>
+                  <Text style={[styles.label, { color: text + "CC" }]}>{t("auth:auth.register.lastName")}</Text>
                   <TextInput
                     value={lastName}
                     onChangeText={(v) => {
                       setLastName(v);
                       clearError("general");
                     }}
-                    placeholder="Last name (optional)"
+                    placeholder={t("auth:auth.register.lastNameOptional")}
                     placeholderTextColor={text + "66"}
                     style={[styles.input, { color: title, borderColor: primary + "22", backgroundColor: card }]}
                   />
@@ -212,7 +211,7 @@ export default function RegisterScreen({ navigation }: any) {
 
                 {/* Email */}
                 <View>
-                  <Text style={[styles.label, { color: text + "CC" }]}>Email</Text>
+                  <Text style={[styles.label, { color: text + "CC" }]}>{t("auth:auth.register.email")}</Text>
                   <TextInput
                     value={email}
                     onChangeText={(v) => {
@@ -222,7 +221,7 @@ export default function RegisterScreen({ navigation }: any) {
                     }}
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    placeholder="you@example.com"
+                    placeholder={t("auth:auth.register.emailPlaceholder")}
                     placeholderTextColor={text + "66"}
                     style={[styles.input, { color: title, borderColor: primary + "22", backgroundColor: card }]}
                   />
@@ -231,7 +230,7 @@ export default function RegisterScreen({ navigation }: any) {
 
                 {/* Password */}
                 <View>
-                  <Text style={[styles.label, { color: text + "CC" }]}>Password</Text>
+                  <Text style={[styles.label, { color: text + "CC" }]}>{t("auth:auth.register.password")}</Text>
                   <View style={[styles.inputRow, { borderColor: primary + "22", backgroundColor: card }]}>
                     <TextInput
                       value={password}
@@ -241,7 +240,7 @@ export default function RegisterScreen({ navigation }: any) {
                         clearError("general");
                       }}
                       secureTextEntry={!showPassword}
-                      placeholder="At least 8 characters"
+                      placeholder={t("auth:auth.register.passwordPlaceholder")}
                       placeholderTextColor={text + "66"}
                       style={[styles.inputInner, { color: title }]}
                     />
@@ -261,7 +260,7 @@ export default function RegisterScreen({ navigation }: any) {
 
                 {/* Confirm password */}
                 <View>
-                  <Text style={[styles.label, { color: text + "CC" }]}>Confirm password</Text>
+                  <Text style={[styles.label, { color: text + "CC" }]}>{t("auth:auth.register.confirmPassword")}</Text>
                   <View style={[styles.inputRow, { borderColor: primary + "22", backgroundColor: card }]}>
                     <TextInput
                       value={password2}
@@ -271,7 +270,7 @@ export default function RegisterScreen({ navigation }: any) {
                         clearError("general");
                       }}
                       secureTextEntry={!showPassword2}
-                      placeholder="Repeat your password"
+                      placeholder={t("auth:auth.register.confirmPasswordPlaceholder")}
                       placeholderTextColor={text + "66"}
                       style={[styles.inputInner, { color: title }]}
                     />
@@ -298,7 +297,7 @@ export default function RegisterScreen({ navigation }: any) {
                   style={[styles.primaryBtn, { backgroundColor: btn }, !canSubmit && { opacity: 0.6 }]}
                 >
                   <Text style={[styles.primaryBtnText, { color: btnText }]}>
-                    {loading ? "Creating..." : "Create account"}
+                    {loading ? t("auth:auth.register.creating") : t("auth:auth.register.button")}
                   </Text>
                 </TouchableOpacity>
 
@@ -308,14 +307,14 @@ export default function RegisterScreen({ navigation }: any) {
                   style={[styles.secondaryBtn, { borderColor: primary + "55", backgroundColor: primary + "10" }]}
                 >
                   <Text style={[styles.secondaryBtnText, { color: primary }]}>
-                    I already have an account
+                    {t("auth:auth.register.alreadyHaveAccount")}
                   </Text>
                 </TouchableOpacity>
               </View>
             </LinearGradient>
 
             <Text style={[styles.footer, { color: text + "AA" }]}>
-              You can change reminders anytime.
+              {t("auth:auth.register.footer")}
             </Text>
           </View>
         </ScrollView>
