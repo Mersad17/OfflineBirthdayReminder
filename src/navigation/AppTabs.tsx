@@ -1,4 +1,14 @@
 // src/navigation/AppTabs.tsx
+import React from "react";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,74 +21,444 @@ import { useAppearance } from "../appearance/AppearanceContext";
 
 const Tab = createBottomTabNavigator();
 
+function EmptyAddScreen() {
+  return null;
+}
+
+function withAlpha(color: string, alpha: string) {
+  if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    return `${color}${alpha}`;
+  }
+
+  return color;
+}
+
 export default function AppTabs() {
   const { settings } = useAppearance();
 
+  const [addMenuVisible, setAddMenuVisible] = React.useState(false);
+  const addTabNavigationRef = React.useRef<any>(null);
+
+  function openAddMenu(navigation: any) {
+    addTabNavigationRef.current = navigation;
+    setAddMenuVisible(true);
+  }
+
+  function closeAddMenu() {
+    setAddMenuVisible(false);
+  }
+function goToAddContact() {
+  closeAddMenu();
+
+  requestAnimationFrame(() => {
+    const rootNavigation = addTabNavigationRef.current?.getParent() as any;
+    rootNavigation?.navigate("GlobalAddContact");
+  });
+}
+
+function goToSmartReminder() {
+  closeAddMenu();
+
+  requestAnimationFrame(() => {
+    const rootNavigation = addTabNavigationRef.current?.getParent() as any;
+    rootNavigation?.navigate("GlobalAddReminder");
+  });
+}
+
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: settings.primaryColor,
-        tabBarInactiveTintColor: settings.textColor + "80",
-        tabBarStyle: {
-          backgroundColor: settings.cardColor,
-          borderTopColor: "#E5E7EB",
-        },
-        tabBarIcon: ({ color, size, focused }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
+    <>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarActiveTintColor: settings.primaryColor,
+          tabBarInactiveTintColor: settings.textColor + "80",
+          tabBarStyle: {
+            backgroundColor: settings.cardColor,
+            borderTopColor: "#E5E7EB",
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "700",
+          },
+          tabBarIcon: ({ color, size, focused }) => {
+            let iconName: keyof typeof Ionicons.glyphMap;
 
-          if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline";
-          } else if (route.name === "Contacts") {
-            iconName = focused ? "people" : "people-outline";
-          } else if (route.name === "Events") {
-            iconName = focused ? "calendar" : "calendar-outline";
-          } else {
-            iconName = focused ? "settings" : "settings-outline";
-          }
+            if (route.name === "Home") {
+              iconName = focused ? "home" : "home-outline";
+            } else if (route.name === "Contacts") {
+              iconName = focused ? "people" : "people-outline";
+            } else if (route.name === "Add") {
+              return (
+                <View
+                  style={[
+                    styles.addTabIcon,
+                    {
+                      backgroundColor: settings.primaryColor,
+                      shadowColor: settings.primaryColor,
+                    },
+                  ]}
+                >
+                  <Ionicons name="add" size={28} color="#FFFFFF" />
+                </View>
+              );
+            } else if (route.name === "Events") {
+              iconName = focused ? "calendar" : "calendar-outline";
+            } else {
+              iconName = focused ? "settings" : "settings-outline";
+            }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={HomeStackNavigator} />
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+        })}
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeStackNavigator}
+          options={{ tabBarLabel: "Today" }}
+        />
 
-      <Tab.Screen
-        name="Contacts"
-        component={ContactsStack}
-        options={{ headerShown: false }}
-      />
-
-      <Tab.Screen
-        name="Events"
-        component={EventsStack}
-        options={{ headerShown: false }}
-      />
-
-      <Tab.Screen
-        name="Settings"
-        component={SettingsStack}
-        options={({ route }) => {
-          const routeName = getFocusedRouteNameFromRoute(route) ?? "Settings";
-
-          const hideOnScreens = [
-            "Profile",
-            "Appearance",
-            "Notifications",
-            "AppInfo",
-          ];
-
-          return {
+        <Tab.Screen
+          name="Contacts"
+          component={ContactsStack}
+          options={{
             headerShown: false,
-            tabBarStyle: hideOnScreens.includes(routeName)
-              ? { display: "none" }
-              : {
-                  backgroundColor: settings.cardColor,
-                  borderTopColor: "#E5E7EB",
-                },
-          };
+            tabBarLabel: "People",
+          }}
+        />
+
+        <Tab.Screen
+          name="Add"
+          component={EmptyAddScreen}
+          options={{
+            tabBarLabel: "",
+          }}
+          listeners={({ navigation }) => ({
+            tabPress: (event) => {
+              event.preventDefault();
+              openAddMenu(navigation);
+            },
+          })}
+        />
+
+        <Tab.Screen
+          name="Events"
+          component={EventsStack}
+          options={{
+            headerShown: false,
+            tabBarLabel: "Moments",
+          }}
+        />
+
+        <Tab.Screen
+          name="Settings"
+          component={SettingsStack}
+          options={({ route }) => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? "Settings";
+
+            const hideOnScreens = [
+              "Profile",
+              "Appearance",
+              "Notifications",
+              "AppInfo",
+            ];
+
+            return {
+              headerShown: false,
+              tabBarStyle: hideOnScreens.includes(routeName)
+                ? { display: "none" }
+                : {
+                    backgroundColor: settings.cardColor,
+                    borderTopColor: "#E5E7EB",
+                  },
+            };
+          }}
+        />
+      </Tab.Navigator>
+
+      <CreateMenuModal
+        visible={addMenuVisible}
+        onClose={closeAddMenu}
+        onAddContact={goToAddContact}
+        onSmartReminder={goToSmartReminder}
+        colors={{
+          card: settings.cardColor,
+          title: settings.titleColor,
+          text: settings.textColor,
+          primary: settings.primaryColor,
         }}
       />
-    </Tab.Navigator>
+    </>
   );
 }
+
+function CreateMenuModal({
+  visible,
+  onClose,
+  onAddContact,
+  onSmartReminder,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAddContact: () => void;
+  onSmartReminder: () => void;
+  colors: {
+    card: string;
+    title: string;
+    text: string;
+    primary: string;
+  };
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: colors.card }]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <View style={styles.sheetHandle} />
+
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetEyebrow, { color: colors.primary }]}>
+              QUICK ADD
+            </Text>
+
+            <Text style={[styles.sheetTitle, { color: colors.title }]}>
+              What do you want to add?
+            </Text>
+
+            <Text style={[styles.sheetSubtitle, { color: colors.text }]}>
+              Keep your relationships organized with one quick action.
+            </Text>
+          </View>
+
+          <View style={styles.actionList}>
+            <CreateAction
+              icon="person-add-outline"
+              title="New person"
+              subtitle="Create a private profile for someone important."
+              onPress={onAddContact}
+              colors={colors}
+            />
+
+            <CreateAction
+              icon="notifications-outline"
+              title="Smart reminder"
+              subtitle="Remember to ask, call, follow up, or check in."
+              onPress={onSmartReminder}
+              colors={colors}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={onClose}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.cancelText, { color: colors.text }]}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function CreateAction({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  colors: {
+    card: string;
+    title: string;
+    text: string;
+    primary: string;
+  };
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.actionRow,
+        {
+          backgroundColor: withAlpha(colors.primary, "0D"),
+          borderColor: withAlpha(colors.primary, "26"),
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.86}
+    >
+      <View
+        style={[
+          styles.actionIcon,
+          { backgroundColor: withAlpha(colors.primary, "18") },
+        ]}
+      >
+        <Ionicons name={icon} size={23} color={colors.primary} />
+      </View>
+
+      <View style={styles.actionTextWrap}>
+        <Text style={[styles.actionTitle, { color: colors.title }]}>
+          {title}
+        </Text>
+
+        <Text style={[styles.actionSubtitle, { color: colors.text }]}>
+          {subtitle}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.actionArrow,
+          { backgroundColor: withAlpha(colors.primary, "12") },
+        ]}
+      >
+        <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  addTabIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Platform.OS === "android" ? 2 : 0,
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
+  },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(20, 14, 10, 0.48)",
+    justifyContent: "flex-end",
+  },
+
+  sheet: {
+    marginHorizontal: 12,
+    marginBottom: Platform.OS === "ios" ? 28 : 18,
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 14,
+  },
+
+  sheetHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "#D8C8BA",
+    marginBottom: 16,
+  },
+
+  sheetHeader: {
+    marginBottom: 16,
+  },
+
+  sheetEyebrow: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+
+  sheetTitle: {
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: "900",
+  },
+
+  sheetSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+    marginTop: 6,
+    opacity: 0.78,
+  },
+
+  actionList: {
+    gap: 10,
+  },
+
+  actionRow: {
+    minHeight: 76,
+    borderRadius: 22,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    gap: 12,
+  },
+
+  actionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  actionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  actionSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+    marginTop: 3,
+    opacity: 0.78,
+  },
+
+  actionArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cancelButton: {
+    height: 48,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    backgroundColor: "rgba(0,0,0,0.035)",
+  },
+
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+});

@@ -59,6 +59,12 @@ function fullName(contact?: Contact | null) {
   return `${contact.first_name || ""} ${contact.last_name || ""}`.trim();
 }
 
+function contactInitials(contact?: Contact | null) {
+  const first = contact?.first_name?.[0] ?? "";
+  const last = contact?.last_name?.[0] ?? "";
+  return `${first}${last}`.toUpperCase() || "?";
+}
+
 function todayStart() {
   const date = new Date();
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -113,6 +119,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
     null
   );
 
+  const [contactSearch, setContactSearch] = React.useState("");
   const [message, setMessage] = React.useState(initialNote ?? "");
 
   const [timingMode, setTimingMode] = React.useState<TimingMode>("relative");
@@ -127,14 +134,40 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 
+  const filteredContacts = React.useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+
+    if (!query) {
+      return contacts.slice(0, 8);
+    }
+
+    return contacts
+      .filter((contact) => {
+        const name = fullName(contact).toLowerCase();
+        const phone = contact.phone?.toLowerCase() ?? "";
+        const email = contact.email?.toLowerCase() ?? "";
+        const group = contact.group_detail?.name?.toLowerCase() ?? "";
+
+        return (
+          name.includes(query) ||
+          phone.includes(query) ||
+          email.includes(query) ||
+          group.includes(query)
+        );
+      })
+      .slice(0, 12);
+  }, [contacts, contactSearch]);
+
   React.useEffect(() => {
     load();
   }, []);
-React.useEffect(() => {
-  if (initialNote) {
-    setMessage(initialNote);
-  }
-}, [initialNote]);
+
+  React.useEffect(() => {
+    if (initialNote) {
+      setMessage(initialNote);
+    }
+  }, [initialNote]);
+
   async function load() {
     try {
       setLoading(true);
@@ -273,6 +306,7 @@ React.useEffect(() => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.title, { color: settings.titleColor }]}>
           Smart Reminder
@@ -306,48 +340,158 @@ React.useEffect(() => {
               </Text>
             </View>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.contactChips}
-            >
-              {contacts.map((contact) => {
-                const active = selectedContact?.id === contact.id;
+            <>
+              <View
+                style={[
+                  styles.contactSearchBox,
+                  {
+                    borderColor: settings.textColor + "18",
+                    backgroundColor: settings.textColor + "08",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={18}
+                  color={settings.textColor + "90"}
+                />
 
-                return (
+                <TextInput
+                  value={contactSearch}
+                  onChangeText={setContactSearch}
+                  placeholder="Search by name, phone, email, group..."
+                  placeholderTextColor={settings.textColor + "66"}
+                  style={[styles.contactSearchInput, { color: settings.textColor }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                {contactSearch.length > 0 ? (
                   <TouchableOpacity
-                    key={String(contact.id)}
-                    style={[
-                      styles.contactChip,
-                      {
-                        borderColor: active
-                          ? settings.primaryColor
-                          : "#E5E7EB",
-                        backgroundColor: active
-                          ? settings.primaryColor + "16"
-                          : "#FFFFFF",
-                      },
-                    ]}
-                    onPress={() => setSelectedContact(contact)}
-                    activeOpacity={0.85}
+                    onPress={() => setContactSearch("")}
+                    activeOpacity={0.8}
                   >
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color={settings.textColor + "80"}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <View style={styles.contactResults}>
+                {filteredContacts.length === 0 ? (
+                  <View style={styles.emptyContactResult}>
+                    <Ionicons
+                      name="people-outline"
+                      size={20}
+                      color={settings.textColor + "80"}
+                    />
                     <Text
                       style={[
-                        styles.contactChipText,
-                        {
-                          color: active
-                            ? settings.primaryColor
-                            : settings.textColor,
-                        },
+                        styles.emptyContactText,
+                        { color: settings.textColor },
                       ]}
-                      numberOfLines={1}
                     >
-                      {fullName(contact) || "Unnamed"}
+                      No contacts found.
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                  </View>
+                ) : (
+                  filteredContacts.map((contact) => {
+                    const active = selectedContact?.id === contact.id;
+                    const name = fullName(contact) || "Unnamed";
+                    const groupName = contact.group_detail?.name;
+
+                    return (
+                      <TouchableOpacity
+                        key={String(contact.id)}
+                        style={[
+                          styles.contactResultRow,
+                          {
+                            borderColor: active
+                              ? settings.primaryColor
+                              : settings.textColor + "12",
+                            backgroundColor: active
+                              ? settings.primaryColor + "14"
+                              : "#FFFFFF",
+                          },
+                        ]}
+                        onPress={() => setSelectedContact(contact)}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.contactAvatar,
+                            {
+                              backgroundColor: active
+                                ? settings.primaryColor
+                                : settings.primaryColor + "18",
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.contactAvatarText,
+                              {
+                                color: active
+                                  ? settings.buttonTextColor
+                                  : settings.primaryColor,
+                              },
+                            ]}
+                          >
+                            {contactInitials(contact)}
+                          </Text>
+                        </View>
+
+                        <View style={styles.contactResultTextWrap}>
+                          <Text
+                            style={[
+                              styles.contactResultName,
+                              { color: settings.titleColor },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {name}
+                          </Text>
+
+                          <Text
+                            style={[
+                              styles.contactResultMeta,
+                              { color: settings.textColor },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {groupName || contact.phone || contact.email || "No details yet"}
+                          </Text>
+                        </View>
+
+                        {active ? (
+                          <View
+                            style={[
+                              styles.selectedCheck,
+                              { backgroundColor: settings.primaryColor },
+                            ]}
+                          >
+                            <Ionicons
+                              name="checkmark"
+                              size={14}
+                              color={settings.buttonTextColor}
+                            />
+                          </View>
+                        ) : (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={17}
+                            color={settings.textColor + "55"}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </>
           )}
         </View>
 
@@ -750,20 +894,84 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
   },
-  contactChips: {
-    gap: 8,
-  },
-  contactChip: {
-    maxWidth: 160,
-    borderRadius: 999,
+
+  contactSearchBox: {
+    minHeight: 48,
+    borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  contactChipText: {
+  contactSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+  },
+  contactResults: {
+    marginTop: 10,
+    gap: 8,
+  },
+  contactResultRow: {
+    minHeight: 62,
+    borderRadius: 17,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  contactAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  contactAvatarText: {
     fontSize: 13,
     fontWeight: "900",
   },
+  contactResultTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  contactResultName: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  contactResultMeta: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+    opacity: 0.7,
+  },
+  selectedCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContactResult: {
+    minHeight: 68,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  emptyContactText: {
+    fontSize: 12,
+    fontWeight: "800",
+    opacity: 0.7,
+  },
+
   textArea: {
     minHeight: 92,
     borderWidth: 1,

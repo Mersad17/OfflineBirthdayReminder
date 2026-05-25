@@ -15,6 +15,7 @@ import {
   ImageBackground,
   Dimensions,
 } from "react-native";
+
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,12 +25,19 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
-import { Contact } from "../../contacts/types";
+import { Contact, ContactTag } from "../../contacts/types";
 import {
+  createContactTag,
   deleteContact,
   fetchContactById,
+  fetchContactTags,
   updateContact,
 } from "../../contacts/repository";
+
+import {
+  DEFAULT_TAG_COLOR,
+  LABEL_COLORS,
+} from "../../lib/groupTagOptions";
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
 import { fetchEventsForContact } from "../../events/repository";
 import { Screen } from "../../components/Screen";
@@ -507,7 +515,12 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const [events, setEvents] = useState<EventDTO[]>([]);
   const [memories, setMemories] = useState<ContactMemory[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
-
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [allTags, setAllTags] = useState<ContactTag[]>([]);
+  const [selectedTagNames, setSelectedTagNames] = useState<string[]>([]);
+  const [tagSearch, setTagSearch] = useState("");
+  const [newTagColor, setNewTagColor] = useState(DEFAULT_TAG_COLOR);
+  const [savingTags, setSavingTags] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -523,17 +536,24 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
   const loadProfile = useCallback(async () => {
     try {
-      const [contactData, memoriesData, eventsData, interactionsData] =
-        await Promise.all([
-          fetchContactById(contactId),
-          fetchMemoriesForContact(contactId as any),
-          fetchEventsForContact(contactId as any, 1),
-          fetchInteractionForContact(contactId as any),
-        ]);
+const [
+  contactData,
+  memoriesData,
+  eventsData,
+  interactionsData,
+  tagData,
+] = await Promise.all([
+  fetchContactById(contactId),
+  fetchMemoriesForContact(contactId as any),
+  fetchEventsForContact(contactId as any, 1),
+  fetchInteractionForContact(contactId as any),
+  fetchContactTags(),
+]);
 
       setContact(contactData);
       setMemories(memoriesData ?? []);
       setInteractions(interactionsData ?? []);
+      setAllTags(tagData ?? []);
 
       const eventResults = Array.isArray(eventsData)
         ? eventsData
@@ -717,7 +737,100 @@ async function saveTalkCadence(days: number | null) {
       },
     ]);
   }
+function openTagPicker() {
+  if (!contact) return;
 
+  setSelectedTagNames(
+    (contact.tags_detail || []).map((tag) => tag.name)
+  );
+
+  setTagSearch("");
+  setNewTagColor(DEFAULT_TAG_COLOR);
+  setShowTagModal(true);
+}
+
+function addSelectedTagName(name: string) {
+  const cleanName = name.trim();
+
+  if (!cleanName) return;
+
+  setSelectedTagNames((prev) => {
+    const exists = prev.some(
+      (item) => item.toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (exists) return prev;
+
+    return [...prev, cleanName];
+  });
+
+  setTagSearch("");
+}
+
+function removeSelectedTag(name: string) {
+  setSelectedTagNames((prev) => prev.filter((tag) => tag !== name));
+}
+
+async function createAndSelectTag() {
+  const cleanName = tagSearch.trim();
+
+  if (!cleanName) {
+    Alert.alert("Tag required", "Write a tag name first.");
+    return;
+  }
+
+  const alreadyExists = allTags.some(
+    (tag) => tag.name.toLowerCase() === cleanName.toLowerCase()
+  );
+
+  if (alreadyExists) {
+    addSelectedTagName(cleanName);
+    return;
+  }
+
+  try {
+    setSavingTags(true);
+
+    const created = await createContactTag({
+      name: cleanName,
+      color: newTagColor,
+    });
+
+    setAllTags((prev) => [created, ...prev]);
+    addSelectedTagName(created.name);
+    setNewTagColor(DEFAULT_TAG_COLOR);
+  } catch (error: any) {
+    Alert.alert(
+      "Create tag",
+      error?.message || "Could not create tag."
+    );
+  } finally {
+    setSavingTags(false);
+  }
+}
+
+async function saveContactTags() {
+  if (!contact) return;
+
+  try {
+    setSavingTags(true);
+
+    const updated = await updateContact(contact.id as any, {
+      tag_names: selectedTagNames,
+    } as any);
+
+    setContact(updated);
+    setShowTagModal(false);
+    setTagSearch("");
+  } catch (error: any) {
+    Alert.alert(
+      "Tags",
+      error?.message || "Could not save tags."
+    );
+  } finally {
+    setSavingTags(false);
+  }
+}
   function confirmDeleteContact() {
     if (!contact) return;
 
@@ -828,7 +941,7 @@ async function saveTalkCadence(days: number | null) {
                 contactId: contact.id as any,
               })
             }
-            onAddTag={() => openCreateMemoryModal("important")}
+            onAddTag={openTagPicker}
           />
 
           <PrimaryActionBar
@@ -972,11 +1085,269 @@ async function saveTalkCadence(days: number | null) {
           onSave={handleSaveMemory}
           settings={settings}
         />
+        <TagPickerModal
+        visible={showTagModal}
+        tags={allTags}
+        selectedTagNames={selectedTagNames}
+        tagSearch={tagSearch}
+        setTagSearch={setTagSearch}
+        newTagColor={newTagColor}
+        setNewTagColor={setNewTagColor}
+        saving={savingTags}
+        settings={settings}
+        onAddTag={addSelectedTagName}
+        onRemoveTag={removeSelectedTag}
+        onCreateTag={createAndSelectTag}
+        onCancel={() => {
+          setShowTagModal(false);
+          setTagSearch("");
+        }}
+        onSave={saveContactTags}
+      />
       </View>
     </Screen>
   );
 }
+function TagPickerModal({
+  visible,
+  tags,
+  selectedTagNames,
+  tagSearch,
+  setTagSearch,
+  newTagColor,
+  setNewTagColor,
+  saving,
+  settings,
+  onAddTag,
+  onRemoveTag,
+  onCreateTag,
+  onCancel,
+  onSave,
+}: {
+  visible: boolean;
+  tags: ContactTag[];
+  selectedTagNames: string[];
+  tagSearch: string;
+  setTagSearch: (value: string) => void;
+  newTagColor: string;
+  setNewTagColor: (value: string) => void;
+  saving: boolean;
+  settings: any;
+  onAddTag: (name: string) => void;
+  onRemoveTag: (name: string) => void;
+  onCreateTag: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const cleanSearch = tagSearch.trim().toLowerCase();
 
+  const selectedLower = selectedTagNames.map((tag) => tag.toLowerCase());
+
+  const filteredTags = cleanSearch
+    ? tags
+        .filter((tag) => tag.name.toLowerCase().includes(cleanSearch))
+        .filter((tag) => !selectedLower.includes(tag.name.toLowerCase()))
+        .slice(0, 8)
+    : tags
+        .filter((tag) => !selectedLower.includes(tag.name.toLowerCase()))
+        .slice(0, 8);
+
+  const exactTagExists =
+    !cleanSearch ||
+    tags.some((tag) => tag.name.toLowerCase() === cleanSearch);
+
+  function getTagColor(name: string) {
+    return (
+      tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase())?.color ||
+      settings.primaryColor ||
+      DEFAULT_TAG_COLOR
+    );
+  }
+
+  return (
+  <Modal
+    visible={visible}
+    transparent
+    animationType="fade"
+    onRequestClose={onCancel}
+  >
+    <View style={styles.tagModalOverlay}>
+      <View style={styles.tagModalCard}>
+
+          <View style={styles.tagModalHeader}>
+            <View>
+              <Text style={styles.tagModalEyebrow}>TAGS</Text>
+              <Text style={styles.tagModalTitle}>Organize this person</Text>
+            </View>
+
+            <TouchableOpacity style={styles.tagModalClose} onPress={onCancel}>
+              <Ionicons name="close" size={20} color={TEXT} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.tagModalSubtitle}>
+            Add labels like Close friend, Gym, Work, Creative, Travel, Family.
+          </Text>
+
+          <TextInput
+            value={tagSearch}
+            onChangeText={setTagSearch}
+            placeholder="Search or create a tag..."
+            placeholderTextColor={MUTED}
+            autoCapitalize="words"
+            style={styles.tagModalInput}
+          />
+<ScrollView
+  showsVerticalScrollIndicator={false}
+  keyboardShouldPersistTaps="handled"
+  style={styles.tagModalScrollArea}
+  contentContainerStyle={styles.tagModalScrollContent}
+>
+          <View style={styles.tagModalSection}>
+            <Text style={styles.tagModalSectionTitle}>Selected</Text>
+
+            <View style={styles.tagModalChipsWrap}>
+              {selectedTagNames.length > 0 ? (
+                selectedTagNames.map((name) => {
+                  const color = getTagColor(name);
+
+                  return (
+                    <TouchableOpacity
+                      key={name}
+                      style={[
+                        styles.tagModalSelectedChip,
+                        {
+                          backgroundColor: withOpacity(color, "22"),
+                          borderColor: withOpacity(color, "55"),
+                        },
+                      ]}
+                      onPress={() => onRemoveTag(name)}
+                    >
+                      <Text
+                        style={[
+                          styles.tagModalSelectedChipText,
+                          { color },
+                        ]}
+                      >
+                        #{name} ×
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={styles.tagModalEmptyText}>
+                  No tags selected yet.
+                </Text>
+              )}
+            </View>
+          </View>
+</ScrollView>
+          <View style={styles.tagModalSection}>
+            <Text style={styles.tagModalSectionTitle}>Suggestions</Text>
+
+            <View style={styles.tagModalChipsWrap}>
+              {filteredTags.map((tag) => {
+                const color = tag.color || settings.primaryColor || DEFAULT_TAG_COLOR;
+
+                return (
+                  <TouchableOpacity
+                    key={String(tag.id)}
+                    style={[
+                      styles.tagModalSuggestionChip,
+                      {
+                        backgroundColor: withOpacity(color, "18"),
+                        borderColor: withOpacity(color, "40"),
+                      },
+                    ]}
+                    onPress={() => onAddTag(tag.name)}
+                  >
+                    <Text
+                      style={[
+                        styles.tagModalSuggestionChipText,
+                        { color },
+                      ]}
+                    >
+                      #{tag.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {tagSearch.trim() && !exactTagExists ? (
+                <TouchableOpacity
+                  style={styles.tagModalCreateChip}
+                  onPress={onCreateTag}
+                  disabled={saving}
+                >
+                  <Ionicons name="add" size={15} color="#FFFFFF" />
+                  <Text style={styles.tagModalCreateChipText}>
+                    Create “{tagSearch.trim()}”
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {tagSearch.trim() && !exactTagExists ? (
+            <View style={styles.tagModalSection}>
+              <Text style={styles.tagModalSectionTitle}>New tag color</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tagColorRow}
+              >
+                {LABEL_COLORS.map((color) => {
+                  const active = color === newTagColor;
+
+                  return (
+                    <TouchableOpacity
+                      key={color}
+                      style={[
+                        styles.tagColorDot,
+                        {
+                          backgroundColor: color,
+                          borderColor: active ? TEXT : "transparent",
+                        },
+                      ]}
+                      onPress={() => setNewTagColor(color)}
+                    >
+                      {active ? (
+                        <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          <View style={styles.tagModalFooter}>
+            <TouchableOpacity
+              style={styles.tagModalCancelButton}
+              onPress={onCancel}
+              disabled={saving}
+            >
+              <Text style={styles.tagModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tagModalSaveButton}
+              onPress={onSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.tagModalSaveText}>Save tags</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 function ProfileHero({
   contact,
   name,
@@ -3032,7 +3403,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
+tagModalOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.45)",
+  justifyContent: "center",
+  padding: 20,
+},
 
+tagModalCard: {
+  width: "100%",
+  borderRadius: 24,
+  padding: 18,
+  backgroundColor: CARD,
+  borderWidth: 1,
+  borderColor: BORDER,
+  maxHeight: "82%",
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 20,
+  shadowOffset: { width: 0, height: 10 },
+  elevation: 10,
+},
+
+tagModalHandle: {
+  display: "none",
+},
   nextCard: {
     marginHorizontal: 14,
     marginTop: 12,
@@ -4238,6 +4633,14 @@ talkMetaValue: {
     alignItems: "center",
     justifyContent: "center",
   },
+  tagModalScrollArea: {
+  maxHeight: 360,
+  marginTop: 4,
+},
+
+tagModalScrollContent: {
+  paddingBottom: 10,
+},
   cadenceModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -4317,4 +4720,172 @@ talkMetaValue: {
     fontWeight: "900",
   },
 
+tagModalHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+},
+
+tagModalEyebrow: {
+  fontSize: 11,
+  fontWeight: "900",
+  letterSpacing: 1.2,
+  color: RED,
+  marginBottom: 4,
+},
+
+tagModalTitle: {
+  fontSize: 24,
+  fontWeight: "900",
+  color: TEXT,
+},
+
+tagModalClose: {
+  width: 38,
+  height: 38,
+  borderRadius: 19,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#FFFFFF99",
+  borderWidth: 1,
+  borderColor: BORDER,
+},
+
+tagModalSubtitle: {
+  marginTop: 8,
+  fontSize: 14,
+  lineHeight: 20,
+  color: MUTED,
+},
+
+tagModalInput: {
+  marginTop: 18,
+  minHeight: 52,
+  borderRadius: 18,
+  backgroundColor: "#FFFFFF",
+  borderWidth: 1,
+  borderColor: BORDER,
+  paddingHorizontal: 16,
+  color: TEXT,
+  fontSize: 15,
+  fontWeight: "700",
+},
+
+tagModalSection: {
+  marginTop: 18,
+},
+
+tagModalSectionTitle: {
+  fontSize: 12,
+  fontWeight: "900",
+  color: MUTED,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  marginBottom: 10,
+},
+
+tagModalChipsWrap: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 8,
+},
+
+tagModalSelectedChip: {
+  borderRadius: 999,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderWidth: 1,
+},
+
+tagModalSelectedChipText: {
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+tagModalSuggestionChip: {
+  borderRadius: 999,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderWidth: 1,
+},
+
+tagModalSuggestionChipText: {
+  fontSize: 13,
+  fontWeight: "800",
+},
+
+tagModalCreateChip: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  borderRadius: 999,
+  paddingHorizontal: 13,
+  paddingVertical: 9,
+  backgroundColor: RED,
+},
+
+tagModalCreateChipText: {
+  color: "#FFFFFF",
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+tagModalEmptyText: {
+  color: MUTED,
+  fontSize: 13,
+  fontWeight: "600",
+},
+
+tagColorRow: {
+  gap: 10,
+  paddingVertical: 2,
+},
+
+tagColorDot: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  borderWidth: 2,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+tagModalFooter: {
+  marginTop: 24,
+  flexDirection: "row",
+  gap: 12,
+},
+
+tagModalCancelButton: {
+  flex: 1,
+  height: 52,
+  borderRadius: 18,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#FFFFFF",
+  borderWidth: 1,
+  borderColor: BORDER,
+},
+
+tagModalCancelText: {
+  color: MUTED,
+  fontSize: 15,
+  fontWeight: "900",
+},
+
+tagModalSaveButton: {
+  flex: 1,
+  height: 52,
+  borderRadius: 18,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: RED,
+},
+
+tagModalSaveText: {
+  color: "#FFFFFF",
+  fontSize: 15,
+  fontWeight: "900",
+},
 });
