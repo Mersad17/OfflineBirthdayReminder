@@ -16,6 +16,14 @@ import { createId } from "../lib/id";
 
 const PAGE_SIZE = 20;
 
+type FlexibleCreateInteractionPayload = Omit<
+  CreateInteractionPayload,
+  "contact_id"
+> & {
+  contact_id?: AppId | number | null;
+  contact?: AppId | number | null;
+};
+
 function now() {
   return new Date();
 }
@@ -43,6 +51,33 @@ function toDateTime(value: unknown): Date | null {
 function toIso(value: Date | null | undefined): string {
   if (!value) return new Date().toISOString();
   return value.toISOString();
+}
+
+function toYMD(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function getPayloadContactId(payload: {
+  contact?: AppId | number | null;
+  contact_id?: AppId | number | null;
+}) {
+  const value = payload.contact_id ?? payload.contact;
+
+  if (value === null || value === undefined || String(value).trim() === "") {
+    throw new Error("Contact is required.");
+  }
+
+  return String(value);
 }
 
 function validateInteraction(args: {
@@ -78,7 +113,9 @@ function mapInteractionToApi(
   };
 }
 
-async function fetchInteractionById(id: AppId | number): Promise<Interaction> {
+export async function fetchInteractionById(
+  id: AppId | number
+): Promise<Interaction> {
   const interactionId = String(id);
 
   const rows = await db
@@ -97,6 +134,68 @@ async function fetchInteractionById(id: AppId | number): Promise<Interaction> {
   }
 
   return mapInteractionToApi(rows[0]);
+}
+
+async function syncContactTalkDates(contactId: string) {
+  const date = now();
+
+  const contactRows = await db
+    .select()
+    .from(contact)
+    .where(eq(contact.id, contactId))
+    .limit(1);
+
+  const contactRow = contactRows[0];
+
+  if (!contactRow) return;
+
+  const latestRows = await db
+    .select()
+    .from(interaction)
+    .where(
+      and(
+        eq(interaction.contactId, contactId),
+        isNull(interaction.deletedAt)
+      )
+    )
+    .orderBy(desc(interaction.happenedAt))
+    .limit(1);
+
+  const latestInteraction = latestRows[0];
+
+  if (!latestInteraction?.happenedAt) {
+    await db
+      .update(contact)
+      .set({
+        talkLastAt: null,
+        talkNextAt: null,
+        updatedAt: date,
+      })
+      .where(eq(contact.id, contactId));
+
+    return;
+  }
+
+  const talkLastAt = toYMD(latestInteraction.happenedAt);
+
+  const talkEveryDays =
+    typeof contactRow.talkEveryDays === "number"
+      ? contactRow.talkEveryDays
+      : null;
+
+  const talkNextAt =
+    talkEveryDays && talkEveryDays > 0
+      ? toYMD(addDays(latestInteraction.happenedAt, talkEveryDays))
+      : null;
+
+  await db
+    .update(contact)
+    .set({
+      talkLastAt,
+      talkNextAt,
+      updatedAt: date,
+    })
+    .where(eq(contact.id, contactId));
 }
 
 export async function fetchInteractionForContact(
@@ -143,9 +242,10 @@ export async function fetchInteractionsPaginated(
   };
 }
 
-export async function createInteraction(payload: CreateInteractionPayload) {
+export async function createInteraction(payload: FlexibleCreateInteractionPayload) {
   const date = now();
   const interactionId = await createId();
+  const contactId = getPayloadContactId(payload);
 
   const happenedAt = toDateTime(payload.happened_at);
 
@@ -160,9 +260,9 @@ export async function createInteraction(payload: CreateInteractionPayload) {
 
   await db.insert(interaction).values({
     id: interactionId,
-    contactId: String(payload.contact_id),
+    contactId,
     happenedAt,
-    durationMinutes: payload.duration_minutes,
+    durationMinutes: payload.duration_minutes ?? null,
     note: payload.note?.trim() || null,
     type: payload.type ?? InteractionType.OTHER,
     createdAt: date,
@@ -170,29 +270,31 @@ export async function createInteraction(payload: CreateInteractionPayload) {
     deletedAt: null,
   });
 
-  /**
-   * Update contact talk_last_at when logging interaction.
-   */
-  await db
-    .update(contact)
-    .set({
-      talkLastAt: happenedAt.toISOString().slice(0, 10),
-      updatedAt: date,
-    })
-    .where(eq(contact.id, String(payload.contact_id)));
+  await syncContactTalkDates(contactId);
 
   const data = await fetchInteractionById(interactionId);
 
-  /**
-   * Old axios-style return shape:
-   * createInteraction(...).then(res => res.data)
-   */
   return {
     data,
   };
 }
 
 export async function deleteInteraction(id: AppId | number) {
+  const interactionId = String(id);
+
+  const rows = await db
+    .select()
+    .from(interaction)
+    .where(
+      and(
+        eq(interaction.id, interactionId),
+        isNull(interaction.deletedAt)
+      )
+    )
+    .limit(1);
+
+  const existing = rows[0];
+
   await db
     .update(interaction)
     .set({
@@ -201,10 +303,14 @@ export async function deleteInteraction(id: AppId | number) {
     })
     .where(
       and(
-        eq(interaction.id, String(id)),
+        eq(interaction.id, interactionId),
         isNull(interaction.deletedAt)
       )
     );
+
+  if (existing?.contactId) {
+    await syncContactTalkDates(existing.contactId);
+  }
 
   return {
     data: null,
@@ -218,24 +324,55 @@ export async function updateInteraction(
 ) {
   const interactionId = String(id);
 
-  const happenedAt = toDateTime(payload.happened_at);
+  const rows = await db
+    .select()
+    .from(interaction)
+    .where(
+      and(
+        eq(interaction.id, interactionId),
+        isNull(interaction.deletedAt)
+      )
+    )
+    .limit(1);
+
+  const existing = rows[0];
+
+  if (!existing) {
+    throw new Error("Interaction not found");
+  }
+
+  const happenedAt =
+    payload.happened_at !== undefined
+      ? toDateTime(payload.happened_at)
+      : existing.happenedAt;
 
   if (!happenedAt) {
     throw new Error("Interaction date is required.");
   }
 
+  const durationMinutes =
+    payload.duration_minutes !== undefined
+      ? payload.duration_minutes
+      : existing.durationMinutes;
+
   validateInteraction({
     happenedAt,
-    durationMinutes: payload.duration_minutes,
+    durationMinutes,
   });
 
   await db
     .update(interaction)
     .set({
       happenedAt,
-      durationMinutes: payload.duration_minutes,
-      note: payload.note?.trim() || null,
-      type: payload.type,
+      durationMinutes,
+      note:
+        payload.note !== undefined
+          ? payload.note?.trim() || null
+          : existing.note,
+      type:
+        payload.type !== undefined
+          ? payload.type
+          : existing.type,
       updatedAt: now(),
     })
     .where(
@@ -245,11 +382,10 @@ export async function updateInteraction(
       )
     );
 
+  await syncContactTalkDates(existing.contactId);
+
   const data = await fetchInteractionById(interactionId);
 
-  /**
-   * Old axios-style return shape.
-   */
   return {
     data,
   };

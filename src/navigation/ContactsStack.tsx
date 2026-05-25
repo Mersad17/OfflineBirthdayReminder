@@ -11,6 +11,8 @@ import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHisto
 import { Interaction } from "../interactions/types";
 import { useAppearance } from "../appearance/AppearanceContext";
 import { AppId } from "../contacts/types";
+import AddSmartReminderScreen from "../screens/Reminders/AddSmartReminderScreen";
+import QuickNoteScreen from "../screens/Contacts/QuickNotesScreen";
 export type ContactsStackParamList = {
   ContactsList: undefined;
   AddContact: undefined;
@@ -21,7 +23,11 @@ export type ContactsStackParamList = {
     contactId: AppId;
     contactName: string;
   };
-
+ AddReminder: {
+  contactId?: AppId;
+  contactName?: string;
+  note?: string;
+};
   ContactDetail: {
     contactId: AppId;
     contactName?: string;
@@ -45,10 +51,14 @@ export type ContactsStackParamList = {
     contactId: AppId;
     interaction?: Interaction;
   };
-
+QuickNote: {
+  contactId: string | number;
+  contactName?: string;
+};
   InteractionsHistory: {
     contactId: AppId;
   };
+ 
 };
 
 const Stack = createNativeStackNavigator<ContactsStackParamList>();
@@ -75,11 +85,9 @@ export default function ContactsStack() {
       <Stack.Screen name="EditContact" component={EditContactScreen} options={{title:"Edit Contact"}}/>
       <Stack.Screen name="EventDetails" component={EventDetails} options={{ title: "EventDetails" }} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} options={{ title: "Edit Event" }} />
-      <Stack.Screen
-  name="LogInteraction"
-  component={LogInteractionScreen}
-  options={{ title: "Log Interaction" }}
-/>
+      <Stack.Screen name="AddReminder" component={AddSmartReminderScreen}  options={{ title: "Smart Reminder" }}/>
+      <Stack.Screen name="QuickNote" component={QuickNoteScreen} options={{ title: "Quick note" }} />
+      <Stack.Screen name="LogInteraction" component={LogInteractionScreen} options={{ title: "Log Interaction" }} />
 
 <Stack.Screen
   name="InteractionsHistory"
