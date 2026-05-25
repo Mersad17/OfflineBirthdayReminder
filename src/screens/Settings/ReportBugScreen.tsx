@@ -46,7 +46,7 @@ export default function ReportBugScreen({ navigation }: Props) {
         platform,
       });
 
-      Alert.alert("Report a bug", "Thank you! Your bug report has been sent.", [
+      Alert.alert("Report a bug", "Your email app has been opened with the bug report.", [
         {
           text: "OK",
           onPress: () => navigation.goBack(),

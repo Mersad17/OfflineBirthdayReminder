@@ -17,25 +17,25 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
-import { Contact } from "../../contacts/types";
-import { deleteContact, fetchContactById, updateContact } from "../../contacts/api";
+import {   Contact } from "../../contacts/types";
+import { deleteContact, fetchContactById, updateContact } from "../../contacts/repository";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
-import {  fetchEventsForContact } from "../../events/api";
+import {  fetchEventsForContact } from "../../events/repository";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
-import { fetchInteractionForContact } from "../../interactions/api";
+import { fetchInteractionForContact } from "../../interactions/repository";
 import { Interaction, interactionTypeLabel } from "../../interactions/types";
 import {
   fetchMemoriesForContact,
   createContactMemory,
   updateContactMemory,
   deleteContactMemory,
-} from "../../memories/api";
-import { ContactMemory } from "../../memories/types";
+} from "../../memories/repository";
+import {  ContactMemory } from "../../memories/types";
 import { MEMORY_TYPES } from "../../memories/helper";
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 

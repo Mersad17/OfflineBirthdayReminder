@@ -24,8 +24,8 @@ import {
   createContactTag,
   fetchContactGroups,
   fetchContactTags,
-} from "../../contacts/api";
-import { ContactGroup, ContactTag } from "../../contacts/types";
+} from "../../contacts/repository";
+import { AppId, ContactGroup, ContactTag } from "../../contacts/types";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import {
@@ -62,7 +62,7 @@ export default function AddContactScreen({ navigation }: Props) {
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [tags, setTags] = useState<ContactTag[]>([]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<AppId | null>(null);
   const [groupSearch, setGroupSearch] = useState("");
 
   const [tagSearch, setTagSearch] = useState("");
@@ -374,20 +374,20 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
 
       Alert.alert("Success", "Contact created.");
       navigation.goBack();
-    } catch (e: any) {
-      console.log("CREATE CONTACT ERROR:", e?.response?.data);
+    } catch (error: unknown) {
+  console.log("CREATE CONTACT ERROR FULL:", error);
 
-      const detail = e?.response?.data?.detail;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : "Failed to create contact.";
 
-      if (detail) {
-        Alert.alert("Cannot add contact", detail);
-      } else {
-        Alert.alert(
-          "Error",
-          JSON.stringify(e?.response?.data || "Failed to create contact.")
-        );
-      }
-    } finally {
+  console.log("CREATE CONTACT ERROR MESSAGE:", message);
+
+  Alert.alert("Create contact", message);
+} finally {
       setSaving(false);
     }
   }

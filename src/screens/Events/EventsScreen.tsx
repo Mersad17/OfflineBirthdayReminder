@@ -16,10 +16,11 @@ import {
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-import { fetchEvents } from "../../events/api";
+import { fetchEvents } from "../../events/repository";
 import { EventDTO, EventTypeValue, EVENT_TYPE_META } from "../../events/types";
 import { formatDateEU } from "../../lib/date";
 import {  getEventTimeInfo } from "../../events/utils";
+import { AppId } from "../../contacts/types";
 
 type Tab = "upcoming" | "past";
 
@@ -72,8 +73,10 @@ export default function EventsScreen({ navigation }: any) {
       setEvents((prev) => {
         if (!merge) return results;
       
-        const map = new Map<number, EventDTO>();
+       const map = new Map<EventDTO["id"], EventDTO>();
+
         [...prev, ...results].forEach((e) => map.set(e.id, e));
+
         return Array.from(map.values());
       });
             setPage(pageToLoad);
@@ -99,19 +102,25 @@ export default function EventsScreen({ navigation }: any) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, search, noReminderOnly, typeFilter]);
-  const AVATAR_COLORS = [
-    "#6366F1", // indigo
-    "#22C55E", // green
-    "#F59E0B", // amber
-    "#EF4444", // red
-    "#3B82F6", // blue
-    "#A855F7", // purple
+ function avatarColor(id: AppId) {
+  const colors = [
+    "#6366F1",
+    "#EC4899",
+    "#F97316",
+    "#10B981",
+    "#06B6D4",
+    "#8B5CF6",
+    "#EF4444",
   ];
-  
-  function avatarColor(contactId: number) {
-    return AVATAR_COLORS[contactId % AVATAR_COLORS.length];
+
+  let hash = 0;
+
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
+  return colors[Math.abs(hash) % colors.length];
+}
   function renderAvatar(item: EventDTO) {
     const first = item.contact_first_name?.[0] ?? "";
     const last = item.contact_last_name?.[0] ?? "";

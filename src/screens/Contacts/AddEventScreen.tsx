@@ -14,16 +14,17 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { createEvent } from "../../events/api";
+import { createEvent } from "../../events/repository";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
+import { AppId } from "../../contacts/types";
 
 type Props = {
   navigation: any;
   route: {
     params?: {
-      contactId?: number;
+      contactId?: AppId;
       contactName?: string;
     };
   };

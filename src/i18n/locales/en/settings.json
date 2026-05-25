@@ -1,0 +1,24 @@
+{
+  "language": {
+    "title": "Language",
+    "subtitle": "Choose the language used in the app.",
+    "options": {
+      "system": {
+        "label": "System default",
+        "subtitle": "Use your phone language"
+      },
+      "en": {
+        "label": "English",
+        "subtitle": "English"
+      },
+      "fr": {
+        "label": "Français",
+        "subtitle": "French"
+      },
+      "sq": {
+        "label": "Shqip",
+        "subtitle": "Albanian"
+      }
+    }
+  }
+}

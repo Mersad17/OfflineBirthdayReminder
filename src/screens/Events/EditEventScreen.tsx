@@ -18,11 +18,12 @@ import DateTimePicker, {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { EventsStackParamList } from "../../navigation/EventsStack";
-import { fetchEventById, updateEvent } from "../../events/api";
+import { fetchEventById, updateEvent } from "../../events/repository";
 import { EventDTO } from "../../events/types";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
+import { AppId } from "../../contacts/types";
 
 // 👇 Keep this in sync with your Django EventTypes IntEnum
 type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
@@ -47,7 +48,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
   const [event, setEvent] = useState<EventDTO | null>(null);
 
-  const [contactId, setContactId] = useState<number | null>(
+  const [contactId, setContactId] = useState<AppId | null>(
     routeContactId ?? null
   );
   

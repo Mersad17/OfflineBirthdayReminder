@@ -43,7 +43,7 @@ export default function FeedbackScreen({ navigation }: Props) {
         platform,
       });
 
-      Alert.alert("Feedback", "Thank you for your feedback!", [
+      Alert.alert("Feedback", "Your email app has been opened with your feedback.", [
         {
           text: "OK",
           onPress: () => navigation.goBack(),

@@ -14,12 +14,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 
-import { fetchContacts, fetchContactGroups } from "../../contacts/api";
-import { Contact, ContactGroup } from "../../contacts/types";
+import { fetchContacts, fetchContactGroups } from "../../contacts/repository";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
-
+import { AppId, Contact, ContactGroup } from "../../contacts/types";
 type Props = {
   navigation: any;
 };
@@ -132,7 +131,7 @@ export default function ContactScreen({ navigation }: Props) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+const [selectedGroupId, setSelectedGroupId] = useState<AppId | null>(null);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);

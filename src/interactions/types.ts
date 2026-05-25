@@ -1,3 +1,5 @@
+import { AppId } from "../contacts/types";
+
 export enum InteractionType {
   CALL = 1,
   IN_PERSON = 2,
@@ -5,17 +7,17 @@ export enum InteractionType {
   VIDEO = 4,
   OTHER = 5,
 }
+
 export interface CreateInteractionPayload {
-  contact_id: number;
-  happened_at: string;    
+  contact_id: AppId;
+  happened_at: string;
   duration_minutes: number | null;
   note: string | null;
   type: InteractionType;
-
 }
 
 export type Interaction = {
-  id: number;
+  id: AppId;
   happened_at: string;
   duration_minutes: number | null;
   note: string | null;
@@ -24,33 +26,32 @@ export type Interaction = {
   created_at: string;
 };
 
-  
-  export type PaginatedResponse<T> = {
-    count: number;
-    next: string | null;
-    previous: string | null;
-    results: T[];
-  };
-  
-  export function interactionTypeLabel(type?: number) {
-    switch (type) {
-      case 1:
-        return "Call";
-      case 2:
-        return "Text";
-      case 3:
-        return "In person";
-      case 4:
-        return "Email";
-      default:
-        return "Other";
-    }
+export type PaginatedResponse<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
+export function interactionTypeLabel(type?: number) {
+  switch (type) {
+    case InteractionType.CALL:
+      return "Call";
+    case InteractionType.IN_PERSON:
+      return "In person";
+    case InteractionType.MESSAGE:
+      return "Text";
+    case InteractionType.VIDEO:
+      return "Video";
+    case InteractionType.OTHER:
+    default:
+      return "Other";
   }
-  
-  export interface UpdateInteractionPayload {
-    happened_at: string;
-    duration_minutes: number | null;
-    note: string | null;
-    type: InteractionType;
-  }
-  
+}
+
+export interface UpdateInteractionPayload {
+  happened_at: string;
+  duration_minutes: number | null;
+  note: string | null;
+  type: InteractionType;
+}

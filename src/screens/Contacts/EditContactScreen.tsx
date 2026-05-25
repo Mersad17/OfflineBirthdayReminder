@@ -2,7 +2,7 @@
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ContactGroup, ContactTag, CreateContactInput } from "../../contacts/types";
+import { AppId, ContactGroup, ContactTag, CreateContactInput } from "../../contacts/types";
 import {
   createContactGroup,
   createContactTag,
@@ -10,7 +10,7 @@ import {
   fetchContactGroups,
   fetchContactTags,
   updateContact,
-} from "../../contacts/api";
+} from "../../contacts/repository";
 import {
   ActivityIndicator,
   Alert,
@@ -35,7 +35,6 @@ import {
   DEFAULT_GROUP_ICON,
   DEFAULT_TAG_COLOR,
   GROUP_ICONS,
-  GroupIconName,
   LABEL_COLORS,
 } from "../../lib/groupTagOptions";
 type Props = NativeStackScreenProps<ContactsStackParamList, "EditContact">;
@@ -49,7 +48,7 @@ export default function EditContactScreen({ route, navigation }: Props) {
   const [contact, setContact] = useState<CreateContactInput | null>(null);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<AppId | null>(null);
 
   const [tags, setTags] = useState<ContactTag[]>([]);
 

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-import { createInteraction, updateInteraction } from "../../interactions/api";
+import { createInteraction, updateInteraction } from "../../interactions/repository";
 import { InteractionType } from "../../interactions/types";
 
 import DateTimePicker, {

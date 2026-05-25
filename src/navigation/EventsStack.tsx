@@ -3,11 +3,12 @@ import EventsScreen from "../screens/Events/EventsScreen";
 import EventDetails from "../screens/Events/EventDetails";
 import EditEventScreen from "../screens/Events/EditEventScreen";
 import { useAppearance } from "../appearance/AppearanceContext";
+import { AppId } from "../contacts/types";
 
 export type EventsStackParamList = {
   EventsList: undefined;
-  EventDetails: { eventId: number; eventTitle?: string, from:string, contactId: number };
-  EditEvent: { eventId: number; eventTitle?: string, from:string, contactId: number };
+  EventDetails: { eventId: AppId; eventTitle?: string, from:string, contactId: AppId };
+  EditEvent: { eventId: AppId; eventTitle?: string, from:string, contactId: AppId };
 };
 
 const Stack = createNativeStackNavigator<EventsStackParamList>();

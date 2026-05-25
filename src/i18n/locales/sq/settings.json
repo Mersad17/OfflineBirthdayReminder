@@ -1,0 +1,24 @@
+{
+  "language": {
+    "title": "Gjuha",
+    "subtitle": "Zgjidh gjuhën që përdoret në aplikacion.",
+    "options": {
+      "system": {
+        "label": "Sipas sistemit",
+        "subtitle": "Përdor gjuhën e telefonit"
+      },
+      "en": {
+        "label": "English",
+        "subtitle": "Anglisht"
+      },
+      "fr": {
+        "label": "Français",
+        "subtitle": "Frëngjisht"
+      },
+      "sq": {
+        "label": "Shqip",
+        "subtitle": "Shqip"
+      }
+    }
+  }
+}

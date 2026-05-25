@@ -12,11 +12,12 @@ import { Feather } from "@expo/vector-icons";
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-import { deleteInteraction, fetchInteractionsPaginated } from "../../interactions/api";
+import { deleteInteraction, fetchInteractionsPaginated } from "../../interactions/repository";
 import { Interaction, interactionTypeLabel } from "../../interactions/types";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
 import { useFocusEffect } from "@react-navigation/native";
+import { AppId } from "../../contacts/types";
 
 type Props = NativeStackScreenProps<ContactsStackParamList,"InteractionsHistory">;
 
@@ -69,7 +70,7 @@ export default function InteractionsHistoryScreen({ route,navigation }: Props) {
       items,
     }));
   }, [interactions]);
-  async function handleDelete(id: number) {
+  async function handleDelete(id: AppId) {
     Alert.alert(
       "Delete interaction",
       "Are you sure you want to delete this interaction?",

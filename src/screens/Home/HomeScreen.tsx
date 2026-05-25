@@ -17,7 +17,8 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-import { useAuth } from "../../auth/AuthContext";
+
+import { AppId } from "../../contacts/types";
 
 import {
   EventTypeValue,
@@ -25,11 +26,11 @@ import {
   HomeEventDTO,
   HomeSummaryDTO,
 } from "../../events/types";
-import { fetchHomeSummary } from "../../events/api";
+import { fetchHomeSummary } from "../../events/repository";
 import { useTranslation } from "react-i18next";
 type HomeItem = {
-  id: number;
-  contactId: number;
+  id: AppId;
+  contactId: AppId;
   name: string;
   dateLabel: string;
   relativeLabel: string;
@@ -56,7 +57,6 @@ const HOME_TODAY_LIMIT = 5;
 
 export default function HomeScreen({ navigation }: Props) {
   const { settings } = useAppearance();
-  const { user } = useAuth();
   const {t} = useTranslation("home");
   const [todayItems, setTodayItems] = useState<HomeItem[]>([]);
   const [upcoming, setUpcoming] = useState<HomeItem[]>([]);
@@ -71,9 +71,11 @@ export default function HomeScreen({ navigation }: Props) {
   >("all");
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   // ---- mapping backend -> UI item ----
+
+
   const mapDtoToHomeItem = (dto: HomeEventDTO): HomeItem => {
     
-    const d = new Date(dto.next_occurrence);
+    const d = parseDateOnly(dto.next_occurrence);
     const dateLabel = formatDateLabel(d);
     const daysUntil = dto.days_until;
     const relativeLabel = buildRelativeLabelFr(daysUntil, t);
@@ -353,9 +355,7 @@ export default function HomeScreen({ navigation }: Props) {
                     { color: settings.primaryColor },
                   ]}
                 >
-                  {user?.first_name
-                    ? user.first_name[0]?.toUpperCase()
-                    : "?"}
+                  {"U"}
                 </Text>
               </View>
             </View>
@@ -372,9 +372,7 @@ export default function HomeScreen({ navigation }: Props) {
               <Text
                 style={[styles.heroGreeting, { color: settings.buttonTextColor }]}
               >
-                {user?.first_name
-          ? t("hero.helloWithName", { name: user.first_name })
-          : t("hero.hello")}
+                {t("hero.hello")}
               </Text>
               <Text
                 style={[
@@ -767,7 +765,15 @@ function formatDateLabel(d: Date) {
     day: "numeric",
   });
 }
+function parseDateOnly(dateString: string) {
+  const [year, month, day] = dateString.split("-").map(Number);
 
+  if (!year || !month || !day) {
+    return new Date(dateString);
+  }
+
+  return new Date(year, month - 1, day);
+}
 function buildRelativeLabelFr(daysUntil: number, t: any) {
   if (daysUntil === 0) return t("relative.today");
   if (daysUntil === 1) return t("relative.tomorrow");

@@ -1,88 +1,153 @@
-export type EventType = number; // your backend uses integer enum; you can refine later
+
+export type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type EventType = EventTypeValue;
+
+import { AppId, Contact } from "../contacts/types";
+
+export type ReminderStatus = number;
+
+export const REMINDER_STATUS = {
+  PENDING: 1,
+  SENT: 2,
+  FAILED: 3,
+  CANCELLED: 4,
+} as const;
 
 export type ReminderDTO = {
-  id: number;
+  id: AppId;
+
+  event: AppId;
+
   days_before: number | null;
+
   absolute_datetime: string | null;
+
+  time_of_day?: string | null;
+
   send_at: string | null;
-  status: number;
+
+  status: ReminderStatus;
+
+  is_active: boolean;
+
+  notification_id?: string | null;
+
+  created_at?: string;
+  updated_at?: string;
 };
 
+export type CreateReminderInput = {
+  event: AppId;
+
+  days_before?: number | null;
+  absolute_datetime?: string | null;
+  time_of_day?: string | null;
+  send_at?: string | null;
+
+  status?: ReminderStatus;
+  is_active?: boolean;
+};
+
+export type UpdateReminderInput = Partial<CreateReminderInput>;
 export type EventDTO = {
-  duration_minutes?: number | null;
+  id: AppId;
+
+  title: string;
+
+  contact: AppId;
+    contact_detail?: Contact | null;
+  contact_id?: AppId;
+  contact_name: string;
+  contact_first_name: string;
+  contact_last_name: string;
+  contact_photo: string | null;
+
+  type: EventTypeValue;
+
+  start_date: string;
+  start_time?: string | null;
+
+  end_date?: string | null;
+  end_time?: string | null;
+
+  is_recurring: boolean;
+  is_active: boolean;
+
+  created_at: string;
+  updated_at: string;
+
+  reminders: ReminderDTO[];
+
+  has_reminder: boolean;
+  reminder_count: number;
+
   next_occurrence: string;
   month_label: string;
   days_until: number;
-  has_reminder: boolean;
-  reminder_count: number;
-  title: string;
-  id: number;
-  contact_first_name:string;
-  contact_last_name:string;
-  contact_photo:string;
-  contact: number;        
-  contact_name:string;
-  type: EventType;        
-  start_date: string;           
-  start_time?: string | null;   
-  end_date?: string | null;           
-  end_time?: string | null;   
-  is_recurring: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  reminders: ReminderDTO[];
+  duration_minutes?: number | null;
 };
 
-export type UpdateEventPayload = {
-  title: string;
-  start_date?: string;
-  start_time?: string;
-  end_date?: string;
-  end_time?: string;
-  type?: number;
+export type CreateEventInput = {
+  contact: AppId;
+
+  title?: string | null;
+
+  type?: EventTypeValue;
+
+  start_date: string;
+  start_time?: string | null;
+
+  end_date?: string | null;
+  end_time?: string | null;
+
   is_recurring?: boolean;
   is_active?: boolean;
 };
 
+export type UpdateEventPayload = Partial<CreateEventInput>;
+
 export type UpcomingEvent = {
-  id: number;
-  contactId: number;
+  id: AppId;
+  contactId: AppId;
   contactName: string;
-  type: EventType;
-  originalDate: string;         // original event.date (YYYY-MM-DD)
-  nextOccurrence: Date;         // computed next occurrence (Date object, year = now or next)
-  daysUntil: number;            // 0 = today, 1 = tomorrow, …
-  formattedDate: string;        // e.g., "Sat, Oct 25"
+
+  type: EventTypeValue;
+
+  originalDate: string;
+  nextOccurrence: Date;
+  daysUntil: number;
+  formattedDate: string;
+
   section: "This week" | "Next week" | "Later";
 };
-
-export type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
 
 export const EVENT_TYPE_META: Record<
   EventTypeValue,
   { icon: string; label: string }
 > = {
-  1: { icon: "🎂", label: "Birthday" },         // BIRTHDAY
-  2: { icon: "💍", label: "Anniversary" },      // ANNIVERSARY
-  3: { icon: "⭐", label: "Important date" },   // IMPORTANT_DATE
-  4: { icon: "🤝", label: "Meeting" },         // MEETING
-  5: { icon: "🏝", label: "Holiday" },         // HOLIDAY
-  6: { icon: "✨", label: "Other" },           // OTHER
+  1: { icon: "🎂", label: "Birthday" },
+  2: { icon: "💍", label: "Anniversary" },
+  3: { icon: "⭐", label: "Important date" },
+  4: { icon: "🤝", label: "Meeting" },
+  5: { icon: "🏝", label: "Holiday" },
+  6: { icon: "✨", label: "Other" },
 };
 
-
 export type HomeEventDTO = {
-  id: number;
-  contact_id: number;
+  id: AppId;
+
+  contact_id: AppId;
   contact_name: string;
-  type: number;           // EventTypeValue (1..6) côté front
-  next_occurrence: string; // ISO date string "2025-03-24"
-  days_until: number;      // 0 = today, >0 future, <0 passé
+
+  type: EventTypeValue;
+
+  next_occurrence: string;
+  days_until: number;
 };
 
 export type TypeInsightDTO = {
-  type: number;   // EventTypeValue
+  type: EventTypeValue;
   count: number;
 };
 
@@ -90,7 +155,9 @@ export type HomeSummaryDTO = {
   today: HomeEventDTO[];
   upcoming: HomeEventDTO[];
   recently_celebrated: HomeEventDTO[];
+
   type_insights: TypeInsightDTO[];
+
   meta: {
     upcoming_week_count: number;
     total_contacts: number;

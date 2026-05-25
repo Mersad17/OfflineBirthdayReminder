@@ -10,17 +10,45 @@ import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";
 import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHistoryScreen";
 import { Interaction } from "../interactions/types";
 import { useAppearance } from "../appearance/AppearanceContext";
-
+import { AppId } from "../contacts/types";
 export type ContactsStackParamList = {
   ContactsList: undefined;
   AddContact: undefined;
-  EditContact: { contactId:number; };
-  AddEvent: { contactId: number; contactName: string, };
-  ContactDetail: { contactId: number; contactName?: string };
-  EventDetails: { eventId: number; eventTitle?: string, from:string, contactId: number };
-  EditEvent: { eventId: number; eventTitle?: string, from:string, contactId: number };
-  LogInteraction: { contactId: number ,  interaction?: Interaction;};
-  InteractionsHistory: { contactId: number };
+
+  EditContact: { contactId: AppId };
+
+  AddEvent: {
+    contactId: AppId;
+    contactName: string;
+  };
+
+  ContactDetail: {
+    contactId: AppId;
+    contactName?: string;
+  };
+
+  EventDetails: {
+    eventId: AppId;
+    eventTitle?: string;
+    from: string;
+    contactId: AppId;
+  };
+
+  EditEvent: {
+    eventId: AppId;
+    eventTitle?: string;
+    from: string;
+    contactId: AppId;
+  };
+
+  LogInteraction: {
+    contactId: AppId;
+    interaction?: Interaction;
+  };
+
+  InteractionsHistory: {
+    contactId: AppId;
+  };
 };
 
 const Stack = createNativeStackNavigator<ContactsStackParamList>();

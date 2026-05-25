@@ -10,25 +10,26 @@ import AddEventScreen from "../screens/Contacts/AddEventScreen";
 import EditEventScreen from "../screens/Events/EditEventScreen";
 import EditContactScreen from "../screens/Contacts/EditContactScreen";
 import { useAppearance } from "../appearance/AppearanceContext";
+import { AppId } from "../contacts/types";
 
 export type HomeStackParamList = {
     HomeScreen: undefined;
   ContactsList: undefined;
   AddContact: undefined;
-  EditContact: { contactId: number };
-  AddEvent: { contactId: number; contactName: string };
-  ContactDetail: { contactId: number; contactName?: string };
+  EditContact: { contactId: AppId };
+  AddEvent: { contactId: AppId; contactName: string };
+  ContactDetail: { contactId: AppId; contactName?: string };
   EventDetails: {
-    eventId: number;
+    eventId: AppId;
     eventTitle?: string;
     from: string;
-    contactId: number;
+    contactId: AppId;
   };
   EditEvent: {
-    eventId: number;
+    eventId: AppId;
     eventTitle?: string;
     from: string;
-    contactId: number;
+    contactId: AppId;
   };
 };
 

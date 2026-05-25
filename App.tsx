@@ -1,16 +1,16 @@
-// App.tsx
-import { AuthProvider } from "./src/auth/AuthContext";
-import RootNavigator from "./src/navigation/RootNavigator";
 import React from "react";
+import RootNavigator from "./src/navigation/RootNavigator";
+import "./src/notifications/notification";
 import "./src/i18n";
 import { LanguageProvider } from "./src/i18n/LanguageContext";
+import { MigrationsProvider } from "./src/db/MigrationsProvider";
+
 export default function App() {
   return (
     <LanguageProvider>
-    <AuthProvider>
-      
-      <RootNavigator />
-    </AuthProvider>
+      <MigrationsProvider>
+        <RootNavigator />
+      </MigrationsProvider>
     </LanguageProvider>
   );
 }

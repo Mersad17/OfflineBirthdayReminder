@@ -16,12 +16,12 @@ import {
   Animated,
 } from "react-native";
 
-import { fetchEventById, deleteEvent } from "../../events/api";
+import { fetchEventById, deleteEvent } from "../../events/repository";
 import {
   createReminder,
   updateReminder,
   deleteReminder,
-} from "../../reminders/api";
+} from "../../reminders/repository";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { EVENT_TYPE_META, EventDTO, EventTypeValue } from "../../events/types";
@@ -31,6 +31,7 @@ import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
 import { getEventTimeInfo } from "../../events/utils";
+import { AppId } from "../../contacts/types";
 
 // -----------------------------------------------------
 // ⭐ MODAL COMPONENT (Reminder Editor with TOGGLE)
@@ -514,7 +515,7 @@ export default function EventDetails({ route, navigation }: Props) {
   }
 
   // DELETE REMINDER
-  async function confirmDeleteReminder(id: number) {
+  async function confirmDeleteReminder(id: AppId) {
     Alert.alert("Delete Reminder", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {

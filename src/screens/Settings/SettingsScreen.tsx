@@ -2,14 +2,12 @@ import React from "react";
 import {
   View,
   Text,
-  Button,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
-import { useAuth } from "../../auth/AuthContext";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { Screen } from "../../components/Screen";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -17,7 +15,6 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 type Props = NativeStackScreenProps<SettingsStackParamsList, "SettingsHome">;
 
 export default function SettingsScreen({ navigation }: Props) {
-  const { logout } = useAuth();
   const { settings } = useAppearance();
 
   return (
@@ -30,25 +27,6 @@ export default function SettingsScreen({ navigation }: Props) {
           <Text style={[styles.title, { color: settings.titleColor }]}>
             Settings
           </Text>
-
-          {/* Account */}
-          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
-            Account
-          </Text>
-
-          <SettingsRow
-            icon="person-circle-outline"
-            title="Manage Profile"
-            onPress={() => navigation.navigate("Profile")}
-            settings={settings}
-          />
-
-          <SettingsRow
-            icon="lock-closed-outline"
-            title="Password and Security"
-            onPress={() => navigation.navigate("PasswordAndSecurity")}
-            settings={settings}
-          />
 
           {/* Appearance */}
           <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
@@ -90,7 +68,27 @@ export default function SettingsScreen({ navigation }: Props) {
           <SettingsRow
             icon="notifications-outline"
             title="Notification settings"
+            subtitle="Local reminder permissions and test notification"
             onPress={() => navigation.navigate("Notifications")}
+            settings={settings}
+          />
+
+          {/* Privacy / Local data */}
+          <Text style={[styles.sectionTitle, { color: settings.textColor }]}>
+            Privacy & data
+          </Text>
+              <SettingsRow
+                icon="cloud-upload-outline"
+                title="Backup & restore"
+                subtitle="Export or import your local data"
+                onPress={() => navigation.navigate("Backup")}
+                settings={settings}
+              />
+          <SettingsRow
+            icon="phone-portrait-outline"
+            title="Local-first mode"
+            subtitle="Your data is stored on this device"
+            onPress={() => navigation.navigate("AppInfo")}
             settings={settings}
           />
 
@@ -104,7 +102,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <MaterialCommunityIcons
                 name="bug-outline"
                 size={22}
-                color={settings.textColor}
+                color={settings.primaryColor}
               />
             }
             title="Report a bug"
@@ -130,14 +128,6 @@ export default function SettingsScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("AppInfo")}
             settings={settings}
           />
-
-          <View style={styles.logoutWrapper}>
-            <Button
-              title="Logout"
-              onPress={logout}
-              color={settings.buttonColor}
-            />
-          </View>
         </View>
       </ScrollView>
     </Screen>
@@ -271,9 +261,5 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     marginTop: 2,
     fontSize: 13,
-  },
-  logoutWrapper: {
-    marginTop: 18,
-    marginBottom: 30,
   },
 });

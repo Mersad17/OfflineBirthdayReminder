@@ -22,7 +22,7 @@ import {
   fetchContactTags,
   updateContactGroup,
   updateContactTag,
-} from "../../contacts/api";
+} from "../../contacts/repository";
 import { ContactGroup, ContactTag } from "../../contacts/types";
 import {
   DEFAULT_GROUP_COLOR,

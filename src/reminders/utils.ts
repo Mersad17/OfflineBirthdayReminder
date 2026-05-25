@@ -1,4 +1,4 @@
-import { ReminderDTO } from "./types";
+import { ReminderDTO } from "../events/types";
 
 export function formatReminder(r: ReminderDTO) {
   if (r.days_before != null) {
