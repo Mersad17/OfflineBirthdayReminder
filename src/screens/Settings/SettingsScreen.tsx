@@ -134,7 +134,7 @@ export default function SettingsScreen({ navigation }: Props) {
               title="Local-first mode"
               subtitle="Your data is stored on this device"
               badge="Private"
-              onPress={() => navigation.navigate("AppInfo")}
+              onPress={() => navigation.navigate("LocalFirst")}
               colors={colors}
             />
           </SettingsSection>

@@ -8,7 +8,7 @@ export function useNavigationAppearance() {
   const navTheme = useMemo(
     () => ({
       ...DefaultTheme,
-      dark: settings.themeMode === "dark",
+      dark: settings.resolvedThemeMode === "dark",
       colors: {
         ...DefaultTheme.colors,
         primary: settings.primaryColor,
@@ -20,7 +20,7 @@ export function useNavigationAppearance() {
       },
     }),
     [
-      settings.themeMode,
+      settings.resolvedThemeMode,
       settings.primaryColor,
       settings.backgroundColor,
       settings.cardColor,

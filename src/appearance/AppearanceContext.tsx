@@ -3,195 +3,296 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
 
+import {
+  loadAppearanceSettingsFromDb,
+  saveAppearanceSettingsToDb,
+} from "./appearanceStorage";
+
 export type ThemeMode = "light" | "dark" | "system" | "custom";
 
-type BackgroundResizeMode = "cover" | "contain" | "center" | "repeat";
+export type BackgroundResizeMode = "cover" | "contain" | "center" | "repeat";
 
-type AppearanceSettings = {
+export type ResolvedThemeMode = "light" | "dark";
+
+export type AppearanceSettings = {
   themeMode: ThemeMode;
+  resolvedThemeMode: ResolvedThemeMode;
+
   primaryColor: string;
   backgroundColor: string;
   cardColor: string;
   titleColor: string;
   textColor: string;
+
   buttonColor: string;
   buttonTextColor: string;
+
   backgroundImageUri: string | null;
   backgroundResizeMode: BackgroundResizeMode;
 };
 
-type ColorPreset = Pick<
-  AppearanceSettings,
-  | "primaryColor"
-  | "backgroundColor"
-  | "cardColor"
-  | "titleColor"
-  | "textColor"
-  | "buttonColor"
-  | "buttonTextColor"
->;
-
-const LIGHT_PRESET: ColorPreset = {
-  primaryColor: "#4F46E5",
-  backgroundColor: "#F9FAFB",
-  cardColor: "#FFFFFF",
-  titleColor: "#111827",
-  textColor: "#374151",
-  buttonColor: "#4F46E5",
-  buttonTextColor: "#FFFFFF",
-};
-
-const DARK_PRESET: ColorPreset = {
-  primaryColor: "#6366F1",
-  backgroundColor: "#020617",
-  cardColor: "#020617", // or "#0B1120" if you want slightly lighter cards
-  titleColor: "#F9FAFB",
-  textColor: "#E5E7EB",
-  buttonColor: "#4F46E5",
-  buttonTextColor: "#FFFFFF",
-};
-
-const INITIAL_CUSTOM_PRESET: ColorPreset = { ...LIGHT_PRESET };
-
 type AppearanceContextValue = {
   settings: AppearanceSettings;
+  isAppearanceReady: boolean;
+
   setThemeMode: (mode: ThemeMode) => void;
-  setPrimaryColor: (c: string) => void;
-  setBackgroundColor: (c: string) => void;
-  setCardColor: (c: string) => void;
-  setTitleColor: (c: string) => void;
-  setTextColor: (c: string) => void;
-  setButtonColor: (c: string) => void;
-  setButtonTextColor: (c: string) => void;
+  setPrimaryColor: (color: string) => void;
+  setBackgroundColor: (color: string) => void;
+  setCardColor: (color: string) => void;
+  setTitleColor: (color: string) => void;
+  setTextColor: (color: string) => void;
+  setButtonColor: (color: string) => void;
+  setButtonTextColor: (color: string) => void;
   setBackgroundImageUri: (uri: string | null) => void;
-  setBackgroundResizeMode: (m: BackgroundResizeMode) => void;
+  setBackgroundResizeMode: (mode: BackgroundResizeMode) => void;
+  resetAppearance: () => void;
+};
+
+const LIGHT_THEME: AppearanceSettings = {
+  themeMode: "light",
+  resolvedThemeMode: "light",
+
+  primaryColor: "#4F46E5",
+  backgroundColor: "#F7EFE7",
+  cardColor: "#FFF9F1",
+  titleColor: "#2B211B",
+  textColor: "#7B6F66",
+
+  buttonColor: "#4F46E5",
+  buttonTextColor: "#FFFFFF",
+
+  backgroundImageUri: null,
+  backgroundResizeMode: "cover",
+};
+
+const DARK_THEME: AppearanceSettings = {
+  themeMode: "dark",
+  resolvedThemeMode: "dark",
+
+  primaryColor: "#8B7CF6",
+  backgroundColor: "#12100E",
+  cardColor: "#1E1A17",
+  titleColor: "#FFF7ED",
+  textColor: "#D6C8BC",
+
+  buttonColor: "#8B7CF6",
+  buttonTextColor: "#FFFFFF",
+
+  backgroundImageUri: null,
+  backgroundResizeMode: "cover",
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | undefined>(
   undefined
 );
 
-export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useColorScheme(); // "light" | "dark" | null
+export function AppearanceProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const systemScheme = useColorScheme();
+  const systemTheme: ResolvedThemeMode =
+    systemScheme === "dark" ? "dark" : "light";
 
-  const [settings, setSettings] = useState<AppearanceSettings>({
-    themeMode: "system",
-    ...LIGHT_PRESET,
-    backgroundImageUri: null,
-    backgroundResizeMode: "cover",
-  });
+  const [settings, setSettings] = useState<AppearanceSettings>(() =>
+    buildTheme("system", systemTheme)
+  );
 
-  // stores the user's last custom palette
-  const [customPreset, setCustomPreset] =
-    useState<ColorPreset>(INITIAL_CUSTOM_PRESET);
+  const [isAppearanceReady, setIsAppearanceReady] = useState(false);
 
-  // helper: apply a preset to settings
-  function applyPreset(preset: ColorPreset, mode: ThemeMode) {
-    setSettings((prev) => ({
-      ...prev,
-      themeMode: mode,
-      ...preset,
-    }));
-  }
-
-  // system mode → react to OS theme changes
   useEffect(() => {
-    if (settings.themeMode !== "system") return;
-    const isDark = systemScheme === "dark";
-    applyPreset(isDark ? DARK_PRESET : LIGHT_PRESET, "system");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemScheme]);
+    let mounted = true;
 
-  // ---- Theme mode setter ----
-  const setThemeMode = (mode: ThemeMode) => {
-    if (mode === "light") {
-      applyPreset(LIGHT_PRESET, "light");
-    } else if (mode === "dark") {
-      applyPreset(DARK_PRESET, "dark");
-    } else if (mode === "system") {
-      const isDark = systemScheme === "dark";
-      applyPreset(isDark ? DARK_PRESET : LIGHT_PRESET, "system");
-    } else if (mode === "custom") {
-      // go back to last custom palette
-      applyPreset(customPreset, "custom");
-    }
-  };
+    async function load() {
+      const saved = await loadAppearanceSettingsFromDb();
 
-  // ---- helper: any manual color change → custom mode ----
-  function updateColor<K extends keyof ColorPreset>(key: K, value: string) {
-    setSettings((prev) => {
-      const currentColors: ColorPreset = {
-        primaryColor: prev.primaryColor,
-        backgroundColor: prev.backgroundColor,
-        cardColor: prev.cardColor,
-        titleColor: prev.titleColor,
-        textColor: prev.textColor,
-        buttonColor: prev.buttonColor,
-        buttonTextColor: prev.buttonTextColor,
-      };
+      if (!mounted) return;
 
-      // if not already in custom, copy current palette as starting custom
-      if (prev.themeMode !== "custom") {
-        const newCustom: ColorPreset = { ...currentColors, [key]: value };
-        setCustomPreset(newCustom);
-        return {
-          ...prev,
-          themeMode: "custom",
-          ...newCustom,
-        };
+      if (saved) {
+        const themeMode = saved.themeMode ?? "system";
+        const base = buildTheme(themeMode, systemTheme);
+
+        setSettings({
+          ...base,
+          ...saved,
+          resolvedThemeMode: resolveThemeMode(themeMode, systemTheme),
+        });
+      } else {
+        setSettings(buildTheme("system", systemTheme));
       }
 
-      // already in custom → update both settings + stored customPreset
-      const updated: ColorPreset = { ...currentColors, [key]: value };
-      setCustomPreset(updated);
-      return {
-        ...prev,
-        ...updated,
+      setIsAppearanceReady(true);
+    }
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setSettings((current) => {
+      if (current.themeMode !== "system") return current;
+
+      const next = {
+        ...buildTheme("system", systemTheme),
+        backgroundImageUri: current.backgroundImageUri,
+        backgroundResizeMode: current.backgroundResizeMode,
       };
+
+      void saveAppearanceSettingsToDb(next);
+
+      return next;
+    });
+  }, [systemTheme]);
+
+  function persist(next: AppearanceSettings) {
+    void saveAppearanceSettingsToDb(next);
+  }
+
+  function updateSettings(
+    patch: Partial<AppearanceSettings>,
+    options?: {
+      makeCustom?: boolean;
+    }
+  ) {
+    setSettings((current) => {
+      const nextThemeMode = options?.makeCustom ? "custom" : current.themeMode;
+
+      const next: AppearanceSettings = {
+        ...current,
+        ...patch,
+        themeMode: nextThemeMode,
+        resolvedThemeMode: resolveThemeMode(nextThemeMode, systemTheme),
+      };
+
+      persist(next);
+
+      return next;
     });
   }
 
-  const setPrimaryColor = (c: string) => updateColor("primaryColor", c);
-  const setBackgroundColor = (c: string) => updateColor("backgroundColor", c);
-  const setCardColor = (c: string) => updateColor("cardColor", c);
-  const setTitleColor = (c: string) => updateColor("titleColor", c);
-  const setTextColor = (c: string) => updateColor("textColor", c);
-  const setButtonColor = (c: string) => updateColor("buttonColor", c);
-  const setButtonTextColor = (c: string) =>
-    updateColor("buttonTextColor", c);
+  function setThemeMode(mode: ThemeMode) {
+    setSettings((current) => {
+      const next =
+        mode === "custom"
+          ? {
+              ...current,
+              themeMode: "custom" as const,
+              resolvedThemeMode: current.resolvedThemeMode,
+            }
+          : {
+              ...buildTheme(mode, systemTheme),
+              backgroundImageUri: current.backgroundImageUri,
+              backgroundResizeMode: current.backgroundResizeMode,
+            };
 
-  const setBackgroundImageUri = (uri: string | null) => {
-    setSettings((prev) => ({
-      ...prev,
-      backgroundImageUri: uri,
-    }));
-  };
+      persist(next);
 
-  const setBackgroundResizeMode = (m: BackgroundResizeMode) => {
-    setSettings((prev) => ({
-      ...prev,
-      backgroundResizeMode: m,
-    }));
-  };
+      return next;
+    });
+  }
 
-  const value: AppearanceContextValue = {
-    settings,
-    setThemeMode,
-    setPrimaryColor,
-    setBackgroundColor,
-    setCardColor,
-    setTitleColor,
-    setTextColor,
-    setButtonColor,
-    setButtonTextColor,
-    setBackgroundImageUri,
-    setBackgroundResizeMode,
-  };
+  function resetAppearance() {
+    const next = buildTheme("system", systemTheme);
+
+    setSettings(next);
+    persist(next);
+  }
+
+  const value = useMemo<AppearanceContextValue>(
+    () => ({
+      settings,
+      isAppearanceReady,
+
+      setThemeMode,
+
+      setPrimaryColor: (color) =>
+        updateSettings(
+          {
+            primaryColor: normalizeHexColor(color, settings.primaryColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setBackgroundColor: (color) =>
+        updateSettings(
+          {
+            backgroundColor: normalizeHexColor(color, settings.backgroundColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setCardColor: (color) =>
+        updateSettings(
+          {
+            cardColor: normalizeHexColor(color, settings.cardColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setTitleColor: (color) =>
+        updateSettings(
+          {
+            titleColor: normalizeHexColor(color, settings.titleColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setTextColor: (color) =>
+        updateSettings(
+          {
+            textColor: normalizeHexColor(color, settings.textColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setButtonColor: (color) =>
+        updateSettings(
+          {
+            buttonColor: normalizeHexColor(color, settings.buttonColor),
+          },
+          { makeCustom: true }
+        ),
+
+      setButtonTextColor: (color) =>
+        updateSettings(
+          {
+            buttonTextColor: normalizeHexColor(
+              color,
+              settings.buttonTextColor
+            ),
+          },
+          { makeCustom: true }
+        ),
+
+      setBackgroundImageUri: (uri) =>
+        updateSettings(
+          {
+            backgroundImageUri: uri,
+          },
+          { makeCustom: true }
+        ),
+
+      setBackgroundResizeMode: (mode) =>
+        updateSettings(
+          {
+            backgroundResizeMode: mode,
+          },
+          { makeCustom: true }
+        ),
+
+      resetAppearance,
+    }),
+    [settings, isAppearanceReady, systemTheme]
+  );
 
   return (
     <AppearanceContext.Provider value={value}>
@@ -201,9 +302,68 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAppearance() {
-  const ctx = useContext(AppearanceContext);
-  if (!ctx) {
-    throw new Error("useAppearance must be used within AppearanceProvider");
+  const context = useContext(AppearanceContext);
+
+  if (!context) {
+    throw new Error("useAppearance must be used inside AppearanceProvider.");
   }
-  return ctx;
+
+  return context;
+}
+
+function buildTheme(
+  mode: ThemeMode,
+  systemTheme: ResolvedThemeMode
+): AppearanceSettings {
+  if (mode === "dark") {
+    return {
+      ...DARK_THEME,
+      themeMode: "dark",
+      resolvedThemeMode: "dark",
+    };
+  }
+
+  if (mode === "light") {
+    return {
+      ...LIGHT_THEME,
+      themeMode: "light",
+      resolvedThemeMode: "light",
+    };
+  }
+
+  if (mode === "system") {
+    const base = systemTheme === "dark" ? DARK_THEME : LIGHT_THEME;
+
+    return {
+      ...base,
+      themeMode: "system",
+      resolvedThemeMode: systemTheme,
+    };
+  }
+
+  return {
+    ...LIGHT_THEME,
+    themeMode: "custom",
+    resolvedThemeMode: systemTheme,
+  };
+}
+
+function resolveThemeMode(
+  mode: ThemeMode,
+  systemTheme: ResolvedThemeMode
+): ResolvedThemeMode {
+  if (mode === "dark") return "dark";
+  if (mode === "light") return "light";
+
+  return systemTheme;
+}
+
+function normalizeHexColor(value: string, fallback: string) {
+  const clean = value.trim();
+
+  if (/^#[0-9A-Fa-f]{6}$/.test(clean)) {
+    return clean;
+  }
+
+  return fallback;
 }
