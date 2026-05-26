@@ -81,6 +81,71 @@ const NEXT_SLIDE_WIDTH = SCREEN_WIDTH - 58;
 const DEFAULT_HERO =
   "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1200";
 
+type ContactDetailsColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  danger: string;
+  warning: string;
+  success: string;
+  purple: string;
+  blue: string;
+  shadow: string;
+};
+
+const DEFAULT_CONTACT_DETAIL_COLORS: ContactDetailsColors = {
+  background: BG,
+  card: CARD,
+  title: TEXT,
+  text: MUTED,
+  primary: RED,
+  button: RED_DARK,
+  buttonText: "#FFFFFF",
+  border: BORDER,
+  muted: MUTED,
+  softCard: "#FFFFFF99",
+  softPrimary: "#EE6A5E18",
+  danger: RED,
+  warning: ORANGE,
+  success: GREEN,
+  purple: PURPLE,
+  blue: BLUE,
+  shadow: "#6F3D2E",
+};
+
+let contactDetailTheme = DEFAULT_CONTACT_DETAIL_COLORS;
+
+function makeContactDetailsColors(settings: any): ContactDetailsColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "16"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    success: "#7DA56D",
+    purple: "#8A6BD8",
+    blue: "#4D82D8",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
+
 function parseDate(value?: string | null) {
   if (!value) return null;
 
@@ -403,7 +468,7 @@ function getTalkStatus(contact: Contact, interactions: Interaction[]) {
     return {
       label: "Off",
       bg: "#EFE6DD",
-      fg: MUTED,
+      fg: contactDetailTheme.muted,
     };
   }
 
@@ -413,7 +478,7 @@ function getTalkStatus(contact: Contact, interactions: Interaction[]) {
     return {
       label: "Active",
       bg: "#E8F3E2",
-      fg: GREEN,
+      fg: contactDetailTheme.success,
     };
   }
 
@@ -430,15 +495,15 @@ function getTalkStatus(contact: Contact, interactions: Interaction[]) {
   if (diff === 0) {
     return {
       label: "Due today",
-      bg: "#FFF1D8",
-      fg: ORANGE,
+      bg: contactDetailTheme.softPrimary,
+      fg: contactDetailTheme.primary,
     };
   }
 
   return {
     label: "Good",
     bg: "#E8F3E2",
-    fg: GREEN,
+    fg: contactDetailTheme.success,
   };
 }
 
@@ -480,6 +545,12 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const { contactId } = route.params;
   const isFocused = useIsFocused();
   const { settings } = useAppearance();
+
+  const colors = useMemo(() => makeContactDetailsColors(settings), [settings]);
+  const themedStyles = useMemo(() => createContactDetailStyles(colors), [colors]);
+
+  contactDetailTheme = colors;
+  styles = themedStyles;
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [events, setEvents] = useState<EventDTO[]>([]);
@@ -887,8 +958,8 @@ async function saveContactTags() {
   if (loading && !contact) {
     return (
       <Screen>
-        <View style={[styles.center, { backgroundColor: "#101010" }]}>
-          <ActivityIndicator color={RED} />
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <ActivityIndicator color={colors.primary} />
         </View>
       </Screen>
     );
@@ -897,8 +968,8 @@ async function saveContactTags() {
   if (!contact || !profile) {
     return (
       <Screen>
-        <View style={[styles.center, { backgroundColor: BG }]}>
-          <Text style={{ color: TEXT }}>Contact not found.</Text>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <Text style={{ color: contactDetailTheme.title }}>Contact not found.</Text>
         </View>
       </Screen>
     );
@@ -916,7 +987,7 @@ async function saveContactTags() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={RED}
+              tintColor={colors.primary}
             />
           }
           contentContainerStyle={styles.scrollContent}
@@ -1186,7 +1257,7 @@ function TagPickerModal({
             </View>
 
             <TouchableOpacity style={styles.tagModalClose} onPress={onCancel}>
-              <Ionicons name="close" size={20} color={TEXT} />
+              <Ionicons name="close" size={20} color={contactDetailTheme.title} />
             </TouchableOpacity>
           </View>
 
@@ -1198,7 +1269,7 @@ function TagPickerModal({
             value={tagSearch}
             onChangeText={setTagSearch}
             placeholder="Search or create a tag..."
-            placeholderTextColor={MUTED}
+            placeholderTextColor={contactDetailTheme.muted}
             autoCapitalize="words"
             style={styles.tagModalInput}
           />
@@ -1312,7 +1383,7 @@ function TagPickerModal({
                         styles.tagColorDot,
                         {
                           backgroundColor: color,
-                          borderColor: active ? TEXT : "transparent",
+                          borderColor: active ? contactDetailTheme.title : "transparent",
                         },
                       ]}
                       onPress={() => setNewTagColor(color)}
@@ -1369,7 +1440,7 @@ function ProfileHero({
   const tags = contact.tags_detail || [];
 
   const group = contact.group_detail;
-  const groupColor = getAny<string>(group, "color") || RED;
+  const groupColor = getAny<string>(group, "color") || contactDetailTheme.primary;
   const groupIcon = getAny<string>(group, "icon");
 
   return (
@@ -1529,28 +1600,28 @@ function PrimaryActionBar({
     <View style={styles.primaryActionsCard}>
       <PrimaryAction
         icon="create-outline"
-        iconColor={RED}
+        iconColor={contactDetailTheme.primary}
         title="Quick note"
         subtitle="Capture a thought"
         onPress={onQuickNote}
       />
       <PrimaryAction
         icon="heart-outline"
-        iconColor={RED}
+        iconColor={contactDetailTheme.primary}
         title="Log interaction"
         subtitle="Record a moment"
         onPress={onLogInteraction}
       />
       <PrimaryAction
         icon="notifications-outline"
-        iconColor={ORANGE}
+        iconColor={contactDetailTheme.warning}
         title="Set reminder"
         subtitle="Never forget"
         onPress={onSetReminder}
       />
       <PrimaryAction
         icon="book-outline"
-        iconColor={PURPLE}
+        iconColor={contactDetailTheme.purple}
         title="Save memory"
         subtitle="Keep it forever"
         onPress={onSaveMemory}
@@ -1604,42 +1675,42 @@ function AboutContactCard({
       <View style={styles.aboutGrid}>
         <AboutItem
           icon="calendar-outline"
-          iconColor={RED}
+          iconColor={contactDetailTheme.primary}
           label="Birthday"
           value={contact.birthday ? formatShortDate(contact.birthday) : "Not set"}
         />
 
         <AboutItem
           icon="star-outline"
-          iconColor={ORANGE}
+          iconColor={contactDetailTheme.warning}
           label="Met at"
           value={getMetAt(contact, interactions)}
         />
 
         <AboutItem
           icon="call-outline"
-          iconColor={GREEN}
+          iconColor={contactDetailTheme.success}
           label="Phone"
           value={contact.phone || "Not set"}
         />
 
         <AboutItem
           icon="heart-outline"
-          iconColor={RED}
+          iconColor={contactDetailTheme.primary}
           label="Relationship"
           value={getRelationshipLabel(contact)}
         />
 
         <AboutItem
           icon="calendar-number-outline"
-          iconColor={GREEN}
+          iconColor={contactDetailTheme.success}
           label="Known since"
           value={firstMet ? formatMonthYear(firstMet) : formatMonthYear(contact.created_at)}
         />
 
         <AboutItem
           icon="time-outline"
-          iconColor={ORANGE}
+          iconColor={contactDetailTheme.warning}
           label="Last contacted"
           value={lastContactLabel(lastContacted)}
         />
@@ -1865,14 +1936,14 @@ function RelationshipHealthCard({
       <View style={styles.rhythmMetaCompactRow}>
         <RhythmMetaCompactItem
           icon="time-outline"
-          color={ORANGE}
+          color={contactDetailTheme.warning}
           label="Last"
           value={lastContactLabel(lastContacted)}
         />
 
         <RhythmMetaCompactItem
           icon="notifications-outline"
-          color={GREEN}
+          color={contactDetailTheme.success}
           label="Next"
           value={nextTalkLabel(contact, interactions)}
         />
@@ -2072,8 +2143,17 @@ function NextUpCarousel({
     <View style={styles.nextCarouselCard}>
       <View style={[styles.cardTitleRow, styles.nextCarouselHeader]}>
         <View style={styles.cardTitleLeft}>
-          <View style={[styles.smallIconBubble, { backgroundColor: "#FFF1D8" }]}>
-            <Ionicons name="bulb-outline" size={17} color={ORANGE} />
+          <View
+            style={[
+              styles.smallIconBubble,
+              { backgroundColor: contactDetailTheme.softPrimary },
+            ]}
+          >
+            <Ionicons
+              name="bulb-outline"
+              size={17}
+              color={contactDetailTheme.primary}
+            />
           </View>
 
           <View>
@@ -2085,7 +2165,7 @@ function NextUpCarousel({
         </View>
 
         <TouchableOpacity onPress={onAdd}>
-          <Ionicons name="add" size={21} color={MUTED} />
+          <Ionicons name="add" size={21} color={contactDetailTheme.muted} />
         </TouchableOpacity>
       </View>
 
@@ -2111,7 +2191,7 @@ function NextUpCarousel({
 
                   {memory.is_pinned ? (
                     <View style={styles.pinnedBadge}>
-                      <Ionicons name="star" size={11} color={ORANGE} />
+                      <Ionicons name="star" size={11} color={contactDetailTheme.primary} />
                       <Text style={styles.pinnedBadgeText}>Pinned</Text>
                     </View>
                   ) : null}
@@ -2156,7 +2236,7 @@ function NextUpCarousel({
       ) : (
         <TouchableOpacity style={styles.emptyNextSlide} onPress={onAdd}>
           <View style={styles.emptyNextIcon}>
-            <Ionicons name="chatbubble-ellipses-outline" size={24} color={ORANGE} />
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={contactDetailTheme.primary} />
           </View>
 
           <Text style={styles.emptyNextTitle}>Nothing to ask yet</Text>
@@ -2185,19 +2265,19 @@ const MEMORY_HUB_TABS: {
   {
     key: "important",
     label: "Important",
-    color: RED,
+    color: contactDetailTheme.primary,
     icon: "sparkles-outline",
   },
   {
     key: "ask_next_time",
     label: "Ask",
-    color: ORANGE,
+    color: contactDetailTheme.warning,
     icon: "chatbubble-ellipses-outline",
   },
   {
     key: "note",
     label: "Notes",
-    color: GREEN,
+    color: contactDetailTheme.success,
     icon: "document-text-outline",
   },
 ];
@@ -2258,8 +2338,17 @@ function MemoryHubCard({
     <View style={styles.memoryHubCard}>
       <View style={styles.memoryHubHeader}>
         <View style={styles.cardTitleLeft}>
-          <View style={[styles.smallIconBubble, { backgroundColor: "#FFF1D8" }]}>
-            <Ionicons name="albums-outline" size={16} color={ORANGE} />
+          <View
+            style={[
+              styles.smallIconBubble,
+              { backgroundColor: contactDetailTheme.softPrimary },
+            ]}
+          >
+            <Ionicons
+              name="albums-outline"
+              size={16}
+              color={contactDetailTheme.primary}
+            />
           </View>
 
           <View>
@@ -2289,8 +2378,8 @@ function MemoryHubCard({
               style={[
                 styles.memoryTab,
                 active && {
-                  backgroundColor: withOpacity(tab.color, "18"),
-                  borderColor: withOpacity(tab.color, "55"),
+                  backgroundColor: contactDetailTheme.softPrimary,
+                  borderColor: withOpacity(contactDetailTheme.primary, "55"),
                 },
               ]}
               onPress={() => setActiveTab(tab.key)}
@@ -2299,13 +2388,13 @@ function MemoryHubCard({
               <Ionicons
                 name={tab.icon}
                 size={14}
-                color={active ? tab.color : MUTED}
+                color={active ? contactDetailTheme.primary : contactDetailTheme.muted}
               />
 
               <Text
                 style={[
                   styles.memoryTabText,
-                  active && { color: tab.color },
+                  active && { color: contactDetailTheme.primary },
                 ]}
                 numberOfLines={1}
               >
@@ -2315,7 +2404,7 @@ function MemoryHubCard({
               <View
                 style={[
                   styles.memoryTabCount,
-                  active && { backgroundColor: tab.color },
+                  active && { backgroundColor: contactDetailTheme.primary },
                 ]}
               >
                 <Text
@@ -2342,13 +2431,13 @@ function MemoryHubCard({
             <View
               style={[
                 styles.memoryEmptyIcon,
-                { backgroundColor: withOpacity(activeConfig.color, "18") },
+                { backgroundColor: contactDetailTheme.softPrimary },
               ]}
             >
               <Ionicons
                 name={activeConfig.icon}
                 size={22}
-                color={activeConfig.color}
+                color={contactDetailTheme.primary}
               />
             </View>
 
@@ -2365,7 +2454,7 @@ function MemoryHubCard({
             <MemoryHubRow
               key={String(memory.id)}
               memory={memory}
-              color={activeConfig.color}
+              color={contactDetailTheme.primary}
               onDelete={onDelete}
             />
           ))
@@ -2383,7 +2472,7 @@ function MemoryHubCard({
             : "Open memory journal"}
         </Text>
 
-        <Ionicons name="chevron-forward" size={17} color={MUTED} />
+        <Ionicons name="chevron-forward" size={17} color={contactDetailTheme.muted} />
       </TouchableOpacity>
 
       <MemoryJournalModal
@@ -2434,7 +2523,7 @@ function MemoryHubRow({
           style={styles.memoryHubDelete}
           onPress={() => onDelete(memory)}
         >
-          <Ionicons name="close" size={16} color={MUTED} />
+          <Ionicons name="close" size={16} color={contactDetailTheme.muted} />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -2488,7 +2577,7 @@ function MemoryJournalModal({
       <View style={styles.memoryJournalScreen}>
         <View style={styles.memoryJournalHeader}>
           <TouchableOpacity style={styles.journalCloseButton} onPress={onClose}>
-            <Ionicons name="chevron-down" size={22} color={TEXT} />
+            <Ionicons name="chevron-down" size={22} color={contactDetailTheme.title} />
           </TouchableOpacity>
 
           <View style={styles.journalTitleWrap}>
@@ -2513,8 +2602,8 @@ function MemoryJournalModal({
                 style={[
                   styles.journalTab,
                   active && {
-                    backgroundColor: withOpacity(tab.color, "18"),
-                    borderColor: withOpacity(tab.color, "55"),
+                    backgroundColor: contactDetailTheme.softPrimary,
+                    borderColor: withOpacity(contactDetailTheme.primary, "55"),
                   },
                 ]}
                 onPress={() => setActiveTab(tab.key)}
@@ -2522,13 +2611,13 @@ function MemoryJournalModal({
                 <Ionicons
                   name={tab.icon}
                   size={14}
-                  color={active ? tab.color : MUTED}
+                  color={active ? contactDetailTheme.primary : contactDetailTheme.muted}
                 />
 
                 <Text
                   style={[
                     styles.journalTabText,
-                    active && { color: tab.color },
+                    active && { color: contactDetailTheme.primary },
                   ]}
                 >
                   {tab.label}
@@ -2537,7 +2626,7 @@ function MemoryJournalModal({
                 <Text
                   style={[
                     styles.journalTabCount,
-                    active && { color: tab.color },
+                    active && { color: contactDetailTheme.primary },
                   ]}
                 >
                   {itemsByTab[tab.key].length}
@@ -2556,13 +2645,13 @@ function MemoryJournalModal({
               <View
                 style={[
                   styles.memoryEmptyIcon,
-                  { backgroundColor: withOpacity(activeConfig.color, "18") },
+                  { backgroundColor: contactDetailTheme.softPrimary },
                 ]}
               >
                 <Ionicons
                   name={activeConfig.icon}
                   size={26}
-                  color={activeConfig.color}
+                  color={contactDetailTheme.primary}
                 />
               </View>
 
@@ -2577,7 +2666,7 @@ function MemoryJournalModal({
               <TouchableOpacity
                 style={[
                   styles.journalEmptyButton,
-                  { backgroundColor: activeConfig.color },
+                  { backgroundColor: contactDetailTheme.button },
                 ]}
                 onPress={handleAdd}
               >
@@ -2590,7 +2679,7 @@ function MemoryJournalModal({
               <View key={String(memory.id)} style={styles.journalMemoryCard}>
                 <MemoryHubRow
                   memory={memory}
-                  color={activeConfig.color}
+                  color={contactDetailTheme.primary}
                   onDelete={onDelete}
                 />
               </View>
@@ -2621,7 +2710,7 @@ function UpcomingPanel({
     <View style={[styles.panel, variant === "full" ? styles.panelFull : styles.panelHalf]}>
       <PanelTitle
         icon="calendar-outline"
-        color={ORANGE}
+        color={contactDetailTheme.warning}
         title="Upcoming"
         actionIcon="add"
         actionLabel="Add"
@@ -2670,7 +2759,7 @@ function ImportantDatesPanel({
     <View style={[styles.panel, variant === "full" ? styles.panelFull : styles.panelHalf]}>
       <PanelTitle
         icon="heart-outline"
-        color={RED}
+        color={contactDetailTheme.primary}
         title="Important dates"
         actionIcon="add"
         actionLabel="Add"
@@ -2714,7 +2803,7 @@ function RecentHistoryPanel({
     <View style={[styles.panel, variant === "full" ? styles.panelFull : styles.panelHalf]}>
       <PanelTitle
           icon="time-outline"
-          color={BLUE}
+          color={contactDetailTheme.blue}
           title="Recent history"
           actionIcon="chevron-forward"
           actionLabel="View"
@@ -2763,8 +2852,17 @@ function PhotoAlbumsPanel({
     <View style={styles.photoAlbumsCard}>
       <View style={styles.photoAlbumsHeader}>
         <View style={styles.cardTitleLeft}>
-          <View style={[styles.smallIconBubble, { backgroundColor: "#FFF1D8" }]}>
-            <Ionicons name="images-outline" size={16} color={ORANGE} />
+          <View
+            style={[
+              styles.smallIconBubble,
+              { backgroundColor: contactDetailTheme.softPrimary },
+            ]}
+          >
+            <Ionicons
+              name="images-outline"
+              size={16}
+              color={contactDetailTheme.primary}
+            />
           </View>
 
           <View>
@@ -2793,7 +2891,7 @@ function PhotoAlbumsPanel({
           activeOpacity={0.88}
         >
           <View style={styles.emptyAlbumIcon}>
-            <Ionicons name="images-outline" size={25} color={ORANGE} />
+            <Ionicons name="images-outline" size={25} color={contactDetailTheme.warning} />
           </View>
 
           <Text style={styles.emptyAlbumTitle}>No albums yet</Text>
@@ -2849,7 +2947,7 @@ function AlbumPreviewCard({
       <View style={styles.albumCollage}>
         {photos.length === 0 ? (
           <View style={styles.albumEmptyPreview}>
-            <Ionicons name="image-outline" size={26} color={MUTED} />
+            <Ionicons name="image-outline" size={26} color={contactDetailTheme.muted} />
           </View>
         ) : (
           photos.slice(0, 4).map((photo, index) => (
@@ -3243,10 +3341,11 @@ function MemoryModal({
   );
 }
 
-const styles = StyleSheet.create({
+function createContactDetailStyles(theme: ContactDetailsColors) {
+  return StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: theme.background,
   },
   center: {
     flex: 1,
@@ -3372,7 +3471,7 @@ panelActionText: {
     justifyContent: "center",
   },
   portraitInitials: {
-    color: RED,
+    color: theme.primary,
     fontSize: 38,
     fontWeight: "900",
   },
@@ -3490,10 +3589,10 @@ panelActionText: {
   primaryActionsCard: {
     marginHorizontal: 14,
     marginTop: 12,
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     flexDirection: "row",
     paddingHorizontal: 6,
     paddingVertical: 13,
@@ -3505,13 +3604,13 @@ panelActionText: {
     paddingHorizontal: 3,
   },
   primaryActionTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 11,
     fontWeight: "900",
     textAlign: "center",
   },
   primaryActionSubtitle: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 9,
     fontWeight: "600",
     textAlign: "center",
@@ -3520,10 +3619,10 @@ panelActionText: {
   aboutCard: {
     marginHorizontal: 14,
     marginTop: 12,
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     padding: 14,
   },
   aboutTitle: {
@@ -3556,14 +3655,14 @@ aboutItem: {
     minWidth: 0,
   },
  aboutLabel: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   lineHeight: 14,
   fontWeight: "700",
 },
 
 aboutValue: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 13,
   lineHeight: 17,
   fontWeight: "800",
@@ -3633,12 +3732,12 @@ aboutValue: {
     minWidth: 0,
   },
   connectionTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 18,
     fontWeight: "900",
   },
   connectionSubtitle: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 12,
     marginTop: 2,
     fontWeight: "700",
@@ -3679,7 +3778,7 @@ aboutValue: {
   checkInButton: {
     alignSelf: "flex-start",
     marginTop: 14,
-    backgroundColor: RED,
+    backgroundColor: theme.primary,
     borderRadius: 999,
     paddingHorizontal: 13,
     paddingVertical: 9,
@@ -3703,9 +3802,9 @@ tagModalCard: {
   width: "100%",
   borderRadius: 24,
   padding: 18,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   maxHeight: "82%",
   shadowColor: "#000",
   shadowOpacity: 0.18,
@@ -3720,10 +3819,10 @@ tagModalHandle: {
   nextCard: {
     marginHorizontal: 14,
     marginTop: 12,
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     padding: 15,
   },
   cardTitleRow: {
@@ -3741,24 +3840,24 @@ tagModalHandle: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFE8E4",
+    backgroundColor: theme.softPrimary,
     alignItems: "center",
     justifyContent: "center",
   },
   cardTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 13,
     fontWeight: "900",
   },
   nextText: {
     marginTop: 13,
-    color: TEXT,
+    color: theme.title,
     fontSize: 22,
     lineHeight: 29,
     fontWeight: "800",
   },
   nextSub: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "600",
@@ -3772,7 +3871,7 @@ tagModalHandle: {
     flexWrap: "wrap",
   },
   doneButton: {
-    backgroundColor: RED,
+    backgroundColor: theme.primary,
     borderRadius: 999,
     paddingHorizontal: 13,
     paddingVertical: 10,
@@ -3787,13 +3886,13 @@ tagModalHandle: {
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: RED,
+    borderColor: theme.primary,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
   secondaryButtonText: {
-    color: RED,
+    color: theme.primary,
     fontWeight: "900",
     fontSize: 12,
   },
@@ -3801,10 +3900,10 @@ tagModalHandle: {
   rememberCard: {
     marginHorizontal: 14,
     marginTop: 12,
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     padding: 15,
   },
   memorySection: {
@@ -3821,7 +3920,7 @@ tagModalHandle: {
     textTransform: "uppercase",
   },
   emptyText: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "600",
@@ -3839,7 +3938,7 @@ tagModalHandle: {
   },
   memoryText: {
     flex: 1,
-    color: TEXT,
+    color: theme.title,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "700",
@@ -3853,10 +3952,10 @@ tagModalHandle: {
     alignItems: "stretch",
   },
   panel: {
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     paddingHorizontal: 12,
     paddingVertical: 13,
   },
@@ -3883,20 +3982,20 @@ tagModalHandle: {
     width: 21,
   },
   panelRowTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 12,
     fontWeight: "900",
     lineHeight: 16,
   },
   panelRowSubtitle: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 11,
     fontWeight: "600",
     marginTop: 2,
     lineHeight: 15,
   },
   panelEmpty: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "600",
@@ -3911,7 +4010,7 @@ tagModalHandle: {
     alignItems: "center",
   },
   deleteText: {
-    color: RED_DARK,
+    color: theme.button,
     fontWeight: "900",
   },
 
@@ -4018,10 +4117,10 @@ tagModalHandle: {
  nextCarouselCard: {
   marginHorizontal: 14,
   marginTop: 12,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   borderRadius: 22,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   paddingVertical: 15,
 },
 
@@ -4030,7 +4129,7 @@ nextCarouselHeader: {
 },
 
 nextCarouselSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "600",
   marginTop: 2,
@@ -4044,10 +4143,10 @@ nextCarouselScroll: {
 nextSlide: {
   width: NEXT_SLIDE_WIDTH,
   minHeight: 185,
-  backgroundColor: "#FFF4E8",
+  backgroundColor: theme.softCard,
   borderRadius: 18,
   borderWidth: 1,
-  borderColor: "#F0DCCB",
+  borderColor: theme.border,
   padding: 16,
   marginRight: 10,
 },
@@ -4059,16 +4158,16 @@ nextSlideTopRow: {
 },
 
 nextBadge: {
-  backgroundColor: "#FFFFFF",
+  backgroundColor: theme.card,
   borderRadius: 999,
   paddingHorizontal: 9,
   paddingVertical: 4,
   borderWidth: 1,
-  borderColor: "#EBD8C8",
+  borderColor: theme.border,
 },
 
 nextBadgeText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "900",
 },
@@ -4077,20 +4176,20 @@ pinnedBadge: {
   flexDirection: "row",
   alignItems: "center",
   gap: 4,
-  backgroundColor: "#FFF7E8",
+  backgroundColor: theme.softPrimary,
   borderRadius: 999,
   paddingHorizontal: 8,
   paddingVertical: 4,
 },
 
 pinnedBadgeText: {
-  color: ORANGE,
+  color: theme.primary,
   fontSize: 10,
   fontWeight: "900",
 },
 
 nextSlideText: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 21,
   lineHeight: 29,
   fontWeight: "800",
@@ -4122,16 +4221,16 @@ carouselDot: {
 
 carouselDotActive: {
   width: 18,
-  backgroundColor: ORANGE,
+  backgroundColor: theme.warning,
 },
 
 emptyNextSlide: {
   marginHorizontal: 15,
   marginTop: 14,
-  backgroundColor: "#FFF4E8",
+  backgroundColor: theme.softCard,
   borderRadius: 18,
   borderWidth: 1,
-  borderColor: "#F0DCCB",
+  borderColor: theme.border,
   padding: 16,
   alignItems: "center",
 },
@@ -4140,20 +4239,20 @@ emptyNextIcon: {
   width: 48,
   height: 48,
   borderRadius: 24,
-  backgroundColor: "#FFF8EF",
+  backgroundColor: theme.softPrimary,
   alignItems: "center",
   justifyContent: "center",
   marginBottom: 10,
 },
 
 emptyNextTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 16,
   fontWeight: "900",
 },
 
 emptyNextText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   lineHeight: 18,
   textAlign: "center",
@@ -4163,7 +4262,7 @@ emptyNextText: {
 
 emptyNextButton: {
   marginTop: 13,
-  backgroundColor: ORANGE,
+  backgroundColor: theme.button,
   borderRadius: 999,
   paddingHorizontal: 13,
   paddingVertical: 9,
@@ -4182,10 +4281,10 @@ emptyNextButtonText: {
 memoryHubCard: {
   marginHorizontal: 14,
   marginTop: 12,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   borderRadius: 22,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   padding: 15,
 },
 
@@ -4196,7 +4295,7 @@ memoryHubHeader: {
 },
 
 memoryHubSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "600",
   marginTop: 2,
@@ -4206,7 +4305,7 @@ memoryHubAddButton: {
   width: 34,
   height: 34,
   borderRadius: 17,
-  backgroundColor: ORANGE,
+  backgroundColor: theme.button,
   alignItems: "center",
   justifyContent: "center",
 },
@@ -4222,8 +4321,8 @@ memoryTab: {
   minHeight: 36,
   borderRadius: 999,
   borderWidth: 1,
-  borderColor: "#E9D9CA",
-  backgroundColor: "#FFFDF9",
+  borderColor: theme.border,
+  backgroundColor: theme.softCard,
   flexDirection: "row",
   alignItems: "center",
   justifyContent: "center",
@@ -4232,7 +4331,7 @@ memoryTab: {
 },
 
 memoryTabText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "900",
 },
@@ -4241,14 +4340,14 @@ memoryTabCount: {
   minWidth: 18,
   height: 18,
   borderRadius: 9,
-  backgroundColor: "#F0E2D5",
+  backgroundColor: theme.card,
   alignItems: "center",
   justifyContent: "center",
   paddingHorizontal: 5,
 },
 
 memoryTabCountText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 10,
   fontWeight: "900",
 },
@@ -4256,9 +4355,9 @@ memoryTabCountText: {
 memoryPreviewBox: {
   marginTop: 12,
   borderRadius: 18,
-  backgroundColor: "#FFF4E8",
+  backgroundColor: theme.softCard,
   borderWidth: 1,
-  borderColor: "#F0DCCB",
+  borderColor: theme.border,
   overflow: "hidden",
 },
 
@@ -4270,7 +4369,7 @@ memoryHubRow: {
   paddingHorizontal: 12,
   paddingVertical: 11,
   borderBottomWidth: 1,
-  borderBottomColor: "rgba(0,0,0,0.06)",
+  borderBottomColor: theme.border,
 },
 
 memoryHubBullet: {
@@ -4286,14 +4385,14 @@ memoryHubRowTextWrap: {
 },
 
 memoryHubRowText: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 13,
   lineHeight: 18,
   fontWeight: "800",
 },
 
 memoryHubDate: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "700",
   marginTop: 4,
@@ -4325,13 +4424,13 @@ memoryEmptyIcon: {
 },
 
 memoryEmptyTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 15,
   fontWeight: "900",
 },
 
 memoryEmptyText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   lineHeight: 18,
   fontWeight: "600",
@@ -4347,14 +4446,14 @@ memoryViewAllRow: {
 },
 
 memoryViewAllText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "900",
 },
 
 memoryJournalScreen: {
   flex: 1,
-  backgroundColor: BG,
+  backgroundColor: theme.background,
   paddingTop: Platform.OS === "ios" ? 56 : 28,
 },
 
@@ -4369,9 +4468,9 @@ journalCloseButton: {
   width: 40,
   height: 40,
   borderRadius: 20,
-  backgroundColor: "#FFFDF9",
+  backgroundColor: theme.card,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   alignItems: "center",
   justifyContent: "center",
 },
@@ -4382,13 +4481,13 @@ journalTitleWrap: {
 },
 
 journalTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 20,
   fontWeight: "900",
 },
 
 journalSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "700",
   marginTop: 2,
@@ -4398,7 +4497,7 @@ journalAddButton: {
   width: 40,
   height: 40,
   borderRadius: 20,
-  backgroundColor: ORANGE,
+  backgroundColor: theme.warning,
   alignItems: "center",
   justifyContent: "center",
 },
@@ -4415,8 +4514,8 @@ journalTab: {
   minHeight: 38,
   borderRadius: 999,
   borderWidth: 1,
-  borderColor: "#E9D9CA",
-  backgroundColor: "#FFFDF9",
+  borderColor: theme.border,
+  backgroundColor: theme.softCard,
   flexDirection: "row",
   alignItems: "center",
   justifyContent: "center",
@@ -4425,13 +4524,13 @@ journalTab: {
 },
 
 journalTabText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "900",
 },
 
 journalTabCount: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "900",
 },
@@ -4442,9 +4541,9 @@ journalListContent: {
 },
 
 journalMemoryCard: {
-  backgroundColor: "#FFFDF9",
+  backgroundColor: theme.card,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   borderRadius: 18,
   overflow: "hidden",
   marginBottom: 10,
@@ -4452,9 +4551,9 @@ journalMemoryCard: {
 
 journalEmpty: {
   marginTop: 40,
-  backgroundColor: "#FFFDF9",
+  backgroundColor: theme.card,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   borderRadius: 22,
   padding: 22,
   alignItems: "center",
@@ -4478,10 +4577,10 @@ journalEmptyButtonText: {
 talkCard: {
   marginHorizontal: 14,
   marginTop: 12,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   borderRadius: 22,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   padding: 15,
 },
 
@@ -4498,13 +4597,13 @@ talkTitleWrap: {
 },
 
 talkTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 17,
   fontWeight: "900",
 },
 
 talkSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "700",
   marginTop: 3,
@@ -4523,10 +4622,10 @@ talkStatusText: {
 
 talkControlCard: {
   marginTop: 14,
-  backgroundColor: "#FFF4E8",
+  backgroundColor: theme.softCard,
   borderRadius: 18,
   borderWidth: 1,
-  borderColor: "#F0DCCB",
+  borderColor: theme.border,
   paddingHorizontal: 13,
   paddingVertical: 12,
   flexDirection: "row",
@@ -4540,13 +4639,13 @@ talkControlText: {
 },
 
 talkControlLabel: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "700",
 },
 
 talkControlValue: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 20,
   fontWeight: "900",
   marginTop: 2,
@@ -4562,7 +4661,7 @@ talkToggle: {
 },
 
 talkToggleActive: {
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
 },
 
 talkToggleSaving: {
@@ -4595,25 +4694,25 @@ talkPresetButton: {
   flex: 1,
   borderRadius: 999,
   borderWidth: 1,
-  borderColor: "#E8D8CA",
-  backgroundColor: "#FFFDF9",
+  borderColor: theme.border,
+  backgroundColor: theme.card,
   paddingVertical: 9,
   alignItems: "center",
 },
 
 talkPresetButtonActive: {
-  backgroundColor: "#FFE8E4",
-  borderColor: RED,
+  backgroundColor: theme.softPrimary,
+  borderColor: theme.primary,
 },
 
 talkPresetText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   fontWeight: "900",
 },
 
 talkPresetTextActive: {
-  color: RED,
+  color: theme.primary,
 },
 
 talkMetaRow: {
@@ -4644,13 +4743,13 @@ talkMetaTextWrap: {
 },
 
 talkMetaLabel: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 10,
   fontWeight: "700",
 },
 
 talkMetaValue: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 12,
   fontWeight: "900",
   marginTop: 1,
@@ -4659,11 +4758,16 @@ talkMetaValue: {
   connectionCompactCard: {
     marginHorizontal: 14,
     marginTop: 12,
-    backgroundColor: "#F7EDE5",
+    backgroundColor: theme.card,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#E8D8CA",
+    borderColor: theme.border,
     padding: 13,
+    shadowColor: theme.shadow,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   connectionCompactHeader: {
     flexDirection: "row",
@@ -4682,7 +4786,7 @@ talkMetaValue: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#FFF6EC",
+    backgroundColor: theme.softPrimary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -4696,7 +4800,7 @@ talkMetaValue: {
     gap: 6,
   },
   connectionCompactEyebrow: {
-    color: "#8B5E20",
+    color: theme.primary,
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 0.5,
@@ -4712,13 +4816,13 @@ talkMetaValue: {
     fontWeight: "900",
   },
   connectionCompactTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 17,
     fontWeight: "900",
     marginTop: 3,
   },
   connectionCompactSubtitle: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 1,
@@ -4727,12 +4831,14 @@ talkMetaValue: {
     width: 46,
     height: 27,
     borderRadius: 14,
-    backgroundColor: "#E5DDD5",
+    backgroundColor: theme.softCard,
+    borderWidth: 1,
+    borderColor: theme.border,
     padding: 3,
     justifyContent: "center",
   },
   connectionCompactToggleActive: {
-    backgroundColor: RED,
+    backgroundColor: theme.primary,
   },
   connectionCompactSaving: {
     opacity: 0.55,
@@ -4754,21 +4860,21 @@ talkMetaValue: {
   connectionCompactProgressTrack: {
     height: 4,
     borderRadius: 999,
-    backgroundColor: "#E8DED6",
+    backgroundColor: theme.softCard,
     marginTop: 11,
     overflow: "hidden",
   },
   connectionCompactProgressFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#8DAA63",
+    backgroundColor: theme.primary,
   },
   rhythmCompactBox: {
     marginTop: 11,
-    backgroundColor: "#FFF4E8",
+    backgroundColor: theme.softCard,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#F0DCCB",
+    borderColor: theme.border,
     padding: 11,
   },
   rhythmCompactTopRow: {
@@ -4782,19 +4888,19 @@ talkMetaValue: {
     minWidth: 0,
   },
   rhythmCompactLabel: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 13,
     fontWeight: "900",
   },
   rhythmCompactValue: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 11,
     fontWeight: "700",
     marginTop: 2,
   },
   rhythmNextValue: {
     maxWidth: 104,
-    color: GREEN,
+    color: theme.success,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -4808,23 +4914,23 @@ talkMetaValue: {
     minHeight: 32,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#E8D8CA",
-    backgroundColor: "#FFFDF9",
+    borderColor: theme.border,
+    backgroundColor: theme.card,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,
   },
   rhythmPresetButtonActive: {
-    backgroundColor: "#FFE8E4",
-    borderColor: RED,
+    backgroundColor: theme.softPrimary,
+    borderColor: theme.primary,
   },
   rhythmPresetText: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 11,
     fontWeight: "900",
   },
   rhythmPresetTextActive: {
-    color: RED,
+    color: theme.primary,
   },
   rhythmMetaCompactRow: {
     flexDirection: "row",
@@ -4850,12 +4956,12 @@ talkMetaValue: {
     minWidth: 0,
   },
   rhythmMetaCompactLabel: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 10,
     fontWeight: "700",
   },
   rhythmMetaCompactValue: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 11,
     fontWeight: "900",
     marginTop: 1,
@@ -4905,19 +5011,19 @@ tagModalScrollContent: {
     padding: 22,
   },
   cadenceModalCard: {
-    backgroundColor: CARD,
+    backgroundColor: theme.card,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     padding: 18,
   },
   cadenceModalTitle: {
-    color: TEXT,
+    color: theme.title,
     fontSize: 20,
     fontWeight: "900",
   },
   cadenceModalSubtitle: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 13,
     lineHeight: 19,
     fontWeight: "700",
@@ -4927,8 +5033,8 @@ tagModalScrollContent: {
     marginTop: 16,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#F0DCCB",
-    backgroundColor: "#FFF4E8",
+    borderColor: theme.border,
+    backgroundColor: theme.softCard,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
@@ -4936,13 +5042,13 @@ tagModalScrollContent: {
   },
   cadenceInput: {
     flex: 1,
-    color: TEXT,
+    color: theme.title,
     fontSize: 28,
     fontWeight: "900",
     padding: 0,
   },
   cadenceInputSuffix: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 14,
     fontWeight: "900",
   },
@@ -4955,19 +5061,19 @@ tagModalScrollContent: {
     flex: 1,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: theme.border,
     alignItems: "center",
     paddingVertical: 12,
   },
   cadenceCancelText: {
-    color: MUTED,
+    color: theme.muted,
     fontSize: 13,
     fontWeight: "900",
   },
   cadenceSaveButton: {
     flex: 1,
     borderRadius: 15,
-    backgroundColor: RED,
+    backgroundColor: theme.primary,
     alignItems: "center",
     paddingVertical: 12,
   },
@@ -4988,14 +5094,14 @@ tagModalEyebrow: {
   fontSize: 11,
   fontWeight: "900",
   letterSpacing: 1.2,
-  color: RED,
+  color: theme.primary,
   marginBottom: 4,
 },
 
 tagModalTitle: {
   fontSize: 24,
   fontWeight: "900",
-  color: TEXT,
+  color: theme.title,
 },
 
 tagModalClose: {
@@ -5006,14 +5112,14 @@ tagModalClose: {
   justifyContent: "center",
   backgroundColor: "#FFFFFF99",
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
 },
 
 tagModalSubtitle: {
   marginTop: 8,
   fontSize: 14,
   lineHeight: 20,
-  color: MUTED,
+  color: theme.muted,
 },
 
 tagModalInput: {
@@ -5022,9 +5128,9 @@ tagModalInput: {
   borderRadius: 18,
   backgroundColor: "#FFFFFF",
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   paddingHorizontal: 16,
-  color: TEXT,
+  color: theme.title,
   fontSize: 15,
   fontWeight: "700",
 },
@@ -5036,7 +5142,7 @@ tagModalSection: {
 tagModalSectionTitle: {
   fontSize: 12,
   fontWeight: "900",
-  color: MUTED,
+  color: theme.muted,
   letterSpacing: 0.8,
   textTransform: "uppercase",
   marginBottom: 10,
@@ -5079,7 +5185,7 @@ tagModalCreateChip: {
   borderRadius: 999,
   paddingHorizontal: 13,
   paddingVertical: 9,
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
 },
 
 tagModalCreateChipText: {
@@ -5089,7 +5195,7 @@ tagModalCreateChipText: {
 },
 
 tagModalEmptyText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 13,
   fontWeight: "600",
 },
@@ -5122,11 +5228,11 @@ tagModalCancelButton: {
   justifyContent: "center",
   backgroundColor: "#FFFFFF",
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
 },
 
 tagModalCancelText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 15,
   fontWeight: "900",
 },
@@ -5137,7 +5243,7 @@ tagModalSaveButton: {
   borderRadius: 18,
   alignItems: "center",
   justifyContent: "center",
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
 },
 
 tagModalSaveText: {
@@ -5148,10 +5254,10 @@ tagModalSaveText: {
 photoAlbumsCard: {
   marginHorizontal: 14,
   marginTop: 12,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   borderRadius: 24,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   padding: 14,
 },
 
@@ -5164,7 +5270,7 @@ photoAlbumsHeader: {
 },
 
 photoAlbumsSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "700",
   marginTop: 2,
@@ -5173,7 +5279,7 @@ photoAlbumsSubtitle: {
 photoAlbumsAddButton: {
   minHeight: 38,
   borderRadius: 16,
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
   paddingHorizontal: 12,
   flexDirection: "row",
   alignItems: "center",
@@ -5195,9 +5301,9 @@ albumScrollRow: {
 albumPreviewCard: {
   width: 132,
   borderRadius: 20,
-  backgroundColor: "#FFFFFF",
+  backgroundColor: theme.softCard,
   borderWidth: 1,
-  borderColor: "rgba(120,90,60,0.12)",
+  borderColor: theme.border,
   padding: 8,
 },
 
@@ -5205,7 +5311,7 @@ albumCollage: {
   height: 104,
   borderRadius: 16,
   overflow: "hidden",
-  backgroundColor: "#F5E9DF",
+  backgroundColor: theme.softPrimary,
   flexDirection: "row",
   flexWrap: "wrap",
 },
@@ -5227,14 +5333,14 @@ albumEmptyPreview: {
 },
 
 albumTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 13,
   fontWeight: "900",
   marginTop: 8,
 },
 
 albumCount: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 11,
   fontWeight: "700",
   marginTop: 2,
@@ -5246,7 +5352,7 @@ newAlbumCard: {
   borderRadius: 20,
   borderWidth: 1,
   borderStyle: "dashed",
-  borderColor: BORDER,
+  borderColor: theme.border,
   backgroundColor: "#FFFDF8",
   alignItems: "center",
   justifyContent: "center",
@@ -5257,14 +5363,14 @@ newAlbumIcon: {
   width: 46,
   height: 46,
   borderRadius: 18,
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
   alignItems: "center",
   justifyContent: "center",
   marginBottom: 9,
 },
 
 newAlbumText: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 12,
   fontWeight: "900",
   textAlign: "center",
@@ -5285,20 +5391,20 @@ emptyAlbumIcon: {
   width: 56,
   height: 56,
   borderRadius: 22,
-  backgroundColor: "#FFF1D8",
+  backgroundColor: theme.softPrimary,
   alignItems: "center",
   justifyContent: "center",
   marginBottom: 12,
 },
 
 emptyAlbumTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 16,
   fontWeight: "900",
 },
 
 emptyAlbumText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 12,
   lineHeight: 18,
   textAlign: "center",
@@ -5317,10 +5423,10 @@ albumModalCard: {
   width: "100%",
   maxWidth: 390,
   borderRadius: 30,
-  backgroundColor: CARD,
+  backgroundColor: theme.card,
   padding: 18,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   shadowColor: "#000",
   shadowOpacity: 0.18,
   shadowRadius: 22,
@@ -5329,14 +5435,14 @@ albumModalCard: {
 },
 
 albumModalEyebrow: {
-  color: ORANGE,
+  color: theme.warning,
   fontSize: 11,
   fontWeight: "900",
   letterSpacing: 0.8,
 },
 
 albumModalTitle: {
-  color: TEXT,
+  color: theme.title,
   fontSize: 23,
   lineHeight: 28,
   fontWeight: "900",
@@ -5344,7 +5450,7 @@ albumModalTitle: {
 },
 
 albumModalSubtitle: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 13,
   lineHeight: 19,
   fontWeight: "600",
@@ -5355,11 +5461,11 @@ albumModalInput: {
   minHeight: 52,
   borderRadius: 18,
   borderWidth: 1,
-  borderColor: BORDER,
+  borderColor: theme.border,
   backgroundColor: "#FFFFFF",
   paddingHorizontal: 14,
   marginTop: 16,
-  color: TEXT,
+  color: theme.title,
   fontSize: 15,
   fontWeight: "800",
 },
@@ -5380,7 +5486,7 @@ albumModalCancelButton: {
 },
 
 albumModalCancelText: {
-  color: MUTED,
+  color: theme.muted,
   fontSize: 14,
   fontWeight: "900",
 },
@@ -5389,7 +5495,7 @@ albumModalSaveButton: {
   flex: 1,
   height: 50,
   borderRadius: 18,
-  backgroundColor: RED,
+  backgroundColor: theme.primary,
   alignItems: "center",
   justifyContent: "center",
 },
@@ -5400,3 +5506,6 @@ albumModalSaveText: {
   fontWeight: "900",
 },
 });
+}
+
+let styles = createContactDetailStyles(DEFAULT_CONTACT_DETAIL_COLORS);

@@ -8,7 +8,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-
+    "extra": {
+      "bugReportUrl": "https://yourwebsite.com/report-bug"
+    },
     "ios": {
       "bundleIdentifier": "com.mersadura.birthdayly",
       "buildNumber": "1.0.0",

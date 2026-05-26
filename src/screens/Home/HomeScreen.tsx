@@ -1,25 +1,25 @@
 // src/screens/Home/HomeScreen.tsx
 import React, {
-  useEffect,
-  useState,
-  useMemo,
   useCallback,
- 
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
   StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
-
 import { AppId } from "../../contacts/types";
-
 import {
   EventTypeValue,
   EVENT_TYPE_META,
@@ -27,7 +27,11 @@ import {
   HomeSummaryDTO,
 } from "../../events/types";
 import { fetchHomeSummary } from "../../events/repository";
-import { useTranslation } from "react-i18next";
+
+type Props = {
+  navigation: any;
+};
+
 type HomeItem = {
   id: AppId;
   contactId: AppId;
@@ -49,63 +53,78 @@ type UpcomingSection = {
   title: string;
   data: HomeItem[];
 };
-const HOME_UPCOMING_LIMIT = 5;
-type Props = {
-  navigation: any;
+
+type HomeColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  softButtonText: string;
+  danger: string;
+  warning: string;
+  success: string;
+  shadow: string;
 };
+
 const HOME_TODAY_LIMIT = 5;
+const HOME_UPCOMING_LIMIT = 5;
 
 export default function HomeScreen({ navigation }: Props) {
   const { settings } = useAppearance();
-  const {t} = useTranslation("home");
+  const { t } = useTranslation("home");
+
+  const colors = useMemo(() => makeHomeColors(settings), [settings]);
+
   const [todayItems, setTodayItems] = useState<HomeItem[]>([]);
   const [upcoming, setUpcoming] = useState<HomeItem[]>([]);
   const [typeInsights, setTypeInsights] = useState<TypeInsight[]>([]);
   const [upcomingWeekCount, setUpcomingWeekCount] = useState(0);
   const [totalContacts, setTotalContacts] = useState(0);
   const [loading, setLoading] = useState(true);
+
   const [showAllToday, setShowAllToday] = useState(false);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
     EventTypeValue | "all"
   >("all");
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
-  // ---- mapping backend -> UI item ----
 
+  const mapDtoToHomeItem = useCallback(
+    (dto: HomeEventDTO): HomeItem => {
+      const date = parseDateOnly(dto.next_occurrence);
+      const daysUntil = dto.days_until;
 
-  const mapDtoToHomeItem = (dto: HomeEventDTO): HomeItem => {
-    
-    const d = parseDateOnly(dto.next_occurrence);
-    const dateLabel = formatDateLabel(d);
-    const daysUntil = dto.days_until;
-    const relativeLabel = buildRelativeLabelFr(daysUntil, t);
+      return {
+        id: dto.id,
+        contactId: dto.contact_id,
+        name: dto.contact_name || t("event.unknownContact"),
+        dateLabel: formatDateLabel(date),
+        relativeLabel: buildRelativeLabelFr(daysUntil, t),
+        type: dto.type as EventTypeValue,
+        isToday: daysUntil === 0,
+        daysUntil,
+      };
+    },
+    [t]
+  );
 
-    return {
-      id: dto.id,
-      contactId: dto.contact_id,
-      name: dto.contact_name || t("event.unknownContact"),
-      dateLabel,
-      relativeLabel,
-      type: dto.type as EventTypeValue,
-      isToday: daysUntil === 0,
-      daysUntil,
-    };
-  };
-  useEffect(() => {
-    setShowAllUpcoming(false);
-  }, [selectedTypeFilter]);
-
-  // ---- load from backend ----
   const loadHome = useCallback(async () => {
     try {
       setLoading(true);
+
       const summary: HomeSummaryDTO = await fetchHomeSummary();
 
       const mappedToday = summary.today.map(mapDtoToHomeItem);
 
-      const mappedUpcomingRaw = summary.upcoming.map(mapDtoToHomeItem);
-
-      const mappedUpcoming = mappedUpcomingRaw
+      const mappedUpcoming = summary.upcoming
+        .map(mapDtoToHomeItem)
         .filter((item) => !item.isToday && item.daysUntil > 0)
         .sort((a, b) => a.daysUntil - b.daysUntil);
 
@@ -129,42 +148,41 @@ export default function HomeScreen({ navigation }: Props) {
         string,
         number
       ][])
-        .filter(([_, count]) => count > 0)
+        .filter(([, count]) => count > 0)
         .map(([type, count]) => ({
           type: Number(type) as EventTypeValue,
           count,
         }));
 
       setTypeInsights(insights);
-
       setUpcomingWeekCount(summary.meta.upcoming_week_count ?? 0);
       setTotalContacts(summary.meta.total_contacts ?? 0);
-    } catch (e) {
-      console.log("Home load error", e);
+    } catch (error) {
+      console.log("Home load error", error);
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [mapDtoToHomeItem]);
 
-  // initial
   useEffect(() => {
     loadHome();
   }, [loadHome]);
 
-  // reload à chaque focus
   useFocusEffect(
     useCallback(() => {
       loadHome();
     }, [loadHome])
   );
+
   useEffect(() => {
-    setShowAllToday(false);
-  }, []);
-  
+    setShowAllUpcoming(false);
+  }, [selectedTypeFilter]);
+
   const hasEvents = todayItems.length > 0 || upcoming.length > 0;
+
   const visibleToday = showAllToday
-  ? todayItems
-  : todayItems.slice(0, HOME_TODAY_LIMIT);
+    ? todayItems
+    : todayItems.slice(0, HOME_TODAY_LIMIT);
 
   const filteredUpcoming = useMemo(() => {
     const list =
@@ -173,168 +191,75 @@ export default function HomeScreen({ navigation }: Props) {
         : upcoming.filter((item) => item.type === selectedTypeFilter);
 
     return showAllUpcoming ? list : list.slice(0, HOME_UPCOMING_LIMIT);
-  }, [upcoming, selectedTypeFilter, showAllUpcoming]);
+  }, [selectedTypeFilter, showAllUpcoming, upcoming]);
 
-
-  const upcomingSections: UpcomingSection[] = useMemo(
-  () => buildUpcomingSections(filteredUpcoming, t),
-  [filteredUpcoming, t]
-);
+  const upcomingSections = useMemo(
+    () => buildUpcomingSections(filteredUpcoming, t),
+    [filteredUpcoming, t]
+  );
 
   const mainToday = todayItems[0] ?? null;
 
-  // ---- RENDER ROW ----
+  function openContact(item: HomeItem) {
+    navigation.navigate("ContactDetail", {
+      contactId: item.contactId,
+      contactName: item.name,
+    });
+  }
+
+  function openAddContact() {
+    navigation.navigate("AddContact");
+  }
+
   function renderItemRow(item: HomeItem) {
-    const meta = EVENT_TYPE_META[item.type];
-    const accentColor = item.isToday ? "#F97316" : settings.primaryColor;
-
     return (
-      <TouchableOpacity
-        key={item.id}
-        style={[styles.eventCard, { backgroundColor: settings.cardColor }]}
-        onPress={() =>
-          navigation.navigate("ContactDetail", {
-            contactId: item.contactId,
-            contactName: item.name,
-          })
-        }
-      >
-        {/* Timeline dot + vertical line */}
-        <View style={styles.timelineColumn}>
-          <View
-            style={[
-              styles.timelineDot,
-              { borderColor: accentColor, backgroundColor: settings.cardColor },
-            ]}
-          >
-            <View
-              style={[
-                styles.timelineDotInner,
-                { backgroundColor: accentColor },
-              ]}
-            />
-          </View>
-          <View style={styles.timelineLine} />
-        </View>
-
-        <View style={styles.eventContent}>
-          {/* Top row */}
-          <View style={styles.eventTopRow}>
-            <View style={{ flex: 1 }}>
-              <View style={styles.eventTitleRow}>
-                <Text
-                  style={[styles.eventName, { color: settings.titleColor }]}
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
-                <View
-                  style={[
-                    styles.typeChip,
-                    { backgroundColor: settings.primaryColor + "1A" },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.typeChipText,
-                      { color: settings.primaryColor },
-                    ]}
-                  >
-                    {meta.icon} {meta.label.toLowerCase()}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                style={[styles.eventRelative, { color: settings.textColor }]}
-                numberOfLines={1}
-              >
-                {item.relativeLabel}
-              </Text>
-            </View>
-
-            <View style={styles.eventRight}>
-              <View style={styles.datePill}>
-                <Text style={styles.datePillText}>{item.dateLabel}</Text>
-              </View>
-              {!item.isToday && (
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: settings.primaryColor + "1A" },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      { color: settings.primaryColor },
-                    ]}
-                  >
-                    {formatShortCountdown(item.daysUntil, t)}
-                  </Text>
-                </View>
-              )}
-              {item.isToday && (
-                <View style={styles.todayBadge}>
-                  <Text style={styles.todayBadgeText}>{t("today.badge")}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Bottom row */}
-          <View style={styles.eventBottomRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {item.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)}
-              </Text>
-            </View>
-            <Text
-              style={[styles.eventMeta, { color: settings.textColor }]}
-              numberOfLines={1}
-            >
-              {t("event.tapToView", { name: item.name.split(" ")[0] || t("event.unknownContact") })}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+      <HomeEventRow
+        key={String(item.id)}
+        item={item}
+        colors={colors}
+        t={t}
+        onPress={() => openContact(item)}
+      />
     );
   }
 
-  // ---- UI ----
+  const heroText = hasEvents
+    ? upcomingWeekCount > 0
+      ? upcomingWeekCount === 1
+        ? t("hero.oneMomentThisWeek")
+        : t("hero.manyMomentsThisWeek", { count: upcomingWeekCount })
+      : t("hero.nothingThisWeek")
+    : t("hero.addEvents");
 
   return (
     <Screen scroll>
-      <View style={styles.page}>
+      <View style={[styles.page, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
-          {/* TOP BAR */}
           <View style={styles.appBar}>
             <View style={styles.appTitleRow}>
               <View
                 style={[
                   styles.appIconCircle,
-                  { backgroundColor: settings.primaryColor + "20" },
+                  { backgroundColor: colors.softPrimary },
                 ]}
               >
                 <Ionicons
                   name="sparkles-outline"
                   size={18}
-                  color={settings.primaryColor}
+                  color={colors.primary}
                 />
               </View>
-              <View style={{ flex: 1 }}>
+
+              <View style={styles.appTitleWrap}>
                 <Text
-                  style={[styles.appTitle, { color: settings.titleColor }]}
+                  style={[styles.appTitle, { color: colors.title }]}
                   numberOfLines={1}
                 >
                   {t("app.title")}
                 </Text>
+
                 <Text
-                  style={[styles.appSubtitle, { color: settings.textColor }]}
+                  style={[styles.appSubtitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
                   {t("app.subtitle")}
@@ -342,292 +267,250 @@ export default function HomeScreen({ navigation }: Props) {
               </View>
             </View>
 
-            <View style={styles.appActions}>
-              <View
-                style={[
-                  styles.userChip,
-                  { backgroundColor: settings.primaryColor + "20" },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.userChipText,
-                    { color: settings.primaryColor },
-                  ]}
-                >
-                  {"U"}
-                </Text>
-              </View>
+            <View
+              style={[
+                styles.userChip,
+                {
+                  backgroundColor: colors.softPrimary,
+                  borderColor: withOpacity(colors.primary, "24"),
+                },
+              ]}
+            >
+              <Text style={[styles.userChipText, { color: colors.primary }]}>
+                U
+              </Text>
             </View>
           </View>
 
-          {/* HERO */}
-          <View
-            style={[
-              styles.heroCard,
-              { backgroundColor: settings.primaryColor },
-            ]}
+          <LinearGradient
+            colors={
+              [
+                colors.primary,
+                colors.button,
+              ] as [string, string]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
           >
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text
-                style={[styles.heroGreeting, { color: settings.buttonTextColor }]}
-              >
+            <View style={styles.heroGlowOne} />
+            <View style={styles.heroGlowTwo} />
+
+            <View style={styles.heroContent}>
+              <View style={styles.heroIconBubble}>
+                <Ionicons name="heart-outline" size={24} color={colors.buttonText} />
+              </View>
+
+              <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
                 {t("hero.hello")}
               </Text>
+
               <Text
-                style={[
-                  styles.heroSubtitle,
-                  { color: settings.buttonTextColor },
-                ]}
-                numberOfLines={2}
+                style={[styles.heroSubtitle, { color: colors.buttonText }]}
+                numberOfLines={3}
               >
-               {hasEvents
-                ? upcomingWeekCount > 0
-                  ? upcomingWeekCount === 1
-                    ? t("hero.oneMomentThisWeek")
-                    : t("hero.manyMomentsThisWeek", { count: upcomingWeekCount })
-                  : t("hero.nothingThisWeek")
-                : t("hero.addEvents")}
+                {heroText}
               </Text>
-            </View>
 
-            <View style={styles.heroCTAColumn}>
-              <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  { backgroundColor: settings.buttonColor ?? settings.primaryColor },
-                ]}
-                onPress={() => navigation.navigate("AddContact")}
-              >
-                <Ionicons name="add" size={18} color={settings.buttonTextColor} />
-                <Text
+              <View style={styles.heroFooter}>
+                <TouchableOpacity
                   style={[
-                    styles.primaryButtonText,
-                    { color: settings.buttonTextColor },
+                    styles.primaryButton,
+                    {
+                      backgroundColor: colors.softButtonText,
+                      borderColor: withOpacity(colors.buttonText, "24"),
+                    },
                   ]}
+                  onPress={openAddContact}
+                  activeOpacity={0.88}
                 >
-                  {t("hero.newContact")}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.secondaryHeroRow}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={14}
-                  color={settings.buttonTextColor}
-                />
-                <Text
-                  style={[
-                    styles.secondaryHeroText,
-                    { color: settings.buttonTextColor },
-                  ]}
-                >
-                {t("hero.reminderHint")}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* STATS */}
-          <View style={styles.statsRow}>
-            <View
-              style={[styles.statCard, { backgroundColor: settings.cardColor }]}
-            >
-              <View
-                style={[
-                  styles.statIconBubble,
-                  { backgroundColor: settings.primaryColor + "20" },
-                ]}
-              >
-                <Ionicons
-                  name="people-outline"
-                  size={16}
-                  color={settings.primaryColor}
-                />
-              </View>
-              <Text style={[styles.statLabel, { color: settings.textColor }]}>
-                {t("stats.contacts")}
-              </Text>
-              <Text style={[styles.statValue, { color: settings.titleColor }]}>
-                {totalContacts}
-              </Text>
-              <Text style={[styles.statHint, { color: settings.textColor }]}>
-                {t("stats.peopleTracked")}
-              </Text>
-            </View>
-
-            <View
-              style={[styles.statCard, { backgroundColor: settings.cardColor }]}
-            >
-              <View
-                style={[
-                  styles.statIconBubble,
-                  { backgroundColor: "#FEF3C7" },
-                ]}
-              >
-                <Ionicons name="calendar-outline" size={16} color="#D97706" />
-              </View>
-              <Text style={[styles.statLabel, { color: settings.textColor }]}>
-                {t("stats.thisWeek")}
-              </Text>
-              <Text style={[styles.statValue, { color: settings.titleColor }]}>
-                {upcomingWeekCount}
-              </Text>
-              <Text style={[styles.statHint, { color: settings.textColor }]}>
-                {t("stats.upcomingMoments")}
-              </Text>
-            </View>
-          </View>
-
-          {/* INSIGHTS types */}
-          {typeInsights.length > 0 && (
-            <View style={styles.insightsRow}>
-              {typeInsights.map(({ type, count }) => {
-                const meta = EVENT_TYPE_META[type];
-                return (
-                  <View
-                    key={type}
+                  <Ionicons
+                    name="person-add-outline"
+                    size={18}
+                    color={colors.buttonText}
+                  />
+                  <Text
                     style={[
-                      styles.insightChip,
-                      { backgroundColor: settings.cardColor },
+                      styles.primaryButtonText,
+                      { color: colors.buttonText },
                     ]}
                   >
-                    <Text style={styles.insightIcon}>{meta.icon}</Text>
-                    <View>
-                      <Text
-                        style={[
-                          styles.insightCount,
-                          { color: settings.titleColor },
-                        ]}
-                      >
-                        {count}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.insightLabel,
-                          { color: settings.textColor },
-                        ]}
-                      >
-                        {meta.label.toLowerCase()}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
+                    {t("hero.newContact")}
+                  </Text>
+                </TouchableOpacity>
 
-          {/* TODAY */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text
-                style={[styles.sectionTitle, { color: settings.titleColor }]}
-              >
-                {t("sections.today")}
-              </Text>
+                <View style={styles.secondaryHeroRow}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={14}
+                    color={colors.buttonText}
+                  />
+
+                  <Text
+                    style={[
+                      styles.secondaryHeroText,
+                      { color: colors.buttonText },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {t("hero.reminderHint")}
+                  </Text>
+                </View>
+              </View>
             </View>
+          </LinearGradient>
+
+          <View style={styles.statsRow}>
+            <StatCard
+              icon="people-outline"
+              label={t("stats.contacts")}
+              value={String(totalContacts)}
+              hint={t("stats.peopleTracked")}
+              colors={colors}
+            />
+
+            <StatCard
+              icon="calendar-outline"
+              label={t("stats.thisWeek")}
+              value={String(upcomingWeekCount)}
+              hint={t("stats.upcomingMoments")}
+              colors={colors}
+            />
+          </View>
+
+          {typeInsights.length > 0 ? (
+            <View style={styles.insightsRow}>
+              {typeInsights.map(({ type, count }) => (
+                <InsightChip
+                  key={String(type)}
+                  type={type}
+                  count={count}
+                  colors={colors}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <SectionHeader
+              title={t("sections.today")}
+              icon="sunny-outline"
+              colors={colors}
+            />
 
             {mainToday ? (
               <>
-                <View style={styles.todayHighlightCard}>
-                  <View style={{ flex: 1 }}>
-                  <Text style={[styles.todayTitle, { color: settings.titleColor }]}>
-                    {todayItems.length === 1
-                      ? t("today.oneMoment")
-                      : t("today.manyMoments", { count: todayItems.length })}
-                  </Text>
-                  <Text style={[styles.todayMeta, { color: settings.textColor }]}>
-                    {t("today.meta")}
-                  </Text>
+                <View
+                  style={[
+                    styles.todayHighlightCard,
+                    {
+                      backgroundColor: withOpacity(colors.warning, "18"),
+                      borderColor: withOpacity(colors.warning, "32"),
+                    },
+                  ]}
+                >
+                  <View style={styles.todayHighlightText}>
+                    <Text style={[styles.todayTitle, { color: colors.title }]}>
+                      {todayItems.length === 1
+                        ? t("today.oneMoment")
+                        : t("today.manyMoments", {
+                            count: todayItems.length,
+                          })}
+                    </Text>
+
+                    <Text style={[styles.todayMeta, { color: colors.text }]}>
+                      {t("today.meta")}
+                    </Text>
                   </View>
-                  <View style={styles.todayIconCircle}>
+
+                  <View
+                    style={[
+                      styles.todayIconCircle,
+                      { backgroundColor: withOpacity(colors.warning, "22") },
+                    ]}
+                  >
                     <Ionicons
                       name="gift-outline"
                       size={22}
-                      color="#F97316"
+                      color={colors.warning}
                     />
                   </View>
                 </View>
 
-                {todayItems.length > 0 && (
-                  <View style={{ marginTop: 10 }}>
-                    {visibleToday.map((item) => renderItemRow(item))}
-                  </View>
-                )}
+                <View style={styles.eventList}>
+                  {visibleToday.map((item) => renderItemRow(item))}
+                </View>
+
+                {todayItems.length > HOME_TODAY_LIMIT ? (
+                  <ShowMoreButton
+                    label={
+                      showAllToday
+                        ? t("upcoming.showLess")
+                        : t("upcoming.viewAll")
+                    }
+                    colors={colors}
+                    onPress={() => setShowAllToday((value) => !value)}
+                  />
+                ) : null}
               </>
             ) : (
-              <View
-                style={[
-                  styles.todayEmptyCard,
-                  { backgroundColor: settings.cardColor },
-                ]}
-              >
-                <View style={styles.todayEmptyIconBubble}>
-                  <Ionicons
-                    name="sparkles-outline"
-                    size={18}
-                    color="#4B5563"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                <Text style={[styles.todayTitle, { color: settings.titleColor }]}>
-                  {t("today.emptyTitle")}
-                </Text>
-                <Text style={[styles.todayMeta, { color: settings.textColor }]}>
-                  {t("today.emptyText")}
-                </Text>
-                </View>
-              </View>
+              <EmptyInlineCard
+                icon="sparkles-outline"
+                title={t("today.emptyTitle")}
+                text={t("today.emptyText")}
+                colors={colors}
+              />
             )}
           </View>
-          {todayItems.length > HOME_TODAY_LIMIT && (
-  <TouchableOpacity
-    onPress={() => setShowAllToday((v) => !v)}
-    style={{ marginTop: 8, alignSelf: "center" }}
-  >
-    <Text
-      style={{
-        color: settings.primaryColor,
-        fontWeight: "600",
-      }}
-    >
-      {showAllToday ? t("upcoming.showLess") : t("upcoming.viewAll")}
-      </Text>
-  </TouchableOpacity>
-)}
 
-          {/* UPCOMING */}
           <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-              {t("sections.upcoming")}
-              </Text>
-            </View>
+            <SectionHeader
+              title={t("sections.upcoming")}
+              icon="calendar-outline"
+              colors={colors}
+            />
 
             {loading ? (
-              <Text style={{ color: settings.textColor }}>{t("upcoming.loading")}</Text>
-            ) : upcomingSections.length === 0 ? (
-              <View style={styles.emptyStateInline}>
-                <Text style={[styles.emptyText, { color: settings.textColor }]}>
-                {t("upcoming.emptyFilter")}
+              <View
+                style={[
+                  styles.loadingCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.loadingCardText, { color: colors.text }]}>
+                  {t("upcoming.loading")}
                 </Text>
               </View>
+            ) : upcomingSections.length === 0 ? (
+              <EmptyInlineCard
+                icon="calendar-clear-outline"
+                title={t("upcoming.emptyFilter")}
+                text={t("hero.addEvents")}
+                colors={colors}
+              />
             ) : (
               <>
-                {/* FILTERS */}
                 <View style={styles.filterRow}>
                   <FilterChip
                     label={t("upcoming.all")}
                     selected={selectedTypeFilter === "all"}
+                    colors={colors}
                     onPress={() => setSelectedTypeFilter("all")}
                   />
+
                   {typeInsights.map(({ type, count }) => {
-                    const meta = EVENT_TYPE_META[type];
+                    const meta = getEventMeta(type);
+
                     return (
                       <FilterChip
-                        key={type}
+                        key={String(type)}
                         label={`${count} ${meta.icon}`}
                         selected={selectedTypeFilter === type}
+                        colors={colors}
                         onPress={() => setSelectedTypeFilter(type)}
                       />
                     );
@@ -636,136 +519,559 @@ export default function HomeScreen({ navigation }: Props) {
 
                 {upcomingSections.map((section) => (
                   <View key={section.key} style={styles.upcomingSectionBlock}>
-                    <Text style={[styles.upcomingSectionTitle, { color: settings.textColor }]}>
+                    <Text
+                      style={[
+                        styles.upcomingSectionTitle,
+                        { color: colors.text },
+                      ]}
+                    >
                       {section.title}
                     </Text>
+
                     {section.data.map((item) => renderItemRow(item))}
                   </View>
                 ))}
 
-                {/* 🔹 NEW: Show more */}
-                {upcoming.length > HOME_UPCOMING_LIMIT && (
-                  <TouchableOpacity
-                    onPress={() => setShowAllUpcoming((v) => !v)}
-                    style={{ marginTop: 10, alignSelf: "center" }}
-                  >
-                   <Text style={{ color: settings.primaryColor, fontWeight: "600" }}>
-                  {showAllUpcoming ? t("upcoming.seeLess") : t("upcoming.seeMore")}
-                </Text>
-                  </TouchableOpacity>
-                )}
+                {upcoming.length > HOME_UPCOMING_LIMIT ? (
+                  <ShowMoreButton
+                    label={
+                      showAllUpcoming
+                        ? t("upcoming.seeLess")
+                        : t("upcoming.seeMore")
+                    }
+                    colors={colors}
+                    onPress={() => setShowAllUpcoming((value) => !value)}
+                  />
+                ) : null}
               </>
             )}
           </View>
 
-          {/* Récemment célébré (placeholder) */}
           <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, { color: settings.titleColor }]}
-            >
-              {t("sections.recentlyCelebrated")}
-            </Text>
+            <SectionHeader
+              title={t("sections.recentlyCelebrated")}
+              icon="chatbubble-ellipses-outline"
+              colors={colors}
+            />
+
             <View
               style={[
                 styles.recentCard,
-                { backgroundColor: settings.cardColor },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
               ]}
             >
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={18}
-                color="#6B7280"
-              />
-              <View style={{ marginLeft: 8, flex: 1 }}>
-                <Text
-                  style={[styles.recentTitle, { color: settings.titleColor }]}
-                >
-                    {t("recent.comingSoon")}
+              <View
+                style={[
+                  styles.recentIcon,
+                  { backgroundColor: colors.softPrimary },
+                ]}
+              >
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+              </View>
+
+              <View style={styles.recentTextWrap}>
+                <Text style={[styles.recentTitle, { color: colors.title }]}>
+                  {t("recent.comingSoon")}
                 </Text>
-                <Text
-                  style={[styles.recentText, { color: settings.textColor }]}
-                >
-                    {t("recent.text")}
+
+                <Text style={[styles.recentText, { color: colors.text }]}>
+                  {t("recent.text")}
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* Plan + notifications */}
           <View style={styles.bottomRow}>
             <View
               style={[
                 styles.planCard,
-                { backgroundColor: settings.cardColor },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
               ]}
             >
-              <Text
-                style={[styles.planTitle, { color: settings.titleColor }]}
+              <View
+                style={[
+                  styles.smallCardIcon,
+                  { backgroundColor: colors.softPrimary },
+                ]}
               >
-                 {t("plan.title")}
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={17}
+                  color={colors.primary}
+                />
+              </View>
+
+              <Text style={[styles.planTitle, { color: colors.title }]}>
+                {t("plan.title")}
               </Text>
-              <Text
-                style={[styles.planText, { color: settings.textColor }]}
-              >
-                  {t("plan.text")}
+
+              <Text style={[styles.planText, { color: colors.text }]}>
+                {t("plan.text")}
               </Text>
             </View>
 
             <View
               style={[
                 styles.noticeCard,
-                { backgroundColor: settings.cardColor },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
               ]}
             >
-              <Ionicons
-                name="notifications-outline"
-                size={18}
-                color={settings.primaryColor}
-              />
-              <View style={{ marginLeft: 8, flex: 1 }}>
-                <Text
-                  style={[
-                    styles.noticeTitle,
-                    { color: settings.titleColor },
-                  ]}
-                >
+              <View
+                style={[
+                  styles.smallCardIcon,
+                  { backgroundColor: colors.softPrimary },
+                ]}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={17}
+                  color={colors.primary}
+                />
+              </View>
+
+              <View style={styles.noticeTextWrap}>
+                <Text style={[styles.noticeTitle, { color: colors.title }]}>
                   {t("notifications.title")}
                 </Text>
-                <Text
-                  style={[styles.noticeText, { color: settings.textColor }]}
-                >
+
+                <Text style={[styles.noticeText, { color: colors.text }]}>
                   {t("notifications.text")}
                 </Text>
               </View>
             </View>
           </View>
         </View>
-
-        {/* FAB */}
-        <TouchableOpacity
-          style={[
-            styles.fab,
-            { backgroundColor: settings.buttonColor ?? settings.primaryColor },
-          ]}
-          onPress={() => navigation.navigate("AddContact")}
-        >
-          <Ionicons name="add" size={26} color={settings.buttonTextColor} />
-        </TouchableOpacity>
       </View>
     </Screen>
   );
 }
 
-// ---------------- helpers ----------------
+function HomeEventRow({
+  item,
+  colors,
+  t,
+  onPress,
+}: {
+  item: HomeItem;
+  colors: HomeColors;
+  t: any;
+  onPress: () => void;
+}) {
+  const meta = getEventMeta(item.type);
+  const accentColor = item.isToday ? colors.warning : colors.primary;
+  const initials = getInitials(item.name);
 
-function formatDateLabel(d: Date) {
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return (
+    <TouchableOpacity
+      style={[
+        styles.eventCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      <View style={styles.timelineColumn}>
+        <View
+          style={[
+            styles.timelineDot,
+            {
+              borderColor: accentColor,
+              backgroundColor: colors.card,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.timelineDotInner,
+              { backgroundColor: accentColor },
+            ]}
+          />
+        </View>
+
+        <View
+          style={[
+            styles.timelineLine,
+            { backgroundColor: colors.border },
+          ]}
+        />
+      </View>
+
+      <View style={styles.eventContent}>
+        <View style={styles.eventTopRow}>
+          <View style={styles.eventMainText}>
+            <View style={styles.eventTitleRow}>
+              <Text
+                style={[styles.eventName, { color: colors.title }]}
+                numberOfLines={1}
+              >
+                {item.name}
+              </Text>
+
+              <View
+                style={[
+                  styles.typeChip,
+                  { backgroundColor: withOpacity(accentColor, "16") },
+                ]}
+              >
+                <Text style={[styles.typeChipText, { color: accentColor }]}>
+                  {meta.icon} {meta.label.toLowerCase()}
+                </Text>
+              </View>
+            </View>
+
+            <Text
+              style={[styles.eventRelative, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {item.relativeLabel}
+            </Text>
+          </View>
+
+          <View style={styles.eventRight}>
+            <View
+              style={[
+                styles.datePill,
+                { backgroundColor: colors.softCard },
+              ]}
+            >
+              <Text style={[styles.datePillText, { color: colors.text }]}>
+                {item.dateLabel}
+              </Text>
+            </View>
+
+            {item.isToday ? (
+              <View
+                style={[
+                  styles.todayBadge,
+                  { backgroundColor: withOpacity(colors.warning, "18") },
+                ]}
+              >
+                <Text style={[styles.todayBadgeText, { color: colors.warning }]}>
+                  {t("today.badge")}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: withOpacity(colors.primary, "14") },
+                ]}
+              >
+                <Text style={[styles.badgeText, { color: colors.primary }]}>
+                  {formatShortCountdown(item.daysUntil, t)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.eventBottomRow}>
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: withOpacity(colors.primary, "18") },
+            ]}
+          >
+            <Text style={[styles.avatarText, { color: colors.primary }]}>
+              {initials}
+            </Text>
+          </View>
+
+          <Text
+            style={[styles.eventMeta, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {t("event.tapToView", {
+              name: item.name.split(" ")[0] || t("event.unknownContact"),
+            })}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 }
-function parseDateOnly(dateString: string) {
+
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  hint: string;
+  colors: HomeColors;
+}) {
+  return (
+    <View
+      style={[
+        styles.statCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.statIconBubble,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name={icon} size={16} color={colors.primary} />
+      </View>
+
+      <Text style={[styles.statLabel, { color: colors.text }]}>
+        {label}
+      </Text>
+
+      <Text style={[styles.statValue, { color: colors.title }]}>
+        {value}
+      </Text>
+
+      <Text style={[styles.statHint, { color: colors.text }]}>
+        {hint}
+      </Text>
+    </View>
+  );
+}
+
+function InsightChip({
+  type,
+  count,
+  colors,
+}: {
+  type: EventTypeValue;
+  count: number;
+  colors: HomeColors;
+}) {
+  const meta = getEventMeta(type);
+
+  return (
+    <View
+      style={[
+        styles.insightChip,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <Text style={styles.insightIcon}>{meta.icon}</Text>
+
+      <View>
+        <Text style={[styles.insightCount, { color: colors.title }]}>
+          {count}
+        </Text>
+
+        <Text style={[styles.insightLabel, { color: colors.text }]}>
+          {meta.label.toLowerCase()}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function SectionHeader({
+  title,
+  icon,
+  colors,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  colors: HomeColors;
+}) {
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <View style={styles.sectionTitleLeft}>
+        <View
+          style={[
+            styles.sectionIconBubble,
+            { backgroundColor: colors.softPrimary },
+          ]}
+        >
+          <Ionicons name={icon} size={15} color={colors.primary} />
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.title }]}>
+          {title}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function EmptyInlineCard({
+  icon,
+  title,
+  text,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  text: string;
+  colors: HomeColors;
+}) {
+  return (
+    <View
+      style={[
+        styles.emptyCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.emptyIcon,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name={icon} size={18} color={colors.primary} />
+      </View>
+
+      <View style={styles.emptyTextWrap}>
+        <Text style={[styles.emptyTitle, { color: colors.title }]}>
+          {title}
+        </Text>
+
+        <Text style={[styles.emptyText, { color: colors.text }]}>
+          {text}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FilterChip({
+  label,
+  selected,
+  colors,
+  onPress,
+}: {
+  label: string;
+  selected?: boolean;
+  colors: HomeColors;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={[
+        styles.filterChip,
+        {
+          backgroundColor: selected ? colors.softPrimary : colors.card,
+          borderColor: selected ? colors.primary : colors.border,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.filterChipText,
+          {
+            color: selected ? colors.primary : colors.text,
+            fontWeight: selected ? "900" : "800",
+          },
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function ShowMoreButton({
+  label,
+  colors,
+  onPress,
+}: {
+  label: string;
+  colors: HomeColors;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.showMoreButton,
+        {
+          backgroundColor: colors.softPrimary,
+          borderColor: withOpacity(colors.primary, "20"),
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Text style={[styles.showMoreText, { color: colors.primary }]}>
+        {label}
+      </Text>
+
+      <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
+
+/* helpers */
+
+function makeHomeColors(settings: any): HomeColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "18"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    softButtonText: withOpacity(settings.buttonTextColor, "18"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    success: "#7DA56D",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
+function withOpacity(hexColor?: string | null, opacityHex = "22") {
+  if (!hexColor || typeof hexColor !== "string") {
+    return `#000000${opacityHex}`;
+  }
+
+  const normalized = hexColor.trim();
+
+  if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return `${normalized}${opacityHex}`;
+  }
+
+  return normalized;
+}
+
+function parseDateOnly(dateString?: string | null) {
+  if (!dateString) return new Date("");
+
   const [year, month, day] = dateString.split("-").map(Number);
 
   if (!year || !month || !day) {
@@ -774,31 +1080,58 @@ function parseDateOnly(dateString: string) {
 
   return new Date(year, month - 1, day);
 }
+
+function formatDateLabel(date: Date) {
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function buildRelativeLabelFr(daysUntil: number, t: any) {
   if (daysUntil === 0) return t("relative.today");
   if (daysUntil === 1) return t("relative.tomorrow");
-  if (daysUntil < 7) return t("relative.inDays", { count: daysUntil });
+
+  if (daysUntil < 7) {
+    return t("relative.inDays", { count: daysUntil });
+  }
+
   if (daysUntil < 30) {
     const weeks = Math.ceil(daysUntil / 7);
-    return weeks === 1 ? t("relative.inWeek") : t("relative.inWeeks", { count: weeks });
+
+    return weeks === 1
+      ? t("relative.inWeek")
+      : t("relative.inWeeks", { count: weeks });
   }
+
   return t("relative.inDays", { count: daysUntil });
 }
 
 function formatShortCountdown(daysUntil: number, t: any) {
   if (daysUntil === 0) return t("countdown.today");
   if (daysUntil === 1) return t("countdown.oneDay");
-  if (daysUntil < 7) return t("countdown.days", { count: daysUntil });
+
+  if (daysUntil < 7) {
+    return t("countdown.days", { count: daysUntil });
+  }
+
   const weeks = Math.ceil(daysUntil / 7);
+
   return t("countdown.weeks", { count: weeks });
 }
 
-function buildUpcomingSections(items: HomeItem[], t: any): UpcomingSection[] {
+function buildUpcomingSections(
+  items: HomeItem[],
+  t: any
+): UpcomingSection[] {
   const week: HomeItem[] = [];
   const month: HomeItem[] = [];
 
   for (const item of items) {
     if (item.daysUntil === 0) continue;
+
     if (item.daysUntil <= 7) {
       week.push(item);
     } else {
@@ -815,6 +1148,7 @@ function buildUpcomingSections(items: HomeItem[], t: any): UpcomingSection[] {
       data: week,
     });
   }
+
   if (month.length > 0) {
     sections.push({
       key: "month",
@@ -826,541 +1160,712 @@ function buildUpcomingSections(items: HomeItem[], t: any): UpcomingSection[] {
   return sections;
 }
 
-// small component
-type FilterChipProps = {
-  label: string;
-  selected?: boolean;
-  onPress: () => void;
-};
-
-function FilterChip({ label, selected, onPress }: FilterChipProps) {
-  const { settings } = useAppearance();
+function getEventMeta(type: EventTypeValue) {
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[
-        styles.filterChip,
-        selected && [
-          styles.filterChipSelected,
-          {
-            borderColor: settings.primaryColor,
-            shadowColor: settings.primaryColor,
-            backgroundColor: settings.primaryColor + "15",
-          },
-        ],
-      ]}
-    >
-      <Text
-        style={[
-          styles.filterChipText,
-          selected && [
-            styles.filterChipTextSelected,
-            { color: settings.primaryColor },
-          ],
-        ]}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
+    EVENT_TYPE_META[type] ?? {
+      icon: "✨",
+      label: "Moment",
+    }
   );
 }
 
-// ---------------- styles ----------------
+function getInitials(name: string) {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "?"
+  );
+}
+
+/* styles */
 
 const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
+
   container: {
     flex: 1,
-    padding: 16,
-    paddingTop: 40,
-    paddingBottom: 32,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 34,
   },
 
-  // App bar
   appBar: {
+    minHeight: 44,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
+
   appTitleRow: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    flex: 1,
   },
+
   appIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  appTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+
+  appTitleWrap: {
+    flex: 1,
+    minWidth: 0,
   },
+
+  appTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+
   appSubtitle: {
     fontSize: 12,
-    opacity: 0.8,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.78,
+    marginTop: 1,
   },
-  appActions: {
+
+  userChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  userChipText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  heroCard: {
+    minHeight: 206,
+    borderRadius: 32,
+    padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+
+  heroGlowOne: {
+    position: "absolute",
+    top: -54,
+    right: -42,
+    width: 155,
+    height: 155,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+
+  heroGlowTwo: {
+    position: "absolute",
+    bottom: -70,
+    left: -52,
+    width: 165,
+    height: 165,
+    borderRadius: 86,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  heroContent: {
+    flex: 1,
+  },
+
+  heroIconBubble: {
+    width: 50,
+    height: 50,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 13,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+
+  heroGreeting: {
+    fontSize: 29,
+    lineHeight: 34,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+
+  heroSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    opacity: 0.82,
+    marginTop: 7,
+    maxWidth: 310,
+  },
+
+  heroFooter: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  primaryButton: {
+    minHeight: 42,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderWidth: 1,
+  },
+
+  primaryButtonText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  secondaryHeroRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 5,
+  },
+
+  secondaryHeroText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "800",
+    opacity: 0.78,
+  },
+
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+
+  statCard: {
+    flex: 1,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
+  statIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+
+  statLabel: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    opacity: 0.72,
+  },
+
+  statValue: {
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+
+  statHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    marginTop: 2,
+    opacity: 0.72,
+  },
+
+  insightsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  insightChip: {
+    minHeight: 45,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  insightIcon: {
+    fontSize: 17,
+  },
+
+  insightCount: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  insightLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    opacity: 0.72,
+  },
+
+  section: {
+    marginTop: 18,
+  },
+
+  sectionHeaderRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 9,
+  },
+
+  sectionTitleLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  userChip: {
+
+  sectionIconBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.1,
+  },
+
+  todayHighlightCard: {
+    minHeight: 82,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  todayHighlightText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  todayTitle: {
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: "900",
+  },
+
+  todayMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 3,
+  },
+
+  todayIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+
+  eventList: {
+    marginTop: 10,
+  },
+
+  eventCard: {
+    flexDirection: "row",
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 9,
+    paddingVertical: 12,
+    paddingRight: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
+  timelineColumn: {
+    width: 38,
+    alignItems: "center",
+  },
+
+  timelineDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+
+  timelineDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  timelineLine: {
+    flex: 1,
+    width: 2,
+    marginTop: 5,
+    marginBottom: 2,
+    borderRadius: 999,
+  },
+
+  eventContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  eventTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+
+  eventMainText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  eventTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  eventName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+  },
+
+  eventRelative: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    marginTop: 3,
+    opacity: 0.76,
+  },
+
+  eventRight: {
+    alignItems: "flex-end",
+    gap: 5,
+  },
+
+  datePill: {
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+
+  datePillText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  todayBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+
+  todayBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+
+  eventBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 11,
+  },
+
+  avatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
-  userChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
 
-  // Hero
-  heroCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 12,
-  },
-  heroGreeting: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  heroSubtitle: {
-    fontSize: 13,
-  },
-  heroCTAColumn: {
-    marginLeft: 12,
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  primaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    gap: 6,
-  },
-  primaryButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  secondaryHeroRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    maxWidth: 160,
-  },
-  secondaryHeroText: {
-    fontSize: 11,
-    marginLeft: 4,
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 14,
-    padding: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  statIconBubble: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  statHint: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-
-  // Insights
-  insightsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 4,
-  },
-  insightChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-    gap: 6,
-  },
-  insightIcon: {
-    fontSize: 16,
-  },
-  insightCount: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  insightLabel: {
-    fontSize: 11,
-    textTransform: "lowercase",
-  },
-
-  // Sections
-  section: {
-    marginTop: 12,
-    gap: 8,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  // Today
-  todayHighlightCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    padding: 12,
-    backgroundColor: "#FEF3C7",
-  },
-  todayTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  todayMeta: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  todayIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 10,
-  },
-  todayEmptyCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    padding: 12,
-  },
-  todayEmptyIconBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-
-  // Event cards (timeline style)
-  eventCard: {
-    flexDirection: "row",
-    borderRadius: 16,
-    marginBottom: 8,
-    paddingVertical: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  timelineColumn: {
-    width: 26,
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-  },
-  timelineDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  timelineLine: {
-    flex: 1,
-    width: 2,
-    backgroundColor: "#E5E7EB",
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  eventContent: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  eventTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 4,
-  },
-  eventTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 2,
-  },
-  eventName: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  eventRelative: {
-    fontSize: 13,
-    opacity: 0.9,
-  },
-  eventRight: {
-    alignItems: "flex-end",
-    gap: 4,
-    marginLeft: 8,
-  },
-  datePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#F3F4F6",
-  },
-  datePillText: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  todayBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#FEF3C7",
-  },
-  todayBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#B45309",
-  },
-  eventBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    gap: 8,
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#DBEAFE",
-  },
   avatarText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#1D4ED8",
-  },
-  eventMeta: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  badgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "900",
   },
+
+  eventMeta: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    opacity: 0.72,
+  },
+
   typeChip: {
     borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  typeChipText: {
-    fontSize: 11,
-    fontWeight: "500",
+    paddingVertical: 4,
   },
 
-  // Filter chips
+  typeChipText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 4,
+    gap: 8,
+    marginBottom: 8,
   },
+
   filterChip: {
+    minHeight: 36,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  filterChipSelected: {
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+
   filterChipText: {
     fontSize: 12,
-    color: "#4B5563",
-  },
-  filterChipTextSelected: {
-    fontWeight: "600",
   },
 
   upcomingSectionBlock: {
-    marginTop: 4,
-    marginBottom: 4,
+    marginTop: 6,
   },
+
   upcomingSectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    opacity: 0.75,
-    marginBottom: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    opacity: 0.72,
+    marginBottom: 7,
   },
 
-  // Empty states
-  emptyState: {
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 12,
+  loadingCard: {
+    minHeight: 72,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    gap: 6,
-  },
-  emptyStateInline: {
-    marginTop: 4,
-    padding: 8,
-    borderRadius: 10,
-    backgroundColor: "#F9FAFB",
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  emptyText: {
-    fontSize: 14,
-    opacity: 0.85,
-  },
-
-  // Recently
-  recentCard: {
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
-    padding: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  recentTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  recentText: {
-    fontSize: 13,
-    marginTop: 2,
+    gap: 10,
   },
 
-  // Bottom cards
-  bottomRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 16,
-  },
-  planCard: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 10,
-  },
-  planTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  planText: {
+  loadingCardText: {
     fontSize: 13,
-    opacity: 0.9,
+    fontWeight: "800",
   },
-  noticeCard: {
-    flex: 1,
-    flexDirection: "row",
-    borderRadius: 12,
+
+  emptyCard: {
+    minHeight: 78,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#DBEAFE",
-    padding: 10,
+    padding: 14,
+    flexDirection: "row",
     alignItems: "center",
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  noticeText: {
-    fontSize: 13,
-    opacity: 0.9,
+    gap: 12,
   },
 
-  // FAB
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  emptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+  },
+
+  emptyTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  emptyTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+  },
+
+  emptyText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 3,
+  },
+
+  showMoreButton: {
+    alignSelf: "center",
+    minHeight: 38,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    marginTop: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  showMoreText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  recentCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  recentIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  recentTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  recentTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+  },
+
+  recentText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 3,
+  },
+
+  bottomRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+  },
+
+  planCard: {
+    flex: 1,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+  },
+
+  smallCardIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+
+  planTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  planText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 5,
+  },
+
+  noticeCard: {
+    flex: 1,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+  },
+
+  noticeTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  noticeTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  noticeText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 5,
   },
 });

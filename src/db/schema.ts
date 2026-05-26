@@ -509,3 +509,23 @@ export const contactAlbumPhoto = sqliteTable(
     ),
   })
 );
+/**
+ * APP SETTING TABLE
+ *
+ * Global local-first settings.
+ * Used for appearance, preferences, app config, etc.
+ */
+export const appSetting = sqliteTable(
+  "app_setting",
+  {
+    key: text("key").primaryKey().notNull(),
+
+    value: text("value").notNull(),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("app_setting_updated_idx").on(table.updatedAt),
+  ]
+);

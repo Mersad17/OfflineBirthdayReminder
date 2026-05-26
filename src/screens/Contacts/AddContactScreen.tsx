@@ -1,22 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  Alert,
-  StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-  Image,
-  Modal,
+  View,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 import {
   createContact,
@@ -33,18 +35,34 @@ import {
   DEFAULT_GROUP_ICON,
   DEFAULT_TAG_COLOR,
   GROUP_ICONS,
-  GroupIconName,
   LABEL_COLORS,
- } from "../../lib/groupTagOptions";
+} from "../../lib/groupTagOptions";
 
 type Props = {
   navigation: any;
 };
 
-
+type AddContactColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  softText: string;
+  danger: string;
+  warning: string;
+  shadow: string;
+};
 
 export default function AddContactScreen({ navigation }: Props) {
   const { settings } = useAppearance();
+  const colors = useMemo(() => makeAddContactColors(settings), [settings]);
 
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
@@ -75,7 +93,7 @@ export default function AddContactScreen({ navigation }: Props) {
   const [showTagModal, setShowTagModal] = useState(false);
 
   const [newGroupName, setNewGroupName] = useState("");
-const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
+  const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
   const [newGroupIcon, setNewGroupIcon] =
     useState<(typeof GROUP_ICONS)[number]>(DEFAULT_GROUP_ICON);
 
@@ -100,7 +118,9 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
 
         setTagColorsByName(
           tagData.reduce((acc: Record<string, string>, tag: ContactTag) => {
-            acc[tag.name.toLowerCase()] = tag.color || settings.primaryColor;
+            acc[tag.name.toLowerCase()] =
+              tag.color || settings.primaryColor;
+
             return acc;
           }, {})
         );
@@ -110,7 +130,7 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
     }
 
     loadRelationshipData();
-  }, []);
+  }, [settings.primaryColor]);
 
   const selectedGroup = useMemo(() => {
     if (!selectedGroupId) return null;
@@ -119,28 +139,28 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
   }, [groups, selectedGroupId]);
 
   const filteredGroups = useMemo(() => {
-    const q = groupSearch.trim().toLowerCase();
+    const query = groupSearch.trim().toLowerCase();
 
-    if (!q) return [];
+    if (!query) return [];
 
-    return groups.filter((group) => group.name.toLowerCase().includes(q));
+    return groups.filter((group) => group.name.toLowerCase().includes(query));
   }, [groups, groupSearch]);
 
   const exactGroupExists = useMemo(() => {
-    const q = groupSearch.trim().toLowerCase();
+    const query = groupSearch.trim().toLowerCase();
 
-    if (!q) return true;
+    if (!query) return true;
 
-    return groups.some((group) => group.name.toLowerCase() === q);
+    return groups.some((group) => group.name.toLowerCase() === query);
   }, [groups, groupSearch]);
 
   const filteredTagSuggestions = useMemo(() => {
-    const q = tagSearch.trim().toLowerCase();
+    const query = tagSearch.trim().toLowerCase();
 
-    if (!q) return [];
+    if (!query) return [];
 
     return tags
-      .filter((tag) => tag.name.toLowerCase().includes(q))
+      .filter((tag) => tag.name.toLowerCase().includes(query))
       .filter(
         (tag) =>
           !tagNames.some(
@@ -151,17 +171,17 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
   }, [tags, tagSearch, tagNames]);
 
   const exactTagExists = useMemo(() => {
-    const q = tagSearch.trim().toLowerCase();
+    const query = tagSearch.trim().toLowerCase();
 
-    if (!q) return true;
+    if (!query) return true;
 
-    return tags.some((tag) => tag.name.toLowerCase() === q);
+    return tags.some((tag) => tag.name.toLowerCase() === query);
   }, [tags, tagSearch]);
 
-  function formatDate(d: Date) {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
+  function formatDate(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   }
@@ -170,21 +190,21 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
     setShowBirthdayPicker(true);
   }
 
-  function onBirthdayChange(event: DateTimePickerEvent, date?: Date) {
+  function onBirthdayChange(_: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === "android") {
       setShowBirthdayPicker(false);
     }
 
-    if (date) {
-      setBirthdayDate(date);
-      setBirthday(formatDate(date));
-    }
+    if (!date) return;
+
+    setBirthdayDate(date);
+    setBirthday(formatDate(date));
   }
 
   async function pickPhoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (status !== "granted") {
+    if (!permission.granted) {
       Alert.alert(
         "Permission needed",
         "Please allow photo access to pick a picture."
@@ -194,29 +214,29 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.8,
+      quality: 0.85,
     });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
+    if (!result.canceled && result.assets.length > 0) {
       setPhotoUri(result.assets[0].uri);
     }
   }
 
   function openCreateGroupModalFromSearch() {
-    const clean = groupSearch.trim();
+    const cleanName = groupSearch.trim();
 
-    if (clean) {
-      setNewGroupName(clean);
+    if (cleanName) {
+      setNewGroupName(cleanName);
     }
 
     setShowGroupModal(true);
   }
 
   function openCreateTagModalFromSearch() {
-    const clean = tagSearch.trim();
+    const cleanName = tagSearch.trim();
 
-    if (clean) {
-      setNewTagName(clean);
+    if (cleanName) {
+      setNewTagName(cleanName);
     }
 
     setShowTagModal(true);
@@ -236,7 +256,7 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
 
     setTagColorsByName((prev) => ({
       ...prev,
-      [tag.name.toLowerCase()]: tag.color || settings.primaryColor,
+      [tag.name.toLowerCase()]: tag.color || colors.primary,
     }));
 
     setTagSearch("");
@@ -274,14 +294,14 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
       setGroupSearch("");
 
       setNewGroupName("");
-     setNewGroupColor(DEFAULT_GROUP_COLOR);
-    setNewGroupIcon(DEFAULT_GROUP_ICON);
+      setNewGroupColor(DEFAULT_GROUP_COLOR);
+      setNewGroupIcon(DEFAULT_GROUP_ICON);
 
       setShowGroupModal(false);
-    } catch (e: any) {
+    } catch (error: any) {
       Alert.alert(
-        "Error",
-        JSON.stringify(e?.response?.data || "Could not create group")
+        "Create group",
+        JSON.stringify(error?.response?.data || "Could not create group")
       );
     } finally {
       setCreatingGroup(false);
@@ -340,10 +360,10 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
       setNewTagColor(DEFAULT_TAG_COLOR);
       setTagSearch("");
       setShowTagModal(false);
-    } catch (e: any) {
+    } catch (error: any) {
       Alert.alert(
-        "Error",
-        JSON.stringify(e?.response?.data || "Could not create tag")
+        "Create tag",
+        JSON.stringify(error?.response?.data || "Could not create tag")
       );
     } finally {
       setCreatingTag(false);
@@ -375,40 +395,76 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
       Alert.alert("Success", "Contact created.");
       navigation.goBack();
     } catch (error: unknown) {
-  console.log("CREATE CONTACT ERROR FULL:", error);
+      console.log("CREATE CONTACT ERROR FULL:", error);
 
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-      ? error
-      : "Failed to create contact.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "Failed to create contact.";
 
-  console.log("CREATE CONTACT ERROR MESSAGE:", message);
-
-  Alert.alert("Create contact", message);
-} finally {
+      Alert.alert("Create contact", message);
+    } finally {
       setSaving(false);
     }
   }
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
       <Screen scroll>
-        <View style={styles.container}>
+        <View style={[styles.root, { backgroundColor: colors.background }]}>
           <ScrollView
             ref={scrollRef}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={[styles.card, { backgroundColor: settings.cardColor }]}>
-              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-                Photo
-              </Text>
+            <LinearGradient
+              colors={
+                [
+                  colors.primary,
+                  colors.button,
+                ] as [string, string]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroCard}
+            >
+              <View style={styles.heroGlowOne} />
+              <View style={styles.heroGlowTwo} />
+
+
+
+              <View style={styles.heroBody}>
+               
+                <Text style={styles.heroTitle}>Create a memory profile</Text>
+
+                <Text style={styles.heroSubtitle}>
+                  Add the details that help you remember who they are, what matters, and when to reconnect.
+                </Text>
+              </View>
+            </LinearGradient>
+
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  shadowColor: colors.shadow,
+                },
+              ]}
+            >
+              <SectionTitle
+                icon="image-outline"
+                title="Photo"
+                colors={colors}
+              />
 
               <View style={styles.photoRow}>
                 {photoUri ? (
@@ -417,26 +473,38 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                   <View
                     style={[
                       styles.photoPlaceholder,
-                      { backgroundColor: settings.cardColor },
+                      {
+                        backgroundColor: colors.softCard,
+                        borderColor: colors.border,
+                      },
                     ]}
                   >
-                    <Text style={{ color: settings.textColor + "80" }}>
-                      No photo
-                    </Text>
+                    <Ionicons
+                      name="person-outline"
+                      size={24}
+                      color={colors.text}
+                    />
                   </View>
                 )}
 
                 <TouchableOpacity
                   style={[
                     styles.photoButton,
-                    { backgroundColor: settings.buttonColor },
+                    { backgroundColor: colors.softPrimary },
                   ]}
                   onPress={pickPhoto}
+                  activeOpacity={0.85}
                 >
+                  <Ionicons
+                    name="camera-outline"
+                    size={17}
+                    color={colors.primary}
+                  />
+
                   <Text
                     style={[
                       styles.photoButtonText,
-                      { color: settings.buttonTextColor },
+                      { color: colors.primary },
                     ]}
                   >
                     {photoUri ? "Change photo" : "Add photo"}
@@ -444,95 +512,77 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.divider} />
+              <Divider colors={colors} />
 
-              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-                Basic info
-              </Text>
+              <SectionTitle
+                icon="person-outline"
+                title="Basic info"
+                colors={colors}
+              />
 
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: settings.titleColor }]}>
-                  First name
-                </Text>
-
-                <TextInput
+              <FieldGroup
+                label="First name"
+                colors={colors}
+                required
+              >
+                <ThemedInput
                   value={first}
                   onChangeText={setFirst}
                   placeholder="Jane"
-                  placeholderTextColor="#9CA3AF"
-                  style={[styles.input, { color: settings.textColor }]}
                   autoCapitalize="words"
                   returnKeyType="next"
+                  colors={colors}
                 />
-              </View>
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: settings.titleColor }]}>
-                  Last name
-                </Text>
-
-                <TextInput
+              <FieldGroup label="Last name" colors={colors}>
+                <ThemedInput
                   value={last}
                   onChangeText={setLast}
                   placeholder="Doe"
-                  placeholderTextColor="#9CA3AF"
-                  style={[styles.input, { color: settings.textColor }]}
                   autoCapitalize="words"
                   returnKeyType="next"
+                  colors={colors}
                 />
-              </View>
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                 <Text style={[styles.label, { color: settings.titleColor }]}>
-                  Short description
-                </Text>
-                  <Text style={styles.optionalTag}>Optional</Text>
-                </View>
+              </FieldGroup>
 
-                <TextInput
-                 value={shortDescription}
-                    onChangeText={setShortDescription}
-                    placeholder="Example: Friend from the gym. Funny, calm, loves hiking."
-                  placeholderTextColor="#9CA3AF"
+              <FieldGroup
+                label="Short description"
+                hint="Optional"
+                colors={colors}
+              >
+                <ThemedInput
+                  value={shortDescription}
+                  onChangeText={setShortDescription}
+                  placeholder="Example: Friend from the gym. Funny, calm, loves hiking."
                   autoCapitalize="sentences"
-                  style={[
-                    styles.input,
-                    styles.notesInput,
-                    { color: settings.textColor },
-                  ]}
                   multiline
                   textAlignVertical="top"
+                  style={styles.notesInput}
+                  colors={colors}
                   onFocus={() => {
                     setTimeout(() => {
                       scrollRef.current?.scrollToEnd({ animated: true });
                     }, 150);
                   }}
                 />
-              </View>
-              <View style={styles.divider} />
+              </FieldGroup>
 
-              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-                Relationship
-              </Text>
+              <Divider colors={colors} />
 
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: settings.titleColor }]}>
-                  Group
-                </Text>
+              <SectionTitle
+                icon="people-outline"
+                title="Relationship"
+                colors={colors}
+              />
 
-                <TextInput
+              <FieldGroup label="Group" colors={colors}>
+                <ThemedInput
                   value={groupSearch}
                   onChangeText={setGroupSearch}
                   placeholder="Search group..."
-                  placeholderTextColor={settings.textColor + "66"}
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
-                      color: settings.textColor,
-                    },
-                  ]}
+                  autoCapitalize="words"
+                  colors={colors}
                 />
 
                 <View style={styles.tagWrap}>
@@ -542,11 +592,16 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                       {
                         backgroundColor:
                           selectedGroupId === null
-                            ? settings.primaryColor
-                            : settings.cardColor,
+                            ? colors.primary
+                            : colors.softCard,
+                        borderColor:
+                          selectedGroupId === null
+                            ? colors.primary
+                            : colors.border,
                       },
                     ]}
                     onPress={() => setSelectedGroupId(null)}
+                    activeOpacity={0.85}
                   >
                     <Text
                       style={[
@@ -554,8 +609,8 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                         {
                           color:
                             selectedGroupId === null
-                              ? settings.buttonTextColor
-                              : settings.textColor,
+                              ? colors.buttonText
+                              : colors.text,
                         },
                       ]}
                     >
@@ -563,19 +618,19 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                     </Text>
                   </TouchableOpacity>
 
-                  {selectedGroup && (
+                  {selectedGroup ? (
                     <TouchableOpacity
                       style={[
                         styles.chip,
                         {
                           backgroundColor:
-                            selectedGroup.color || settings.primaryColor,
+                            selectedGroup.color || colors.primary,
                           borderColor:
-                            (selectedGroup.color || settings.primaryColor) +
-                            "80",
+                            selectedGroup.color || colors.primary,
                         },
                       ]}
                       onPress={() => setSelectedGroupId(null)}
+                      activeOpacity={0.85}
                     >
                       <View style={styles.chipInner}>
                         <Ionicons
@@ -589,31 +644,33 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                         </Text>
                       </View>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
 
-                {groupSearch.trim() && (
+                {groupSearch.trim() ? (
                   <View style={styles.suggestionBox}>
                     {filteredGroups.map((group) => {
                       const active = selectedGroupId === group.id;
-                      const groupColor = group.color || settings.primaryColor;
+                      const groupColor = group.color || colors.primary;
                       const groupIcon = group.icon || "people";
 
                       return (
                         <TouchableOpacity
-                          key={group.id}
+                          key={String(group.id)}
                           style={[
                             styles.suggestionChip,
                             {
                               backgroundColor: active
                                 ? groupColor
-                                : groupColor + "20",
+                                : withOpacity(groupColor, "18"),
+                              borderColor: withOpacity(groupColor, "35"),
                             },
                           ]}
                           onPress={() => {
                             setSelectedGroupId(group.id);
                             setGroupSearch("");
                           }}
+                          activeOpacity={0.85}
                         >
                           <View style={styles.chipInner}>
                             <Ionicons
@@ -637,62 +694,58 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                       );
                     })}
 
-                    {!exactGroupExists && (
+                    {!exactGroupExists ? (
                       <TouchableOpacity
                         style={[
                           styles.suggestionChip,
-                          { backgroundColor: settings.primaryColor + "15" },
+                          {
+                            backgroundColor: colors.softPrimary,
+                            borderColor: withOpacity(colors.primary, "35"),
+                          },
                         ]}
                         onPress={openCreateGroupModalFromSearch}
+                        activeOpacity={0.85}
                       >
                         <Text
                           style={[
                             styles.suggestionChipText,
-                            { color: settings.primaryColor },
+                            { color: colors.primary },
                           ]}
                         >
                           + Create “{groupSearch.trim()}”
                         </Text>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
-                )}
-              </View>
+                ) : null}
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: settings.titleColor }]}>
-                  Tags
-                </Text>
-
-                <TextInput
+              <FieldGroup label="Tags" colors={colors}>
+                <ThemedInput
                   value={tagSearch}
                   onChangeText={setTagSearch}
                   placeholder="Search tag..."
-                  placeholderTextColor={settings.textColor + "66"}
                   autoCapitalize="none"
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
-                      color: settings.textColor,
-                    },
-                  ]}
+                  colors={colors}
                 />
 
-                {tagSearch.trim() && (
+                {tagSearch.trim() ? (
                   <View style={styles.suggestionBox}>
                     {filteredTagSuggestions.map((tag) => {
-                      const tagColor = tag.color || settings.primaryColor;
+                      const tagColor = tag.color || colors.primary;
 
                       return (
                         <TouchableOpacity
-                          key={tag.id}
+                          key={String(tag.id)}
                           style={[
                             styles.suggestionChip,
-                            { backgroundColor: tagColor + "20" },
+                            {
+                              backgroundColor: withOpacity(tagColor, "18"),
+                              borderColor: withOpacity(tagColor, "35"),
+                            },
                           ]}
                           onPress={() => addExistingTag(tag)}
+                          activeOpacity={0.85}
                         >
                           <Text
                             style={[
@@ -706,90 +759,116 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                       );
                     })}
 
-                    {!exactTagExists && (
+                    {!exactTagExists ? (
                       <TouchableOpacity
                         style={[
                           styles.suggestionChip,
-                          { backgroundColor: settings.primaryColor + "15" },
+                          {
+                            backgroundColor: colors.softPrimary,
+                            borderColor: withOpacity(colors.primary, "35"),
+                          },
                         ]}
                         onPress={openCreateTagModalFromSearch}
+                        activeOpacity={0.85}
                       >
                         <Text
                           style={[
                             styles.suggestionChipText,
-                            { color: settings.primaryColor },
+                            { color: colors.primary },
                           ]}
                         >
                           + Create “{tagSearch.trim()}”
                         </Text>
                       </TouchableOpacity>
-                    )}
+                    ) : null}
                   </View>
-                )}
+                ) : null}
 
                 <View style={styles.tagWrap}>
-                  {tagNames.map((tag) => {
-                    const tagColor =
-                      tagColorsByName[tag.toLowerCase()] ||
-                      settings.primaryColor;
+                  {tagNames.length > 0 ? (
+                    tagNames.map((tag) => {
+                      const tagColor =
+                        tagColorsByName[tag.toLowerCase()] || colors.primary;
 
-                    return (
-                      <TouchableOpacity
-                        key={tag}
-                        style={[
-                          styles.tagChip,
-                          { backgroundColor: tagColor + "20" },
-                        ]}
-                        onPress={() => removeTag(tag)}
-                      >
-                        <Text
-                          style={[styles.tagChipText, { color: tagColor }]}
+                      return (
+                        <TouchableOpacity
+                          key={tag}
+                          style={[
+                            styles.tagChip,
+                            {
+                              backgroundColor: withOpacity(tagColor, "18"),
+                              borderColor: withOpacity(tagColor, "35"),
+                            },
+                          ]}
+                          onPress={() => removeTag(tag)}
+                          activeOpacity={0.85}
                         >
-                          #{tag} ×
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-
-                  {tagNames.length === 0 && (
+                          <Text
+                            style={[
+                              styles.tagChipText,
+                              { color: tagColor },
+                            ]}
+                          >
+                            #{tag} ×
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
                     <Text
                       style={[
                         styles.emptyTagsText,
-                        { color: settings.textColor + "80" },
+                        { color: colors.text },
                       ]}
                     >
                       No tags selected.
                     </Text>
                   )}
                 </View>
-              </View>
+              </FieldGroup>
 
-              <View style={styles.divider} />
+              <Divider colors={colors} />
 
-              <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
-                Details
-              </Text>
+              <SectionTitle
+                icon="calendar-outline"
+                title="Details"
+                colors={colors}
+              />
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: settings.titleColor }]}>
-                    Birthday
-                  </Text>
-                  <Text style={styles.labelHint}>Tap to pick a date</Text>
-                </View>
-
+              <FieldGroup
+                label="Birthday"
+                hint="Tap to pick a date"
+                colors={colors}
+              >
                 <TouchableOpacity
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                   onPress={openBirthdayPicker}
-                  style={[styles.input, styles.dateInput]}
+                  style={[
+                    styles.input,
+                    styles.dateInput,
+                    {
+                      backgroundColor: colors.softCard,
+                      borderColor: colors.border,
+                    },
+                  ]}
                 >
-                  <Text style={birthday ? styles.dateText : styles.datePlaceholder}>
+                  <Text
+                    style={[
+                      styles.dateText,
+                      { color: birthday ? colors.title : colors.muted },
+                    ]}
+                  >
                     {birthday || "1990-07-21"}
                   </Text>
-                  <Text style={styles.dateIcon}>📅</Text>
+
+                  <Ionicons
+                    name="calendar-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
                 </TouchableOpacity>
 
-                {showBirthdayPicker && (
+                {showBirthdayPicker ? (
                   <DateTimePicker
                     value={birthdayDate || new Date(1990, 0, 1)}
                     mode="date"
@@ -797,59 +876,48 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                     onChange={onBirthdayChange}
                     maximumDate={new Date()}
                   />
-                )}
-              </View>
+                ) : null}
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: settings.titleColor }]}>
-                    Email
-                  </Text>
-                  <Text style={styles.optionalTag}>Optional</Text>
-                </View>
-
-                <TextInput
+              <FieldGroup label="Email" hint="Optional" colors={colors}>
+                <ThemedInput
                   value={email}
                   onChangeText={setEmail}
                   placeholder="name@example.com"
-                  placeholderTextColor="#9CA3AF"
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  style={[styles.input, { color: settings.textColor }]}
+                  colors={colors}
                 />
-              </View>
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: settings.titleColor }]}>
-                    Phone
-                  </Text>
-                  <Text style={styles.optionalTag}>Optional</Text>
-                </View>
-
-                <TextInput
+              <FieldGroup label="Phone" hint="Optional" colors={colors}>
+                <ThemedInput
                   value={phone}
                   onChangeText={setPhone}
                   placeholder="+33 6 12 34 56 78"
-                  placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
-                  style={[styles.input, { color: settings.textColor }]}
+                  colors={colors}
                 />
-              </View>
-
-
+              </FieldGroup>
             </View>
 
             <View style={styles.actionsRow}>
               <TouchableOpacity
-                style={styles.secondaryButton}
+                style={[
+                  styles.secondaryButton,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={() => navigation.goBack()}
                 disabled={saving}
+                activeOpacity={0.85}
               >
                 <Text
                   style={[
                     styles.secondaryButtonText,
-                    { color: settings.textColor },
+                    { color: colors.text },
                   ]}
                 >
                   Cancel
@@ -859,491 +927,975 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  { backgroundColor: settings.buttonColor },
+                  { backgroundColor: colors.button },
                   saving && styles.primaryButtonDisabled,
                 ]}
                 onPress={onSubmit}
                 disabled={saving}
+                activeOpacity={0.88}
               >
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { color: settings.buttonTextColor },
-                  ]}
-                >
-                  {saving ? "Saving..." : "Save"}
-                </Text>
+                {saving ? (
+                  <ActivityIndicator color={colors.buttonText} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: colors.buttonText },
+                    ]}
+                  >
+                    Save contact
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
+
+          <CreateGroupModal
+            visible={showGroupModal}
+            name={newGroupName}
+            color={newGroupColor}
+            icon={newGroupIcon}
+            creating={creatingGroup}
+            colors={colors}
+            onChangeName={setNewGroupName}
+            onChangeColor={setNewGroupColor}
+            onChangeIcon={setNewGroupIcon}
+            onCancel={() => setShowGroupModal(false)}
+            onSave={handleCreateGroup}
+          />
+
+          <CreateTagModal
+            visible={showTagModal}
+            name={newTagName}
+            color={newTagColor}
+            creating={creatingTag}
+            colors={colors}
+            onChangeName={setNewTagName}
+            onChangeColor={setNewTagColor}
+            onCancel={() => setShowTagModal(false)}
+            onSave={handleCreateTag}
+          />
         </View>
-
-        <Modal
-          visible={showGroupModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowGroupModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { backgroundColor: settings.cardColor }]}>
-              <Text style={[styles.modalTitle, { color: settings.titleColor }]}>
-                Create group
-              </Text>
-
-              <TextInput
-                value={newGroupName}
-                onChangeText={setNewGroupName}
-                placeholder="Group name, e.g. Gym"
-                placeholderTextColor={settings.textColor + "66"}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: settings.cardColor,
-                    borderColor: settings.cardColor + "60",
-                    color: settings.textColor,
-                  },
-                ]}
-              />
-
-              <Text style={[styles.modalLabel, { color: settings.titleColor }]}>
-                Icon
-              </Text>
-
-              <View style={styles.optionWrap}>
-                {GROUP_ICONS.map((icon) => {
-                  const active = newGroupIcon === icon;
-
-                  return (
-                    <TouchableOpacity
-                      key={icon}
-                      style={[
-                        styles.iconOption,
-                        {
-                          backgroundColor: active
-                            ? newGroupColor
-                            : newGroupColor + "18",
-                        },
-                      ]}
-                      onPress={() => setNewGroupIcon(icon)}
-                    >
-                      <Ionicons
-                        name={icon as any}
-                        size={20}
-                        color={active ? "#FFFFFF" : newGroupColor}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <Text style={[styles.modalLabel, { color: settings.titleColor }]}>
-                Color
-              </Text>
-
-              <View style={styles.optionWrap}>
-                {LABEL_COLORS.map((color) => {
-                  const active = newGroupColor === color;
-
-                  return (
-                    <TouchableOpacity
-                      key={color}
-                      style={[
-                        styles.colorOption,
-                        {
-                          backgroundColor: color,
-                          borderColor: active
-                            ? settings.textColor
-                            : "transparent",
-                        },
-                      ]}
-                      onPress={() => setNewGroupColor(color)}
-                    />
-                  );
-                })}
-              </View>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={() => setShowGroupModal(false)}
-                  disabled={creatingGroup}
-                >
-                  <Text style={{ color: settings.textColor }}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.modalSaveButton,
-                    { backgroundColor: newGroupColor },
-                    creatingGroup && { opacity: 0.6 },
-                  ]}
-                  onPress={handleCreateGroup}
-                  disabled={creatingGroup}
-                >
-                  <Text style={styles.modalSaveText}>
-                    {creatingGroup ? "Creating..." : "Create"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal
-          visible={showTagModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowTagModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, { backgroundColor: settings.cardColor }]}>
-              <Text style={[styles.modalTitle, { color: settings.titleColor }]}>
-                Create tag
-              </Text>
-
-              <TextInput
-                value={newTagName}
-                onChangeText={setNewTagName}
-                placeholder="Tag name, e.g. important"
-                placeholderTextColor={settings.textColor + "66"}
-                autoCapitalize="none"
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: settings.cardColor,
-                    borderColor: settings.cardColor + "60",
-                    color: settings.textColor,
-                  },
-                ]}
-              />
-
-              <Text style={[styles.modalLabel, { color: settings.titleColor }]}>
-                Color
-              </Text>
-
-              <View style={styles.optionWrap}>
-                {LABEL_COLORS.map((color) => {
-                  const active = newTagColor === color;
-
-                  return (
-                    <TouchableOpacity
-                      key={color}
-                      style={[
-                        styles.colorOption,
-                        {
-                          backgroundColor: color,
-                          borderColor: active
-                            ? settings.textColor
-                            : "transparent",
-                        },
-                      ]}
-                      onPress={() => setNewTagColor(color)}
-                    />
-                  );
-                })}
-              </View>
-
-              <View style={styles.tagPreviewRow}>
-                <View
-                  style={[
-                    styles.tagChip,
-                    { backgroundColor: newTagColor + "20" },
-                  ]}
-                >
-                  <Text style={[styles.tagChipText, { color: newTagColor }]}>
-                    #{newTagName || "tag"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={() => setShowTagModal(false)}
-                  disabled={creatingTag}
-                >
-                  <Text style={{ color: settings.textColor }}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.modalSaveButton,
-                    { backgroundColor: newTagColor },
-                    creatingTag && { opacity: 0.6 },
-                  ]}
-                  onPress={handleCreateTag}
-                  disabled={creatingTag}
-                >
-                  <Text style={styles.modalSaveText}>
-                    {creatingTag ? "Creating..." : "Create"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
       </Screen>
     </KeyboardAvoidingView>
   );
 }
 
+function SectionTitle({
+  icon,
+  title,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  colors: AddContactColors;
+}) {
+  return (
+    <View style={styles.sectionTitleRow}>
+      <View
+        style={[
+          styles.sectionIconBubble,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name={icon} size={15} color={colors.primary} />
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: colors.title }]}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+function FieldGroup({
+  label,
+  hint,
+  required,
+  colors,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  colors: AddContactColors;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.fieldGroup}>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, { color: colors.title }]}>
+          {label}
+        </Text>
+
+        {required ? (
+          <Text style={[styles.requiredTag, { color: colors.primary }]}>
+            Required
+          </Text>
+        ) : hint ? (
+          <Text style={[styles.optionalTag, { color: colors.muted }]}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+
+      {children}
+    </View>
+  );
+}
+
+function ThemedInput({
+  colors,
+  style,
+  ...props
+}: TextInput["props"] & {
+  colors: AddContactColors;
+}) {
+  return (
+    <TextInput
+      {...props}
+      placeholderTextColor={colors.muted}
+      style={[
+        styles.input,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+          color: colors.title,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function Divider({ colors }: { colors: AddContactColors }) {
+  return (
+    <View
+      style={[
+        styles.divider,
+        { backgroundColor: colors.border },
+      ]}
+    />
+  );
+}
+
+function CreateGroupModal({
+  visible,
+  name,
+  color,
+  icon,
+  creating,
+  colors,
+  onChangeName,
+  onChangeColor,
+  onChangeIcon,
+  onCancel,
+  onSave,
+}: {
+  visible: boolean;
+  name: string;
+  color: string;
+  icon: (typeof GROUP_ICONS)[number];
+  creating: boolean;
+  colors: AddContactColors;
+  onChangeName: (value: string) => void;
+  onChangeColor: (value: string) => void;
+  onChangeIcon: (value: (typeof GROUP_ICONS)[number]) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.modalEyebrow, { color: colors.primary }]}>
+            GROUP
+          </Text>
+
+          <Text style={[styles.modalTitle, { color: colors.title }]}>
+            Create group
+          </Text>
+
+          <Text style={[styles.modalSubtitle, { color: colors.text }]}>
+            Groups help you organize people like friends, family, gym, work, or dating.
+          </Text>
+
+          <ThemedInput
+            value={name}
+            onChangeText={onChangeName}
+            placeholder="Group name, e.g. Gym"
+            autoCapitalize="words"
+            colors={colors}
+          />
+
+          <Text style={[styles.modalLabel, { color: colors.title }]}>
+            Icon
+          </Text>
+
+          <View style={styles.optionWrap}>
+            {GROUP_ICONS.map((item) => {
+              const active = icon === item;
+
+              return (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.iconOption,
+                    {
+                      backgroundColor: active
+                        ? color
+                        : withOpacity(color, "18"),
+                      borderColor: active ? color : withOpacity(color, "30"),
+                    },
+                  ]}
+                  onPress={() => onChangeIcon(item)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={item as any}
+                    size={20}
+                    color={active ? "#FFFFFF" : color}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.modalLabel, { color: colors.title }]}>
+            Color
+          </Text>
+
+          <View style={styles.optionWrap}>
+            {LABEL_COLORS.map((item) => {
+              const active = color === item;
+
+              return (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.colorOption,
+                    {
+                      backgroundColor: item,
+                      borderColor: active ? colors.title : "transparent",
+                    },
+                  ]}
+                  onPress={() => onChangeColor(item)}
+                  activeOpacity={0.85}
+                >
+                  {active ? (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <ModalActions
+            creating={creating}
+            colors={colors}
+            saveColor={color}
+            saveLabel="Create"
+            creatingLabel="Creating..."
+            onCancel={onCancel}
+            onSave={onSave}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function CreateTagModal({
+  visible,
+  name,
+  color,
+  creating,
+  colors,
+  onChangeName,
+  onChangeColor,
+  onCancel,
+  onSave,
+}: {
+  visible: boolean;
+  name: string;
+  color: string;
+  creating: boolean;
+  colors: AddContactColors;
+  onChangeName: (value: string) => void;
+  onChangeColor: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.modalEyebrow, { color: colors.primary }]}>
+            TAG
+          </Text>
+
+          <Text style={[styles.modalTitle, { color: colors.title }]}>
+            Create tag
+          </Text>
+
+          <Text style={[styles.modalSubtitle, { color: colors.text }]}>
+            Tags are small labels for personality, context, places, or memories.
+          </Text>
+
+          <ThemedInput
+            value={name}
+            onChangeText={onChangeName}
+            placeholder="Tag name, e.g. important"
+            autoCapitalize="none"
+            colors={colors}
+          />
+
+          <Text style={[styles.modalLabel, { color: colors.title }]}>
+            Color
+          </Text>
+
+          <View style={styles.optionWrap}>
+            {LABEL_COLORS.map((item) => {
+              const active = color === item;
+
+              return (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.colorOption,
+                    {
+                      backgroundColor: item,
+                      borderColor: active ? colors.title : "transparent",
+                    },
+                  ]}
+                  onPress={() => onChangeColor(item)}
+                  activeOpacity={0.85}
+                >
+                  {active ? (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.tagPreviewRow}>
+            <View
+              style={[
+                styles.tagChip,
+                {
+                  backgroundColor: withOpacity(color, "18"),
+                  borderColor: withOpacity(color, "35"),
+                },
+              ]}
+            >
+              <Text style={[styles.tagChipText, { color }]}>
+                #{name || "tag"}
+              </Text>
+            </View>
+          </View>
+
+          <ModalActions
+            creating={creating}
+            colors={colors}
+            saveColor={color}
+            saveLabel="Create"
+            creatingLabel="Creating..."
+            onCancel={onCancel}
+            onSave={onSave}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ModalActions({
+  creating,
+  colors,
+  saveColor,
+  saveLabel,
+  creatingLabel,
+  onCancel,
+  onSave,
+}: {
+  creating: boolean;
+  colors: AddContactColors;
+  saveColor: string;
+  saveLabel: string;
+  creatingLabel: string;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <View style={styles.modalActions}>
+      <TouchableOpacity
+        style={[
+          styles.modalCancelButton,
+          {
+            backgroundColor: colors.softCard,
+            borderColor: colors.border,
+          },
+        ]}
+        onPress={onCancel}
+        disabled={creating}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.modalCancelText, { color: colors.text }]}>
+          Cancel
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[
+          styles.modalSaveButton,
+          { backgroundColor: saveColor },
+          creating && { opacity: 0.6 },
+        ]}
+        onPress={onSave}
+        disabled={creating}
+        activeOpacity={0.88}
+      >
+        {creating ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.modalSaveText}>{saveLabel}</Text>
+        )}
+
+        {creating ? (
+          <Text style={styles.modalSaveText}>{creatingLabel}</Text>
+        ) : null}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/* helpers */
+
+function makeAddContactColors(settings: any): AddContactColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "16"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    softText: withOpacity(settings.textColor, "12"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
+function withOpacity(hexColor?: string | null, opacityHex = "22") {
+  if (!hexColor || typeof hexColor !== "string") {
+    return `#000000${opacityHex}`;
+  }
+
+  const normalized = hexColor.trim();
+
+  if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return `${normalized}${opacityHex}`;
+  }
+
+  return normalized;
+}
+
+/* styles */
+
 const styles = StyleSheet.create({
-  container: {
+  keyboardRoot: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 20,
   },
+
+  root: {
+    flex: 1,
+  },
+
   scrollContent: {
-    paddingBottom: 80,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 90,
   },
-  card: {
-    borderRadius: 16,
+
+  heroCard: {
+    borderRadius: 32,
     padding: 16,
-    borderWidth: 1,
-    borderColor: "#eee",
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
+
+  heroGlowOne: {
+    position: "absolute",
+    top: -54,
+    right: -42,
+    width: 155,
+    height: 155,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+
+  heroGlowTwo: {
+    position: "absolute",
+    bottom: -70,
+    left: -52,
+    width: 165,
+    height: 165,
+    borderRadius: 86,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  heroCircleButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  heroPill: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  heroPillText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  heroBody: {
+    marginTop: 25,
+  },
+
+  heroIconBubble: {
+    width: 50,
+    height: 50,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 13,
+  },
+
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 30,
+    lineHeight: 35,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    marginTop: 7,
+    maxWidth: 320,
+  },
+
+  card: {
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 15,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
+  sectionTitleRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  sectionIconBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.1,
+  },
+
   photoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    gap: 12,
+    gap: 13,
+    marginBottom: 2,
   },
+
   photo: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 74,
+    height: 74,
+    borderRadius: 28,
   },
+
   photoPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 74,
+    height: 74,
+    borderRadius: 28,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
   },
+
   photoButton: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 999,
+    minHeight: 45,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 7,
   },
+
   photoButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "900",
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 8,
+
+  divider: {
+    height: 1,
+    marginVertical: 18,
   },
+
   fieldGroup: {
     marginBottom: 14,
   },
+
   labelRow: {
+    minHeight: 22,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "baseline",
-    marginBottom: 4,
+    marginBottom: 6,
+    gap: 10,
   },
+
   label: {
     fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 4,
+    fontWeight: "900",
   },
-  labelHint: {
+
+  requiredTag: {
     fontSize: 11,
-    color: "#999",
+    fontWeight: "900",
   },
+
   optionalTag: {
     fontSize: 11,
-    color: "#777",
+    fontWeight: "800",
   },
+
   input: {
-    borderRadius: 10,
+    minHeight: 50,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
+    paddingHorizontal: 13,
+    paddingVertical: 10,
     fontSize: 14,
+    fontWeight: "700",
   },
+
   notesInput: {
-    minHeight: 80,
-    paddingTop: 8,
-    paddingBottom: 8,
+    minHeight: 94,
+    paddingTop: 12,
+    lineHeight: 20,
   },
+
   dateInput: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+
   dateText: {
     fontSize: 14,
-    color: "#333",
+    fontWeight: "800",
   },
-  datePlaceholder: {
-    fontSize: 14,
-    color: "#999",
-  },
-  dateIcon: {
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#eee",
-    marginVertical: 12,
-  },
+
   actionsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 18,
+    gap: 10,
+    marginTop: 14,
   },
+
   secondaryButton: {
     flex: 1,
-    marginRight: 8,
+    minHeight: 52,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
+
   secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "900",
   },
+
   primaryButton: {
     flex: 1,
-    marginLeft: 8,
+    minHeight: 52,
     borderRadius: 20,
-    paddingVertical: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
+
   primaryButtonDisabled: {
     opacity: 0.6,
   },
+
   primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "900",
   },
+
   chipInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
+
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   chipText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "900",
   },
+
   tagWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     marginTop: 10,
   },
+
   tagChip: {
+    minHeight: 34,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   tagChipText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "900",
   },
+
   emptyTagsText: {
-    fontSize: 13,
-    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.7,
   },
+
   suggestionBox: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 8,
+    marginTop: 9,
   },
+
   suggestionChip: {
+    minHeight: 34,
     borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   suggestionChipText: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "900",
   },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(20, 14, 10, 0.52)",
     justifyContent: "center",
-    padding: 20,
+    alignItems: "center",
+    paddingHorizontal: 22,
   },
+
   modalCard: {
-    borderRadius: 20,
-    padding: 18,
+    width: "100%",
+    maxWidth: 390,
+    borderRadius: 30,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
   },
+
+  modalEyebrow: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: "900",
+    marginTop: 6,
+  },
+
+  modalSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 6,
     marginBottom: 14,
   },
+
   modalLabel: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "900",
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 9,
   },
+
   optionWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
+
   iconOption: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: 17,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+
   colorOption: {
     width: 34,
     height: 34,
     borderRadius: 17,
     borderWidth: 3,
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   tagPreviewRow: {
     marginTop: 16,
     flexDirection: "row",
   },
+
   modalActions: {
     flexDirection: "row",
     gap: 10,
     marginTop: 20,
   },
+
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: "center",
+    minHeight: 50,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#ddd",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
   modalSaveButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
+    minHeight: 50,
+    borderRadius: 18,
     alignItems: "center",
+    justifyContent: "center",
   },
+
   modalSaveText: {
     color: "#FFFFFF",
-    fontWeight: "800",
+    fontSize: 14,
+    fontWeight: "900",
   },
 });

@@ -9,6 +9,7 @@ import { useAppearance } from "../appearance/AppearanceContext";
 import LanguageScreen from "../screens/Settings/LanguageScreen";
 import ManageGroupsTagsScreen from "../screens/Settings/ManageGroupsTagsScreen";
 import BackupScreen from "../screens/Settings/BackupScreen";
+import LocalFirstScreen from "../screens/Settings/LocalFirstScreen";
 export type SettingsStackParamsList ={
     SettingsHome: undefined;
     Profile:undefined;
@@ -21,6 +22,7 @@ export type SettingsStackParamsList ={
     Feedback: undefined;
     ManageGroupsTags: undefined;
     Backup: undefined;
+    LocalFirst: undefined;
 }
 
 const Stack = createNativeStackNavigator<SettingsStackParamsList>()
@@ -45,11 +47,8 @@ export default function SettingsStack(){
             <Stack.Screen name="ReportBug" component={ReportBugScreen}/> 
             <Stack.Screen name="Feedback" component={FeedbackScreen}/> 
             <Stack.Screen name="AppInfo" component={AppInfoScreen}/> 
-            <Stack.Screen
-  name="Backup"
-  component={BackupScreen}
-  options={{ title: "Backup & restore" }}
-/>
+            <Stack.Screen name="Backup" component={BackupScreen} options={{ title: "Backup & restore" }}/>
+            <Stack.Screen name="LocalFirst" component={LocalFirstScreen} options={{ title: "Local First" }}/>
             <Stack.Screen name="Language" component={LanguageScreen}/> 
             <Stack.Screen name="ManageGroupsTags" component={ManageGroupsTagsScreen}/> 
         </Stack.Navigator>

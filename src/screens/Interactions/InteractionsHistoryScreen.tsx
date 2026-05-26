@@ -7,16 +7,16 @@ import React, {
   useState,
 } from "react";
 import {
-  View,
-  Text,
-  FlatList,
   ActivityIndicator,
-  StyleSheet,
   Alert,
-  TouchableOpacity,
-  RefreshControl,
   Animated,
   Easing,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -36,23 +36,12 @@ import {
 } from "../../interactions/types";
 import { AppId, Contact } from "../../contacts/types";
 import { relationshipHealth } from "../Contacts/relationshipHealth";
+import { useAppearance } from "../../appearance/AppearanceContext";
 
 type Props = NativeStackScreenProps<
   ContactsStackParamList,
   "InteractionsHistory"
 >;
-
-const BG = "#F7EFE7";
-const CARD = "#FFF9F1";
-const TEXT = "#2B211B";
-const MUTED = "#7B6F66";
-const BORDER = "#EEDDD0";
-const RED = "#EE6A5E";
-const RED_DARK = "#D94C43";
-const ORANGE = "#EBA55B";
-const GREEN = "#7DA56D";
-const PURPLE = "#8A6BD8";
-const BLUE = "#4D82D8";
 
 type GroupedInteractions = {
   label: string;
@@ -60,11 +49,33 @@ type GroupedInteractions = {
   items: Interaction[];
 };
 
+type HistoryColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  danger: string;
+  warning: string;
+  success: string;
+  purple: string;
+  blue: string;
+  shadow: string;
+};
+
 export default function InteractionsHistoryScreen({
   route,
   navigation,
 }: Props) {
   const { contactId } = route.params;
+  const { settings } = useAppearance();
+  const colors = useMemo(() => makeHistoryColors(settings), [settings]);
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
@@ -284,9 +295,10 @@ export default function InteractionsHistoryScreen({
   if (initialLoading && interactions.length === 0) {
     return (
       <Screen>
-        <View style={styles.loadingRoot}>
-          <ActivityIndicator color={RED} />
-          <Text style={styles.loadingText}>
+        <View style={[styles.loadingRoot, { backgroundColor: colors.background }]}>
+          <ActivityIndicator color={colors.primary} />
+
+          <Text style={[styles.loadingText, { color: colors.text }]}>
             Loading relationship history…
           </Text>
         </View>
@@ -296,39 +308,43 @@ export default function InteractionsHistoryScreen({
 
   return (
     <Screen>
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         <Animated.View style={[styles.animatedRoot, screenAnimatedStyle]}>
           <FlatList
             data={grouped}
             keyExtractor={(item) => item.dateKey}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.container}
+            contentContainerStyle={[
+              styles.container,
+              { backgroundColor: colors.background },
+            ]}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={RED}
+                tintColor={colors.primary}
               />
             }
             ListHeaderComponent={
               <HistoryHeader
+                colors={colors}
                 stats={stats}
                 heartFillPercent={headerHealth?.fillPercent ?? 16}
-                heartColor={headerHealth?.color ?? PURPLE}
+                heartColor={headerHealth?.color ?? colors.primary}
                 onBack={() => navigation.goBack()}
                 onAdd={openCreateInteraction}
               />
             }
             ListEmptyComponent={
               !initialLoading ? (
-                <EmptyState onAdd={openCreateInteraction} />
+                <EmptyState colors={colors} onAdd={openCreateInteraction} />
               ) : null
             }
             ListFooterComponent={
               loadingMore ? (
                 <ActivityIndicator
                   style={styles.footerLoader}
-                  color={RED}
+                  color={colors.primary}
                 />
               ) : (
                 <View style={styles.footerSpace} />
@@ -344,6 +360,7 @@ export default function InteractionsHistoryScreen({
               <DaySection
                 group={item}
                 index={index}
+                colors={colors}
                 onEdit={openEditInteraction}
                 onDelete={handleDelete}
               />
@@ -356,12 +373,14 @@ export default function InteractionsHistoryScreen({
 }
 
 function HistoryHeader({
+  colors,
   stats,
   heartFillPercent,
   heartColor,
   onBack,
   onAdd,
 }: {
+  colors: HistoryColors;
   stats: {
     count: number;
     latestLabel: string;
@@ -374,7 +393,9 @@ function HistoryHeader({
 }) {
   return (
     <LinearGradient
-      colors={["#2B211B", "#3A2921", "#15100D"]}
+      colors={[colors.primary, colors.button] as [string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={styles.headerCard}
     >
       <View style={styles.headerGlowOne} />
@@ -394,55 +415,55 @@ function HistoryHeader({
           onPress={onAdd}
           activeOpacity={0.88}
         >
-          <Ionicons name="add" size={18} color="#FFFFFF" />
-          <Text style={styles.headerLogText}>Log interaction</Text>
+          <Ionicons name="add" size={17} color="#FFFFFF" />
+          <Text style={styles.headerLogText}>Log</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.headerContent}>
-        <Text style={styles.headerEyebrow}>RELATIONSHIP HISTORY</Text>
+      <View style={styles.headerMainRow}>
+        <View style={styles.headerTitleTextWrap}>
+          <Text style={styles.headerEyebrow}>RELATIONSHIP HISTORY</Text>
 
-        <View style={styles.headerTitleRow}>
-          <View style={styles.headerTitleTextWrap}>
-            <Text style={styles.headerTitle} numberOfLines={2}>
-              Moments you shared
-            </Text>
-          </View>
+          <Text style={styles.headerTitle} numberOfLines={2}>
+            Moments you shared
+          </Text>
 
-          <View
-            style={[
-              styles.headerHeartCircle,
-              { backgroundColor: withOpacity(heartColor, "18") },
-            ]}
-          >
-            <HeartStrengthIcon
-              fillPercent={heartFillPercent}
-              color={heartColor}
-              size={34}
-            />
-          </View>
+          <Text style={styles.headerSubtitle} numberOfLines={2}>
+            Calls, meetings, messages, and small details that keep the connection alive.
+          </Text>
         </View>
 
-        <Text style={styles.headerSubtitle}>
-          Calls, meetings, messages, and small details that keep the connection
-          alive.
-        </Text>
+        <View
+          style={[
+            styles.headerHeartCircle,
+            { backgroundColor: withOpacity(heartColor, "18") },
+          ]}
+        >
+          <HeartStrengthIcon
+            fillPercent={heartFillPercent}
+            color={heartColor}
+            size={34}
+          />
+        </View>
       </View>
 
       <View style={styles.statsRow}>
         <HeaderStat
+          colors={colors}
           label="Logs"
           value={String(stats.count)}
           icon="albums-outline"
         />
 
         <HeaderStat
+          colors={colors}
           label="Latest"
           value={stats.latestLabel}
           icon="time-outline"
         />
 
         <HeaderStat
+          colors={colors}
           label="Time"
           value={stats.totalMinutes > 0 ? `${stats.totalMinutes}m` : "—"}
           icon="hourglass-outline"
@@ -453,10 +474,12 @@ function HistoryHeader({
 }
 
 function HeaderStat({
+  colors,
   label,
   value,
   icon,
 }: {
+  colors: HistoryColors;
   label: string;
   value: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -549,11 +572,13 @@ function HeartStrengthIcon({
 function DaySection({
   group,
   index,
+  colors,
   onEdit,
   onDelete,
 }: {
   group: GroupedInteractions;
   index: number;
+  colors: HistoryColors;
   onEdit: (interaction: Interaction) => void;
   onDelete: (id: AppId) => void;
 }) {
@@ -585,16 +610,28 @@ function DaySection({
     <Animated.View style={[styles.daySection, animatedStyle]}>
       <View style={styles.dayTitleRow}>
         <View style={styles.dayTitleLeft}>
-          <View style={styles.dayDot} />
-          <Text style={styles.dayTitle}>{group.label}</Text>
+          <View style={[styles.dayDot, { backgroundColor: colors.primary }]} />
+
+          <Text style={[styles.dayTitle, { color: colors.title }]}>
+            {group.label}
+          </Text>
         </View>
 
-        <Text style={styles.dayCount}>
+        <Text style={[styles.dayCount, { color: colors.text }]}>
           {group.items.length} {group.items.length === 1 ? "moment" : "moments"}
         </Text>
       </View>
 
-      <View style={styles.timelineCard}>
+      <View
+        style={[
+          styles.timelineCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            shadowColor: colors.shadow,
+          },
+        ]}
+      >
         {group.items.map((interaction, itemIndex) => {
           const isLast = itemIndex === group.items.length - 1;
 
@@ -603,6 +640,7 @@ function DaySection({
               key={String(interaction.id)}
               interaction={interaction}
               isLast={isLast}
+              colors={colors}
               onEdit={() => onEdit(interaction)}
               onDelete={() => onDelete(interaction.id as AppId)}
             />
@@ -616,16 +654,18 @@ function DaySection({
 function InteractionRow({
   interaction,
   isLast,
+  colors,
   onEdit,
   onDelete,
 }: {
   interaction: Interaction;
   isLast: boolean;
+  colors: HistoryColors;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const label = getInteractionLabel(interaction.type);
-  const meta = interactionMeta(interaction.type);
+  const meta = interactionMeta(interaction.type, colors);
 
   return (
     <View style={[styles.interactionRow, isLast && styles.interactionRowLast]}>
@@ -633,23 +673,36 @@ function InteractionRow({
         <View
           style={[
             styles.timelineIcon,
-            { backgroundColor: withOpacity(meta.color, "20") },
+            { backgroundColor: withOpacity(meta.color, "18") },
           ]}
         >
           <Ionicons name={meta.icon} size={16} color={meta.color} />
         </View>
 
-        {!isLast ? <View style={styles.timelineLine} /> : null}
+        {!isLast ? (
+          <View
+            style={[
+              styles.timelineLine,
+              { backgroundColor: colors.border },
+            ]}
+          />
+        ) : null}
       </View>
 
       <View style={styles.interactionContent}>
         <View style={styles.interactionTopRow}>
           <View style={styles.interactionTitleWrap}>
-            <Text style={styles.interactionType} numberOfLines={1}>
+            <Text
+              style={[styles.interactionType, { color: colors.title }]}
+              numberOfLines={1}
+            >
               {label}
             </Text>
 
-            <Text style={styles.interactionTime} numberOfLines={1}>
+            <Text
+              style={[styles.interactionTime, { color: colors.text }]}
+              numberOfLines={1}
+            >
               {formatTime(interaction.happened_at)}
               {interaction.duration_minutes
                 ? ` · ${interaction.duration_minutes} min`
@@ -659,58 +712,111 @@ function InteractionRow({
 
           <View style={styles.interactionActions}>
             <TouchableOpacity
-              style={styles.iconAction}
+              style={[
+                styles.iconAction,
+                { backgroundColor: colors.softCard },
+              ]}
               onPress={onEdit}
               activeOpacity={0.82}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="pencil-outline" size={15} color={MUTED} />
+              <Ionicons name="pencil-outline" size={15} color={colors.text} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.iconAction}
+              style={[
+                styles.iconAction,
+                { backgroundColor: withOpacity(colors.danger, "12") },
+              ]}
               onPress={onDelete}
               activeOpacity={0.82}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="trash-outline" size={15} color={RED_DARK} />
+              <Ionicons name="trash-outline" size={15} color={colors.danger} />
             </TouchableOpacity>
           </View>
         </View>
 
         {interaction.note ? (
-          <Text style={styles.interactionNote} numberOfLines={3}>
+          <Text
+            style={[styles.interactionNote, { color: colors.text }]}
+            numberOfLines={3}
+          >
             {interaction.note}
           </Text>
         ) : (
-          <Text style={styles.interactionNoteMuted}>No note added.</Text>
+          <Text
+            style={[
+              styles.interactionNoteMuted,
+              { color: colors.muted },
+            ]}
+          >
+            No note added.
+          </Text>
         )}
       </View>
     </View>
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({
+  colors,
+  onAdd,
+}: {
+  colors: HistoryColors;
+  onAdd: () => void;
+}) {
   return (
-    <View style={styles.emptyCard}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="chatbubbles-outline" size={28} color={ORANGE} />
+    <View
+      style={[
+        styles.emptyCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.emptyIcon,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons
+          name="chatbubbles-outline"
+          size={28}
+          color={colors.primary}
+        />
       </View>
 
-      <Text style={styles.emptyTitle}>No moments logged yet</Text>
+      <Text style={[styles.emptyTitle, { color: colors.title }]}>
+        No moments logged yet
+      </Text>
 
-      <Text style={styles.emptyText}>
+      <Text style={[styles.emptyText, { color: colors.text }]}>
         Start with a quick note after a meeting, call, or conversation. It will
         become part of this person’s story.
       </Text>
 
       <TouchableOpacity
-        style={styles.emptyButton}
+        style={[
+          styles.emptyButton,
+          { backgroundColor: colors.button },
+        ]}
         onPress={onAdd}
         activeOpacity={0.88}
       >
-        <Ionicons name="heart-outline" size={17} color="#FFFFFF" />
-        <Text style={styles.emptyButtonText}>Log first interaction</Text>
+        <Ionicons name="heart-outline" size={17} color={colors.buttonText} />
+
+        <Text
+          style={[
+            styles.emptyButtonText,
+            { color: colors.buttonText },
+          ]}
+        >
+          Log first interaction
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -718,46 +824,68 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 
 /* helpers */
 
+function makeHistoryColors(settings: any): HistoryColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "16"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    success: "#7DA56D",
+    purple: "#8A6BD8",
+    blue: "#4D82D8",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
 function getInteractionLabel(type?: number | null) {
   if (type === null || type === undefined) return "Interaction";
 
   return interactionTypeLabel(type);
 }
 
-function interactionMeta(type?: number | null) {
+function interactionMeta(type: number | null | undefined, colors: HistoryColors) {
   const label = getInteractionLabel(type).toLowerCase();
 
   if (label.includes("call")) {
     return {
       icon: "call-outline" as keyof typeof Ionicons.glyphMap,
-      color: GREEN,
+      color: colors.success,
     };
   }
 
   if (label.includes("message") || label.includes("text")) {
     return {
       icon: "chatbubble-ellipses-outline" as keyof typeof Ionicons.glyphMap,
-      color: BLUE,
+      color: colors.blue,
     };
   }
 
   if (label.includes("meet") || label.includes("coffee")) {
     return {
       icon: "cafe-outline" as keyof typeof Ionicons.glyphMap,
-      color: ORANGE,
+      color: colors.warning,
     };
   }
 
   if (label.includes("gift")) {
     return {
       icon: "gift-outline" as keyof typeof Ionicons.glyphMap,
-      color: PURPLE,
+      color: colors.purple,
     };
   }
 
   return {
     icon: "heart-outline" as keyof typeof Ionicons.glyphMap,
-    color: RED,
+    color: colors.primary,
   };
 }
 
@@ -774,11 +902,11 @@ function getDateKey(value?: string | null) {
 
   if (!date) return "unknown";
 
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  return `${y}-${m}-${d}`;
+  return `${year}-${month}-${day}`;
 }
 
 function formatTime(iso: string) {
@@ -813,7 +941,9 @@ function dayLabel(iso: string) {
 }
 
 function withOpacity(hexColor?: string | null, opacityHex = "22") {
-  if (!hexColor || typeof hexColor !== "string") return `#000000${opacityHex}`;
+  if (!hexColor || typeof hexColor !== "string") {
+    return `#000000${opacityHex}`;
+  }
 
   const normalized = hexColor.trim();
 
@@ -829,7 +959,6 @@ function withOpacity(hexColor?: string | null, opacityHex = "22") {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BG,
   },
 
   animatedRoot: {
@@ -838,55 +967,52 @@ const styles = StyleSheet.create({
 
   loadingRoot: {
     flex: 1,
-    backgroundColor: "#101010",
     alignItems: "center",
     justifyContent: "center",
   },
 
   loadingText: {
-    color: "#FFFFFF",
     marginTop: 12,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 
   container: {
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingTop: 18,
     paddingBottom: 42,
-    backgroundColor: BG,
   },
 
   headerCard: {
-    minHeight: 270,
-    borderRadius: 34,
+    minHeight: 178,
+    borderRadius: 28,
     padding: 16,
     marginBottom: 18,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.24,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
 
   headerGlowOne: {
     position: "absolute",
-    top: -45,
-    right: -35,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: "rgba(238,106,94,0.20)",
+    top: -60,
+    right: -40,
+    width: 145,
+    height: 145,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
 
   headerGlowTwo: {
     position: "absolute",
-    bottom: -60,
-    left: -50,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: "rgba(235,165,91,0.16)",
+    bottom: -75,
+    left: -55,
+    width: 160,
+    height: 160,
+    borderRadius: 86,
+    backgroundColor: "rgba(255,255,255,0.10)",
   },
 
   headerTopRow: {
@@ -896,54 +1022,39 @@ const styles = StyleSheet.create({
   },
 
   headerCircleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
 
   headerLogButton: {
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: RED,
-    paddingHorizontal: 15,
+    minHeight: 38,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    shadowColor: RED,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
   },
 
   headerLogText: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
 
-  headerContent: {
-    marginTop: 30,
-  },
-
-  headerEyebrow: {
-    color: "rgba(255,255,255,0.62)",
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-
-  headerTitleRow: {
+  headerMainRow: {
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginTop: 5,
+    gap: 13,
   },
 
   headerTitleTextWrap: {
@@ -951,17 +1062,33 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
+  headerEyebrow: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
   headerTitle: {
     color: "#FFFFFF",
-    fontSize: 31,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: "900",
+    marginTop: 3,
+  },
+
+  headerSubtitle: {
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    marginTop: 3,
   },
 
   headerHeartCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -993,43 +1120,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  headerSubtitle: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
-    marginTop: 8,
-    maxWidth: 310,
-  },
-
   statsRow: {
     flexDirection: "row",
-    gap: 9,
-    marginTop: 20,
+    gap: 8,
+    marginTop: 16,
   },
 
   headerStat: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: 17,
     backgroundColor: "rgba(255,255,255,0.11)",
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 9,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
   },
 
   headerStatIcon: {
-    width: 24,
-    height: 24,
+    width: 23,
+    height: 23,
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 6,
+    marginBottom: 5,
   },
 
   headerStatLabel: {
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(255,255,255,0.58)",
     fontSize: 10,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -1037,7 +1155,7 @@ const styles = StyleSheet.create({
 
   headerStatValue: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     marginTop: 2,
   },
@@ -1064,13 +1182,11 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 5,
-    backgroundColor: RED,
   },
 
   dayTitle: {
     fontSize: 13,
     fontWeight: "900",
-    color: TEXT,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -1078,16 +1194,13 @@ const styles = StyleSheet.create({
   dayCount: {
     fontSize: 11,
     fontWeight: "800",
-    color: MUTED,
+    opacity: 0.75,
   },
 
   timelineCard: {
     borderRadius: 26,
-    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: BORDER,
     paddingVertical: 4,
-    shadowColor: "#6F3D2E",
     shadowOpacity: 0.06,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -1121,7 +1234,6 @@ const styles = StyleSheet.create({
   timelineLine: {
     flex: 1,
     width: 2,
-    backgroundColor: BORDER,
     marginTop: 6,
     borderRadius: 999,
   },
@@ -1147,14 +1259,13 @@ const styles = StyleSheet.create({
   interactionType: {
     fontSize: 15,
     fontWeight: "900",
-    color: TEXT,
   },
 
   interactionTime: {
     marginTop: 2,
     fontSize: 11,
     fontWeight: "800",
-    color: MUTED,
+    opacity: 0.74,
   },
 
   interactionActions: {
@@ -1169,20 +1280,18 @@ const styles = StyleSheet.create({
     borderRadius: 14.5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F5E9DF",
   },
 
   interactionNote: {
     marginTop: 8,
-    color: MUTED,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "600",
+    opacity: 0.78,
   },
 
   interactionNoteMuted: {
     marginTop: 8,
-    color: "#B49F91",
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
@@ -1199,13 +1308,10 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     borderRadius: 30,
-    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: BORDER,
     padding: 24,
     alignItems: "center",
     marginTop: 12,
-    shadowColor: "#6F3D2E",
     shadowOpacity: 0.06,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -1216,45 +1322,36 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 24,
-    backgroundColor: "#FFF1D8",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
   },
 
   emptyTitle: {
-    color: TEXT,
     fontSize: 18,
     fontWeight: "900",
   },
 
   emptyText: {
-    color: MUTED,
     fontSize: 13,
     lineHeight: 19,
     textAlign: "center",
     marginTop: 7,
-    fontWeight: "600",
+    fontWeight: "700",
+    opacity: 0.76,
   },
 
   emptyButton: {
     marginTop: 18,
     borderRadius: 18,
-    backgroundColor: RED,
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    shadowColor: RED,
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
   },
 
   emptyButtonText: {
-    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "900",
   },

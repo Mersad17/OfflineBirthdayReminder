@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1779752677721,
-      "tag": "0000_flat_maggott",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1779755171876,
-      "tag": "0001_add_contact_photo_albums",
+      "when": 1779819321804,
+      "tag": "0000_mighty_wild_child",
       "breakpoints": true
     }
   ]
