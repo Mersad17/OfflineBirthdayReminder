@@ -144,7 +144,7 @@ function mapContactMini(row: typeof contact.$inferSelect | null) {
     group: row.groupId,
     is_favorite: row.isFavorite,
     created_at: toIso(row.createdAt),
-    notes: row.notes,
+    short_description: row.shortDescription,
     photo: row.photoUri,
     photo_uri: row.photoUri,
     talk_every_days: row.talkEveryDays,

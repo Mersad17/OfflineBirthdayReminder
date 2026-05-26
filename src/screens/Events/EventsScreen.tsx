@@ -31,10 +31,10 @@ export default function EventsScreen({ navigation }: any) {
 
   const [search, setSearch] = useState("");
   const [noReminderOnly, setNoReminderOnly] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<number []>([]);
+  const [typeFilter, setTypeFilter] = useState<EventTypeValue[]>([]);
 
   const [draftNoReminderOnly, setDraftNoReminderOnly] = useState(false);
-  const [draftTypeFilter, setDraftTypeFilter] = useState<number[]>([]);
+  const [draftTypeFilter, setDraftTypeFilter] = useState<EventTypeValue[]>([]);
   
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -382,7 +382,7 @@ export default function EventsScreen({ navigation }: any) {
   </Text>
 
   {Object.entries(EVENT_TYPE_META).map(([key, meta]) => {
-    const value = Number(key);
+    const value = Number(key) as EventTypeValue;
     const selected = draftTypeFilter.includes(value);
 
     return (

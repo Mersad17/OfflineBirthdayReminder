@@ -75,7 +75,7 @@ export default function EditContactScreen({ route, navigation }: Props) {
   const [birthdayDateObj, setBirthdayDateObj] = useState(new Date());
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [notes, setNotes] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
 
   // 🔹 photo state
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export default function EditContactScreen({ route, navigation }: Props) {
 
         setEmail(c.email || "");
         setPhone(c.phone || "");
-        setNotes(c.notes || "");
+        setShortDescription(c.short_description || "");
 
         setSelectedGroupId(c.group || null);
         const contactTags = c.tags_detail || [];
@@ -392,7 +392,7 @@ function addExistingTag(tag: ContactTag) {
         birthday: birthday ? birthday : null,
         email,
         phone,
-        notes,
+        short_description: shortDescription,
         group: selectedGroupId,
         tag_names: tagNames,
         photo_uri:
@@ -891,8 +891,8 @@ function addExistingTag(tag: ContactTag) {
                     textAlignVertical: "top",
                   },
                 ]}
-                value={notes}
-                onChangeText={setNotes}
+                value={shortDescription}
+                onChangeText={setShortDescription}
                 placeholder="Anything to add"
                 placeholderTextColor={settings.textColor + "66"}
                 autoCapitalize="sentences"

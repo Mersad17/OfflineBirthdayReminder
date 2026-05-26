@@ -54,7 +54,7 @@ export default function AddContactScreen({ navigation }: Props) {
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [notes, setNotes] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -365,7 +365,7 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
         birthday: birthday || undefined,
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
-        notes: notes.trim() || undefined,
+        short_description: shortDescription.trim() || undefined,
         photo_uri: photoUri || undefined,
         is_favorite: null,
         group: selectedGroupId,
@@ -481,7 +481,34 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                   returnKeyType="next"
                 />
               </View>
+              <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                 <Text style={[styles.label, { color: settings.titleColor }]}>
+                  Short description
+                </Text>
+                  <Text style={styles.optionalTag}>Optional</Text>
+                </View>
 
+                <TextInput
+                 value={shortDescription}
+                    onChangeText={setShortDescription}
+                    placeholder="Example: Friend from the gym. Funny, calm, loves hiking."
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="sentences"
+                  style={[
+                    styles.input,
+                    styles.notesInput,
+                    { color: settings.textColor },
+                  ]}
+                  multiline
+                  textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                />
+              </View>
               <View style={styles.divider} />
 
               <Text style={[styles.sectionTitle, { color: settings.titleColor }]}>
@@ -810,34 +837,7 @@ const [newGroupColor, setNewGroupColor] = useState(DEFAULT_GROUP_COLOR);
                 />
               </View>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: settings.titleColor }]}>
-                    Notes
-                  </Text>
-                  <Text style={styles.optionalTag}>Optional</Text>
-                </View>
 
-                <TextInput
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Something to remember about this contact..."
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="sentences"
-                  style={[
-                    styles.input,
-                    styles.notesInput,
-                    { color: settings.textColor },
-                  ]}
-                  multiline
-                  textAlignVertical="top"
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollRef.current?.scrollToEnd({ animated: true });
-                    }, 150);
-                  }}
-                />
-              </View>
             </View>
 
             <View style={styles.actionsRow}>

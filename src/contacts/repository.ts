@@ -162,7 +162,7 @@ async function mapContactToApi(
 
     created_at: toIso(row.createdAt),
 
-    notes: row.notes,
+    short_description: row.shortDescription,
 
     photo: row.photoUri,
     photo_uri: row.photoUri,
@@ -633,7 +633,7 @@ export async function fetchContacts(
         like(contact.lastName, search),
         like(contact.phone, search),
         like(contact.email, search),
-        like(contact.notes, search)
+        like(contact.shortDescription, search)
       ) as SQL
     );
   }
@@ -722,7 +722,7 @@ export async function createContact(
 
     photoUri: payload.photo_uri ?? null,
 
-    notes: payload.notes ?? null,
+    shortDescription: payload.short_description ?? null,
 
     talkNotifiedAt: toDateOnly(payload.talk_notified_at),
   };
@@ -822,9 +822,9 @@ export async function updateContact(
     updateData.photoUri = payload.photo_uri;
   }
 
-  if (payload.notes !== undefined) {
-    updateData.notes = payload.notes;
-  }
+ if (payload.short_description !== undefined) {
+  updateData.shortDescription = payload.short_description;
+}
 
   await db
     .update(contact)

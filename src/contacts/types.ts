@@ -73,7 +73,7 @@ export type Contact = {
 
   created_at: string;
 
-  notes?: string | null;
+  short_description?: string | null;
 
   /**
    * Old API used `photo`.
@@ -119,7 +119,7 @@ export type CreateContactInput = {
    */
   tags?: AppId[];
 
-  notes?: string | null;
+  short_description?: string | null;
 
   /**
    * Local Expo image URI.

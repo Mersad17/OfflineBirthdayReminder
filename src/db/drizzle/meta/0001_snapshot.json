@@ -1,8 +1,8 @@
 {
+  "id": "3b7f91a2-4221-4a1d-9b3f-9a80ef304f21",
+  "prevId": "4526c89c-7441-45d2-bfd9-ae4ff0ce7834",
   "version": "6",
   "dialect": "sqlite",
-  "id": "6e6db2ac-5981-4a9d-b838-66eb8bfd0ac7",
-  "prevId": "e4ec17f8-d721-41bb-b49a-5a535a82687a",
   "tables": {
     "contact": {
       "name": "contact",
@@ -121,8 +121,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "notes": {
-          "name": "notes",
+        "short_description": {
+          "name": "short_description",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -182,15 +182,15 @@
         "contact_group_id_contact_group_id_fk": {
           "name": "contact_group_id_contact_group_id_fk",
           "tableFrom": "contact",
-          "tableTo": "contact_group",
           "columnsFrom": [
             "group_id"
           ],
+          "tableTo": "contact_group",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -340,15 +340,15 @@
         "contact_event_contact_id_contact_id_fk": {
           "name": "contact_event_contact_id_contact_id_fk",
           "tableFrom": "contact_event",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -551,15 +551,15 @@
         "contact_memory_contact_id_contact_id_fk": {
           "name": "contact_memory_contact_id_contact_id_fk",
           "tableFrom": "contact_memory",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -702,28 +702,28 @@
         "contact_tag_link_contact_id_contact_id_fk": {
           "name": "contact_tag_link_contact_id_contact_id_fk",
           "tableFrom": "contact_tag_link",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "contact_tag_link_tag_id_contact_tag_id_fk": {
           "name": "contact_tag_link_tag_id_contact_tag_id_fk",
           "tableFrom": "contact_tag_link",
-          "tableTo": "contact_tag",
           "columnsFrom": [
             "tag_id"
           ],
+          "tableTo": "contact_tag",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -918,15 +918,15 @@
         "interaction_contact_id_contact_id_fk": {
           "name": "interaction_contact_id_contact_id_fk",
           "tableFrom": "interaction",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1058,15 +1058,15 @@
         "reminder_event_id_contact_event_id_fk": {
           "name": "reminder_event_id_contact_event_id_fk",
           "tableFrom": "reminder",
-          "tableTo": "contact_event",
           "columnsFrom": [
             "event_id"
           ],
+          "tableTo": "contact_event",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1077,9 +1077,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

@@ -13,6 +13,7 @@ import { useAppearance } from "../appearance/AppearanceContext";
 import { AppId } from "../contacts/types";
 import AddSmartReminderScreen from "../screens/Reminders/AddSmartReminderScreen";
 import QuickNoteScreen from "../screens/Contacts/QuickNotesScreen";
+import AlbumDetailsScreen from "../screens/Albums/AlbumDetailsScreen";
 export type ContactsStackParamList = {
   ContactsList: undefined;
   AddContact: undefined;
@@ -55,6 +56,11 @@ QuickNote: {
   contactId: string | number;
   contactName?: string;
 };
+ContactAlbumDetails: {
+  contactId: AppId;
+  albumId: AppId;
+  albumTitle?: string;
+};
   InteractionsHistory: {
     contactId: AppId;
   };
@@ -87,6 +93,7 @@ export default function ContactsStack() {
       <Stack.Screen name="EditEvent" component={EditEventScreen} options={{ title: "Edit Event" }} />
       <Stack.Screen name="AddReminder" component={AddSmartReminderScreen}  options={{ title: "Smart Reminder" }}/>
       <Stack.Screen name="QuickNote" component={QuickNoteScreen} options={{ title: "Quick note" }} />
+      <Stack.Screen name="ContactAlbumDetails" component={AlbumDetailsScreen} options={{ title: "Photo album" }} />
       <Stack.Screen name="LogInteraction" component={LogInteractionScreen} options={{ title: "Log Interaction" }} />
 
 <Stack.Screen
