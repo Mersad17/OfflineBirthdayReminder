@@ -125,7 +125,7 @@ export const contact = sqliteTable(
      */
     photoUri: text("photo_uri"),
 
-    notes: text("notes"),
+    shortDescription: text("short_description"),
 
     talkNotifiedAt: text("talk_notified_at"), // YYYY-MM-DD
   },
@@ -432,4 +432,80 @@ export const interaction = sqliteTable(
     ),
     index("interaction_type_idx").on(table.type),
   ]
+);
+export const contactAlbum = sqliteTable(
+  "contact_album",
+  {
+    id: text("id").primaryKey().notNull(),
+
+    userId: text("user_id").notNull().default("local"),
+
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, {
+        onDelete: "cascade",
+      }),
+
+    title: text("title").notNull(),
+
+    coverPhotoId: text("cover_photo_id"),
+
+    sortOrder: integer("sort_order").notNull().default(0),
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    deletedAt: integer("deleted_at"),
+  },
+  (table) => ({
+    userContactIdx: index("contact_album_user_contact_idx").on(
+      table.userId,
+      table.contactId
+    ),
+    contactSortIdx: index("contact_album_contact_sort_idx").on(
+      table.contactId,
+      table.sortOrder
+    ),
+  })
+);
+
+export const contactAlbumPhoto = sqliteTable(
+  "contact_album_photo",
+  {
+    id: text("id").primaryKey().notNull(),
+
+    albumId: text("album_id")
+      .notNull()
+      .references(() => contactAlbum.id, {
+        onDelete: "cascade",
+      }),
+
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, {
+        onDelete: "cascade",
+      }),
+
+    uri: text("uri").notNull(),
+
+    width: integer("width"),
+    height: integer("height"),
+
+    takenAt: integer("taken_at"),
+
+    sortOrder: integer("sort_order").notNull().default(0),
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    deletedAt: integer("deleted_at"),
+  },
+  (table) => ({
+    albumSortIdx: index("contact_album_photo_album_sort_idx").on(
+      table.albumId,
+      table.sortOrder
+    ),
+    contactAlbumIdx: index("contact_album_photo_contact_album_idx").on(
+      table.contactId,
+      table.albumId
+    ),
+  })
 );

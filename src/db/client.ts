@@ -3,7 +3,7 @@ import { openDatabaseSync } from "expo-sqlite";
 
 import * as schema from "./schema";
 
-const expoDb = openDatabaseSync("friendly-reminder.db", {
+const expoDb = openDatabaseSync("friendly_reminder.db", {
   enableChangeListener: true,
 });
 

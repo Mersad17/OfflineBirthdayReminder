@@ -424,7 +424,7 @@ function normalizeContactForImport(row: any) {
     talkLastAt: row.talkLastAt ?? row.talk_last_at ?? null,
     talkNextAt: row.talkNextAt ?? row.talk_next_at ?? null,
     photoUri: row.photoUri ?? row.photo_uri ?? row.photo ?? null,
-    notes: row.notes ?? null,
+    shortDescription: row.shortDescription ?? row.short_description ?? null,
     talkNotifiedAt: row.talkNotifiedAt ?? row.talk_notified_at ?? null,
   };
 }

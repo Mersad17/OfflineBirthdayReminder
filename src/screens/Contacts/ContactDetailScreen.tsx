@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   RefreshControl,
   ImageBackground,
   Dimensions,
+  Animated,
 } from "react-native";
 
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -23,7 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-
+import { relationshipHealth } from "./relationshipHealth";
 import { ContactsStackParamList } from "../../navigation/ContactsStack";
 import { Contact, ContactTag } from "../../contacts/types";
 import {
@@ -56,6 +57,8 @@ import {
 } from "../../memories/repository";
 import { ContactMemory } from "../../memories/types";
 import { MEMORY_TYPES } from "../../memories/helper";
+import { ContactAlbumSummary } from "../../albums/types";
+import { createContactAlbum, fetchAlbumsForContact } from "../../albums/repository";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -283,11 +286,11 @@ function getMainNotes(contact: Contact, memories: ContactMemory[]) {
     return notes.slice(0, 2);
   }
 
-  if (contact.notes) {
+  if (contact.short_description) {
     return [
       {
         id: "contact-note" as any,
-        text: contact.notes,
+        text: contact.short_description,
         memory_type: "note",
         is_pinned: false,
         date: null,
@@ -346,8 +349,24 @@ function getTalkBaseDate(contact: Contact, interactions: Interaction[]) {
   return parseDate(lastContacted) ?? todayStart();
 }
 
+function formatCheckInDate(date: Date) {
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function getNextTalkDate(contact: Contact, interactions: Interaction[]) {
-  if (!contact.talk_every_days) return null;
+  const storedNextDate = parseDate(contact.talk_next_at);
+
+  if (storedNextDate) {
+    return storedNextDate;
+  }
+
+  if (!contact.talk_every_days) {
+    return null;
+  }
 
   const baseDate = getTalkBaseDate(contact, interactions);
   return addDays(baseDate, contact.talk_every_days);
@@ -355,15 +374,28 @@ function getNextTalkDate(contact: Contact, interactions: Interaction[]) {
 
 function nextTalkLabel(contact: Contact, interactions: Interaction[]) {
   const nextDate = getNextTalkDate(contact, interactions);
-  if (!nextDate) return "Not active";
+
+  if (!nextDate) {
+    return "Not active";
+  }
 
   const diff = daysBetween(todayStart(), nextDate);
+  const dateLabel = formatCheckInDate(nextDate);
 
-  if (diff < 0) return `Overdue by ${Math.abs(diff)} day${Math.abs(diff) > 1 ? "s" : ""}`;
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    return `Overdue by ${days} day${days > 1 ? "s" : ""} · ${dateLabel}`;
+  }
 
-  return `In ${diff} days`;
+  if (diff === 0) {
+    return `Today · ${dateLabel}`;
+  }
+
+  if (diff === 1) {
+    return `Tomorrow · ${dateLabel}`;
+  }
+
+  return `In ${diff} days · ${dateLabel}`;
 }
 
 function getTalkStatus(contact: Contact, interactions: Interaction[]) {
@@ -409,72 +441,8 @@ function getTalkStatus(contact: Contact, interactions: Interaction[]) {
     fg: GREEN,
   };
 }
-function getHeartFillPercent(score: number) {
-  const safeScore = Math.max(0, Math.min(5, score));
-  return (safeScore / 5) * 100;
-}
 
-function relationshipHealth(contact: Contact, interactions: Interaction[]) {
-  const lastContact =
-    contact.talk_last_at ||
-    interactions[0]?.happened_at?.slice(0, 10) ||
-    null;
 
-  const since = daysSince(lastContact);
-  const rhythm = contact.talk_every_days;
-
-  if (since === null) {
-    return {
-      title: "New connection",
-      subtitle: "No interaction logged yet",
-      color: PURPLE,
-      score: 2,
-    };
-  }
-
-  if (!rhythm) {
-    return {
-      title: "Strong connection",
-      subtitle: since === 0 ? "You talked today" : `You talked ${since} days ago`,
-      color: RED,
-      score: since <= 7 ? 5 : since <= 14 ? 4 : 3,
-    };
-  }
-
-  if (since <= rhythm) {
-    return {
-      title: "Strong connection",
-      subtitle: since === 0 ? "You talked today" : `You talked ${since} days ago`,
-      color: RED,
-      score: 5,
-    };
-  }
-
-  if (since <= rhythm * 1.25) {
-    return {
-      title: "Good connection",
-      subtitle: "A small check-in would be nice",
-      color: ORANGE,
-      score: 4,
-    };
-  }
-
-  if (since <= rhythm * 1.5) {
-    return {
-      title: "Getting distant",
-      subtitle: "Time to reconnect soon",
-      color: ORANGE,
-      score: 3,
-    };
-  }
-
-  return {
-    title: "Needs attention",
-    subtitle: `You haven’t contacted them in ${since} days`,
-    color: RED_DARK,
-    score: 1,
-  };
-}
 
 function getMetAt(contact: Contact, interactions: Interaction[]) {
   const directMetAt =
@@ -505,7 +473,9 @@ function getRelationshipLabel(contact: Contact) {
     "Not set"
   );
 }
-
+function getShortDescription(contact: Contact) {
+  return contact.short_description?.trim() || "No short description yet.";
+}
 export default function ContactDetailScreen({ route, navigation }: Props) {
   const { contactId } = route.params;
   const isFocused = useIsFocused();
@@ -523,7 +493,10 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const [savingTags, setSavingTags] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
+  const [albums, setAlbums] = useState<ContactAlbumSummary[]>([]);
+  const [showAlbumModal, setShowAlbumModal] = useState(false);
+  const [newAlbumTitle, setNewAlbumTitle] = useState("");
+  const [savingAlbum, setSavingAlbum] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [newMemoryText, setNewMemoryText] = useState("");
   const [newMemoryType, setNewMemoryType] = useState<MemoryType>("note");
@@ -536,24 +509,27 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
 
   const loadProfile = useCallback(async () => {
     try {
-const [
-  contactData,
-  memoriesData,
-  eventsData,
-  interactionsData,
-  tagData,
-] = await Promise.all([
-  fetchContactById(contactId),
-  fetchMemoriesForContact(contactId as any),
-  fetchEventsForContact(contactId as any, 1),
-  fetchInteractionForContact(contactId as any),
-  fetchContactTags(),
-]);
+        const [
+          contactData,
+          memoriesData,
+          eventsData,
+          interactionsData,
+          tagData,
+          albumsData,
+        ] = await Promise.all([
+          fetchContactById(contactId),
+          fetchMemoriesForContact(contactId as any),
+          fetchEventsForContact(contactId as any, 1),
+          fetchInteractionForContact(contactId as any),
+          fetchContactTags(),
+          fetchAlbumsForContact(contactId as any),
+        ]);
 
       setContact(contactData);
       setMemories(memoriesData ?? []);
       setInteractions(interactionsData ?? []);
       setAllTags(tagData ?? []);
+      setAlbums(albumsData ?? []);
 
       const eventResults = Array.isArray(eventsData)
         ? eventsData
@@ -586,28 +562,7 @@ const [
     setRefreshing(false);
   }
 
-  async function toggleFavorite() {
-    if (!contact) return;
-
-    const previous = contact;
-    const nextValue = !contact.is_favorite;
-
-    setContact({
-      ...contact,
-      is_favorite: nextValue,
-    });
-
-    try {
-      const updated = await updateContact(contact.id as any, {
-        is_favorite: nextValue,
-      });
-
-      setContact(updated);
-    } catch {
-      setContact(previous);
-      Alert.alert("Favorite", "Could not update favorite.");
-    }
-  }
+  
 async function saveTalkCadence(days: number | null) {
   if (!contact || savingTalk) return;
 
@@ -638,7 +593,7 @@ async function saveTalkCadence(days: number | null) {
   } catch (error) {
     console.log("Save talk cadence failed:", error);
     setContact(previous);
-    Alert.alert("Prendre des nouvelles", "Could not save this reminder rhythm.");
+    Alert.alert("Check-in reminder", "Could not save this reminder rhythm.");
   } finally {
     setSavingTalk(false);
   }
@@ -716,7 +671,42 @@ async function saveTalkCadence(days: number | null) {
       setSavingMemory(false);
     }
   }
+async function handleCreateAlbum() {
+  if (!contact || savingAlbum) return;
 
+  const title = newAlbumTitle.trim();
+
+  if (!title) {
+    Alert.alert("Album", "Give this album a name.");
+    return;
+  }
+
+  try {
+    setSavingAlbum(true);
+
+    const album = await createContactAlbum({
+      contactId: contact.id as any,
+      title,
+    });
+
+    setNewAlbumTitle("");
+    setShowAlbumModal(false);
+
+    const refreshedAlbums = await fetchAlbumsForContact(contact.id as any);
+    setAlbums(refreshedAlbums);
+
+    navigation.navigate("ContactAlbumDetails", {
+      contactId: contact.id as any,
+      albumId: album.id as any,
+      albumTitle: album.title,
+    });
+  } catch (error: any) {
+    console.log("Create album failed:", error);
+    Alert.alert("Album", error?.message || "Could not create album.");
+  } finally {
+    setSavingAlbum(false);
+  }
+}
   async function confirmDeleteMemory(memory: ContactMemory) {
     Alert.alert("Delete memory?", "This memory will be removed.", [
       {
@@ -932,17 +922,16 @@ async function saveContactTags() {
           contentContainerStyle={styles.scrollContent}
         >
           <ProfileHero
-            contact={contact}
-            name={name}
-            onBack={() => navigation.goBack()}
-            onFavorite={toggleFavorite}
-            onEdit={() =>
-              navigation.navigate("EditContact", {
-                contactId: contact.id as any,
-              })
-            }
-            onAddTag={openTagPicker}
-          />
+          contact={contact}
+          name={name}
+          onBack={() => navigation.goBack()}
+          onEdit={() =>
+            navigation.navigate("EditContact", {
+              contactId: contact.id as any,
+            })
+          }
+        onAddTag={openTagPicker}
+      />
 
           <PrimaryActionBar
             onQuickNote={() =>
@@ -1046,7 +1035,18 @@ async function saveContactTags() {
               })
             }
           />
-
+          <PhotoAlbumsPanel
+            albums={albums}
+            contactName={name}
+            onCreate={() => setShowAlbumModal(true)}
+            onOpen={(album) =>
+              navigation.navigate("ContactAlbumDetails", {
+                contactId: contact.id as any,
+                albumId: album.id as any,
+                albumTitle: album.title,
+              })
+            }
+          />
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={confirmDeleteContact}
@@ -1055,14 +1055,7 @@ async function saveContactTags() {
           </TouchableOpacity>
         </ScrollView>
 
-        <TouchableOpacity
-          style={styles.floatingAddButton}
-          onPress={() => openCreateMemoryModal("note")}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="add" size={34} color="#FFFFFF" />
-        </TouchableOpacity>
-
+    
         <MemoryModal
           visible={showMemoryModal}
           text={newMemoryText}
@@ -1103,6 +1096,18 @@ async function saveContactTags() {
           setTagSearch("");
         }}
         onSave={saveContactTags}
+      />
+
+      <AlbumCreateModal
+        visible={showAlbumModal}
+        value={newAlbumTitle}
+        saving={savingAlbum}
+        onChangeText={setNewAlbumTitle}
+        onCancel={() => {
+          setShowAlbumModal(false);
+          setNewAlbumTitle("");
+        }}
+        onSave={handleCreateAlbum}
       />
       </View>
     </Screen>
@@ -1352,14 +1357,12 @@ function ProfileHero({
   contact,
   name,
   onBack,
-  onFavorite,
   onEdit,
   onAddTag,
 }: {
   contact: Contact;
   name: string;
   onBack: () => void;
-  onFavorite: () => void;
   onEdit: () => void;
   onAddTag: () => void;
 }) {
@@ -1391,18 +1394,14 @@ function ProfileHero({
         </TouchableOpacity>
 
         <View style={styles.heroRightButtons}>
-          <TouchableOpacity style={styles.heroCircleButton} onPress={onFavorite}>
-            <Ionicons
-              name={contact.is_favorite ? "star" : "star-outline"}
-              size={22}
-              color={contact.is_favorite ? ORANGE : "#FFFFFF"}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.heroCircleButton} onPress={onEdit}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+  <TouchableOpacity
+    style={styles.heroCircleButton}
+    onPress={onEdit}
+    activeOpacity={0.85}
+  >
+    <Ionicons name="create-outline" size={22} color="#FFFFFF" />
+  </TouchableOpacity>
+</View>
       </View>
 
       <View style={styles.heroContentRow}>
@@ -1464,9 +1463,9 @@ function ProfileHero({
             ) : null}
           </View>
 
-          <Text style={styles.heroQuote} numberOfLines={3}>
-            Kind, creative soul who loves deep talks and spontaneous trips. ♡
-          </Text>
+        <Text style={styles.heroQuote} numberOfLines={3}>
+          {getShortDescription(contact)}
+        </Text>
         </View>
       </View>
 
@@ -1697,7 +1696,7 @@ function RelationshipHealthCard({
 }) {
   const enabled = !!contact.talk_every_days;
   const cadence = contact.talk_every_days ?? 7;
-  const fillPercent = getHeartFillPercent(health.score);
+  const fillPercent = health.fillPercent;
   const status = getTalkStatus(contact, interactions);
   const lastContacted = getLastInteractionDate(contact, interactions);
   const presets = [7, 14, 30];
@@ -1721,7 +1720,7 @@ function RelationshipHealthCard({
 
     if (!Number.isFinite(parsed) || parsed < 1 || parsed > 365) {
       Alert.alert(
-        "Prendre des nouvelles",
+        "Check-in reminder",
         "Enter a number between 1 and 365 days."
       );
       return;
@@ -1735,9 +1734,17 @@ function RelationshipHealthCard({
     <View style={styles.connectionCompactCard}>
       <View style={styles.connectionCompactHeader}>
         <View style={styles.connectionCompactLeft}>
-          <View style={styles.connectionCompactIconCircle}>
-            <HeartStrengthIcon score={health.score} />
-          </View>
+          <View
+    style={[
+      styles.connectionCompactIconCircle,
+      { backgroundColor: withOpacity(health.color, "18") },
+    ]}
+  >
+    <HeartStrengthIcon
+      fillPercent={health.fillPercent}
+      color={health.color}
+    />
+  </View>
 
           <View style={styles.connectionCompactTextWrap}>
             <View style={styles.connectionCompactEyebrowRow}>
@@ -1745,22 +1752,6 @@ function RelationshipHealthCard({
                 CONNECTION RHYTHM
               </Text>
 
-              <View
-                style={[
-                  styles.connectionCompactStatus,
-                  { backgroundColor: status.bg },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.connectionCompactStatusText,
-                    { color: status.fg },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {status.label}
-                </Text>
-              </View>
             </View>
 
             <Text style={styles.connectionCompactTitle} numberOfLines={1}>
@@ -1808,18 +1799,16 @@ function RelationshipHealthCard({
         <View style={styles.rhythmCompactTopRow}>
           <View style={styles.rhythmCompactTextWrap}>
             <Text style={styles.rhythmCompactLabel}>
-              Prendre des nouvelles
+                Check-in reminder
             </Text>
             <Text style={styles.rhythmCompactValue} numberOfLines={1}>
-              {enabled
-                ? `Remind me every ${cadence} day${cadence > 1 ? "s" : ""}`
-                : "Reminder rhythm is off"}
+             {enabled
+                ? `Every ${cadence} day${cadence > 1 ? "s" : ""}`
+                : "Off"}
             </Text>
           </View>
 
-          <Text style={styles.rhythmNextValue} numberOfLines={1}>
-            {nextTalkLabel(contact, interactions)}
-          </Text>
+          
         </View>
 
         {enabled ? (
@@ -1901,8 +1890,30 @@ function RelationshipHealthCard({
   );
 }
 
-function HeartStrengthIcon({ score }: { score: number }) {
-  const fillPercent = getHeartFillPercent(score);
+function HeartStrengthIcon({
+  fillPercent,
+  color,
+}: {
+  fillPercent: number;
+  color: string;
+}) {
+  const safeFillPercent = Math.max(0, Math.min(100, fillPercent));
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(animatedValue, {
+      toValue: safeFillPercent,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 70,
+    }).start();
+  }, [animatedValue, safeFillPercent]);
+
+  const animatedHeight = animatedValue.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, 30],
+    extrapolate: "clamp",
+  });
 
   return (
     <View style={styles.heartStrengthBox}>
@@ -1913,21 +1924,21 @@ function HeartStrengthIcon({ score }: { score: number }) {
         style={styles.heartStrengthLayer}
       />
 
-      <View
+      <Animated.View
         style={[
           styles.heartStrengthFillClip,
-          { height: `${fillPercent}%` },
+          { height: animatedHeight },
         ]}
       >
         <View style={styles.heartStrengthFillInner}>
-          <Ionicons name="heart" size={30} color={HEART_GOLD} />
+          <Ionicons name="heart" size={30} color={color} />
         </View>
-      </View>
+      </Animated.View>
 
       <Ionicons
         name="heart-outline"
         size={30}
-        color={HEART_GOLD}
+        color={color}
         style={styles.heartStrengthLayer}
       />
     </View>
@@ -2612,6 +2623,8 @@ function UpcomingPanel({
         icon="calendar-outline"
         color={ORANGE}
         title="Upcoming"
+        actionIcon="add"
+        actionLabel="Add"
         onPress={onAdd}
       />
 
@@ -2659,6 +2672,8 @@ function ImportantDatesPanel({
         icon="heart-outline"
         color={RED}
         title="Important dates"
+        actionIcon="add"
+        actionLabel="Add"
         onPress={onAdd}
       />
 
@@ -2698,11 +2713,13 @@ function RecentHistoryPanel({
   return (
     <View style={[styles.panel, variant === "full" ? styles.panelFull : styles.panelHalf]}>
       <PanelTitle
-        icon="time-outline"
-        color={BLUE}
-        title="Recent history"
-        onPress={onViewAll}
-      />
+          icon="time-outline"
+          color={BLUE}
+          title="Recent history"
+          actionIcon="chevron-forward"
+          actionLabel="View"
+          onPress={onViewAll}
+        />
 
       {interactions.length === 0 ? (
         <Text style={styles.panelEmpty}>No history yet.</Text>
@@ -2731,29 +2748,252 @@ function RecentHistoryPanel({
     </View>
   );
 }
+function PhotoAlbumsPanel({
+  albums,
+  contactName,
+  onCreate,
+  onOpen,
+}: {
+  albums: ContactAlbumSummary[];
+  contactName: string;
+  onCreate: () => void;
+  onOpen: (album: ContactAlbumSummary) => void;
+}) {
+  return (
+    <View style={styles.photoAlbumsCard}>
+      <View style={styles.photoAlbumsHeader}>
+        <View style={styles.cardTitleLeft}>
+          <View style={[styles.smallIconBubble, { backgroundColor: "#FFF1D8" }]}>
+            <Ionicons name="images-outline" size={16} color={ORANGE} />
+          </View>
 
+          <View>
+            <Text style={styles.cardTitle}>Photo albums</Text>
+            <Text style={styles.photoAlbumsSubtitle} numberOfLines={1}>
+              Moments saved with {contactName || "this person"}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.photoAlbumsAddButton}
+          onPress={onCreate}
+          activeOpacity={0.85}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+          <Text style={styles.photoAlbumsAddText}>Album</Text>
+        </TouchableOpacity>
+      </View>
+
+      {albums.length === 0 ? (
+        <TouchableOpacity
+          style={styles.emptyAlbumCard}
+          onPress={onCreate}
+          activeOpacity={0.88}
+        >
+          <View style={styles.emptyAlbumIcon}>
+            <Ionicons name="images-outline" size={25} color={ORANGE} />
+          </View>
+
+          <Text style={styles.emptyAlbumTitle}>No albums yet</Text>
+          <Text style={styles.emptyAlbumText}>
+            Create an album for trips, birthdays, dinners, or small moments.
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.albumScrollRow}
+        >
+          {albums.map((album) => (
+            <AlbumPreviewCard
+              key={String(album.id)}
+              album={album}
+              onPress={() => onOpen(album)}
+            />
+          ))}
+
+          <TouchableOpacity
+            style={styles.newAlbumCard}
+            onPress={onCreate}
+            activeOpacity={0.88}
+          >
+            <View style={styles.newAlbumIcon}>
+              <Ionicons name="add" size={24} color="#FFFFFF" />
+            </View>
+            <Text style={styles.newAlbumText}>New album</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function AlbumPreviewCard({
+  album,
+  onPress,
+}: {
+  album: ContactAlbumSummary;
+  onPress: () => void;
+}) {
+  const photos = album.preview_photos;
+
+  return (
+    <TouchableOpacity
+      style={styles.albumPreviewCard}
+      onPress={onPress}
+      activeOpacity={0.9}
+    >
+      <View style={styles.albumCollage}>
+        {photos.length === 0 ? (
+          <View style={styles.albumEmptyPreview}>
+            <Ionicons name="image-outline" size={26} color={MUTED} />
+          </View>
+        ) : (
+          photos.slice(0, 4).map((photo, index) => (
+            <Image
+              key={String(photo.id)}
+              source={{ uri: photo.uri }}
+              style={[
+                styles.albumCollageImage,
+                photos.length === 1 && styles.albumCollageImageFull,
+              ]}
+            />
+          ))
+        )}
+      </View>
+
+      <Text style={styles.albumTitle} numberOfLines={1}>
+        {album.title}
+      </Text>
+
+      <Text style={styles.albumCount}>
+        {album.photo_count} {album.photo_count === 1 ? "photo" : "photos"}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function AlbumCreateModal({
+  visible,
+  value,
+  saving,
+  onChangeText,
+  onCancel,
+  onSave,
+}: {
+  visible: boolean;
+  value: string;
+  saving: boolean;
+  onChangeText: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={styles.albumModalOverlay}>
+        <View style={styles.albumModalCard}>
+          <Text style={styles.albumModalEyebrow}>PHOTO ALBUM</Text>
+
+          <Text style={styles.albumModalTitle}>Create a new album</Text>
+
+          <Text style={styles.albumModalSubtitle}>
+            Give this moment a home. You can add photos right after.
+          </Text>
+
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder="Example: Paris trip"
+            placeholderTextColor="#B8A79A"
+            autoCapitalize="words"
+            style={styles.albumModalInput}
+          />
+
+          <View style={styles.albumModalActions}>
+            <TouchableOpacity
+              style={styles.albumModalCancelButton}
+              onPress={onCancel}
+              disabled={saving}
+            >
+              <Text style={styles.albumModalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.albumModalSaveButton,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={onSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.albumModalSaveText}>Create</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 function PanelTitle({
   icon,
   color,
   title,
+  actionIcon = "add",
+  actionLabel,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
   title: string;
+  actionIcon?: keyof typeof Ionicons.glyphMap;
+  actionLabel?: string;
   onPress: () => void;
 }) {
   return (
     <View style={styles.panelTitleRow}>
       <View style={styles.panelTitleLeft}>
-        <Ionicons name={icon} size={16} color={color} />
+        <View
+          style={[
+            styles.panelTitleIconBubble,
+            { backgroundColor: withOpacity(color, "18") },
+          ]}
+        >
+          <Ionicons name={icon} size={15} color={color} />
+        </View>
+
         <Text style={[styles.panelTitle, { color }]} numberOfLines={1}>
           {title}
         </Text>
       </View>
 
-      <TouchableOpacity onPress={onPress}>
-        <Ionicons name="add" size={18} color={MUTED} />
+      <TouchableOpacity
+        style={[
+          styles.panelActionButton,
+          { backgroundColor: withOpacity(color, "14") },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.82}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        {actionLabel ? (
+          <Text style={[styles.panelActionText, { color }]}>
+            {actionLabel}
+          </Text>
+        ) : null}
+
+        <Ionicons name={actionIcon} size={16} color={color} />
       </TouchableOpacity>
     </View>
   );
@@ -3016,7 +3256,53 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 105,
   },
+panelTitleRow: {
+  minHeight: 44,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  marginBottom: 10,
+},
 
+panelTitleLeft: {
+  flex: 1,
+  minWidth: 0,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 7,
+},
+
+panelTitleIconBubble: {
+  width: 28,
+  height: 28,
+  borderRadius: 12,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+panelTitle: {
+  flex: 1,
+  minWidth: 0,
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+panelActionButton: {
+  minWidth: 42,
+  height: 38,
+  borderRadius: 16,
+  paddingHorizontal: 10,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+},
+
+panelActionText: {
+  fontSize: 11,
+  fontWeight: "900",
+},
   hero: {
     height: 236,
     backgroundColor: "#111",
@@ -3247,18 +3533,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginBottom: 12,
   },
-  aboutGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    rowGap: 14,
-  },
-  aboutItem: {
-    width: "33.333%",
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingRight: 8,
-    gap: 7,
-  },
+ aboutGrid: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  rowGap: 16,
+},
+
+aboutItem: {
+  width: "33.333%",
+  flexDirection: "row",
+  alignItems: "flex-start",
+  paddingRight: 6,
+  gap: 7,
+},
   aboutIconWrap: {
     width: 17,
     alignItems: "center",
@@ -3268,18 +3555,20 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  aboutLabel: {
-    color: MUTED,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  aboutValue: {
-    color: TEXT,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "800",
-    marginTop: 1,
-  },
+ aboutLabel: {
+  color: MUTED,
+  fontSize: 11,
+  lineHeight: 14,
+  fontWeight: "700",
+},
+
+aboutValue: {
+  color: TEXT,
+  fontSize: 13,
+  lineHeight: 17,
+  fontWeight: "800",
+  marginTop: 2,
+},
 
   connectionCard: {
     marginHorizontal: 14,
@@ -3580,24 +3869,7 @@ tagModalHandle: {
     marginTop: 10,
     minHeight: 170,
   },
-  panelTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  panelTitleLeft: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  panelTitle: {
-    flex: 1,
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
+ 
   panelRow: {
     flexDirection: "row",
     gap: 8,
@@ -3642,22 +3914,7 @@ tagModalHandle: {
     color: RED_DARK,
     fontWeight: "900",
   },
-  floatingAddButton: {
-    position: "absolute",
-    bottom: 24,
-    alignSelf: "center",
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: PURPLE,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 9,
-  },
+
 
   modalOverlay: {
     flex: 1,
@@ -4886,6 +5143,260 @@ tagModalSaveButton: {
 tagModalSaveText: {
   color: "#FFFFFF",
   fontSize: 15,
+  fontWeight: "900",
+},
+photoAlbumsCard: {
+  marginHorizontal: 14,
+  marginTop: 12,
+  backgroundColor: CARD,
+  borderRadius: 24,
+  borderWidth: 1,
+  borderColor: BORDER,
+  padding: 14,
+},
+
+photoAlbumsHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  marginBottom: 12,
+},
+
+photoAlbumsSubtitle: {
+  color: MUTED,
+  fontSize: 11,
+  fontWeight: "700",
+  marginTop: 2,
+},
+
+photoAlbumsAddButton: {
+  minHeight: 38,
+  borderRadius: 16,
+  backgroundColor: RED,
+  paddingHorizontal: 12,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 5,
+},
+
+photoAlbumsAddText: {
+  color: "#FFFFFF",
+  fontSize: 11,
+  fontWeight: "900",
+},
+
+albumScrollRow: {
+  gap: 10,
+  paddingRight: 4,
+},
+
+albumPreviewCard: {
+  width: 132,
+  borderRadius: 20,
+  backgroundColor: "#FFFFFF",
+  borderWidth: 1,
+  borderColor: "rgba(120,90,60,0.12)",
+  padding: 8,
+},
+
+albumCollage: {
+  height: 104,
+  borderRadius: 16,
+  overflow: "hidden",
+  backgroundColor: "#F5E9DF",
+  flexDirection: "row",
+  flexWrap: "wrap",
+},
+
+albumCollageImage: {
+  width: "50%",
+  height: "50%",
+},
+
+albumCollageImageFull: {
+  width: "100%",
+  height: "100%",
+},
+
+albumEmptyPreview: {
+  flex: 1,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+albumTitle: {
+  color: TEXT,
+  fontSize: 13,
+  fontWeight: "900",
+  marginTop: 8,
+},
+
+albumCount: {
+  color: MUTED,
+  fontSize: 11,
+  fontWeight: "700",
+  marginTop: 2,
+},
+
+newAlbumCard: {
+  width: 116,
+  minHeight: 152,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderStyle: "dashed",
+  borderColor: BORDER,
+  backgroundColor: "#FFFDF8",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 12,
+},
+
+newAlbumIcon: {
+  width: 46,
+  height: 46,
+  borderRadius: 18,
+  backgroundColor: RED,
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 9,
+},
+
+newAlbumText: {
+  color: TEXT,
+  fontSize: 12,
+  fontWeight: "900",
+  textAlign: "center",
+},
+
+emptyAlbumCard: {
+  minHeight: 155,
+  borderRadius: 22,
+  borderWidth: 1,
+  borderColor: "rgba(120,90,60,0.12)",
+  backgroundColor: "#FFFFFF",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 18,
+},
+
+emptyAlbumIcon: {
+  width: 56,
+  height: 56,
+  borderRadius: 22,
+  backgroundColor: "#FFF1D8",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 12,
+},
+
+emptyAlbumTitle: {
+  color: TEXT,
+  fontSize: 16,
+  fontWeight: "900",
+},
+
+emptyAlbumText: {
+  color: MUTED,
+  fontSize: 12,
+  lineHeight: 18,
+  textAlign: "center",
+  fontWeight: "600",
+  marginTop: 6,
+},
+albumModalOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(20, 14, 10, 0.50)",
+  justifyContent: "center",
+  alignItems: "center",
+  paddingHorizontal: 22,
+},
+
+albumModalCard: {
+  width: "100%",
+  maxWidth: 390,
+  borderRadius: 30,
+  backgroundColor: CARD,
+  padding: 18,
+  borderWidth: 1,
+  borderColor: BORDER,
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 22,
+  shadowOffset: { width: 0, height: 10 },
+  elevation: 12,
+},
+
+albumModalEyebrow: {
+  color: ORANGE,
+  fontSize: 11,
+  fontWeight: "900",
+  letterSpacing: 0.8,
+},
+
+albumModalTitle: {
+  color: TEXT,
+  fontSize: 23,
+  lineHeight: 28,
+  fontWeight: "900",
+  marginTop: 6,
+},
+
+albumModalSubtitle: {
+  color: MUTED,
+  fontSize: 13,
+  lineHeight: 19,
+  fontWeight: "600",
+  marginTop: 6,
+},
+
+albumModalInput: {
+  minHeight: 52,
+  borderRadius: 18,
+  borderWidth: 1,
+  borderColor: BORDER,
+  backgroundColor: "#FFFFFF",
+  paddingHorizontal: 14,
+  marginTop: 16,
+  color: TEXT,
+  fontSize: 15,
+  fontWeight: "800",
+},
+
+albumModalActions: {
+  flexDirection: "row",
+  gap: 10,
+  marginTop: 16,
+},
+
+albumModalCancelButton: {
+  flex: 1,
+  height: 50,
+  borderRadius: 18,
+  backgroundColor: "#EFE6DD",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+albumModalCancelText: {
+  color: MUTED,
+  fontSize: 14,
+  fontWeight: "900",
+},
+
+albumModalSaveButton: {
+  flex: 1,
+  height: 50,
+  borderRadius: 18,
+  backgroundColor: RED,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+albumModalSaveText: {
+  color: "#FFFFFF",
+  fontSize: 14,
   fontWeight: "900",
 },
 });
