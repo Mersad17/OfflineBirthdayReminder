@@ -1,14 +1,17 @@
-import React from "react";
+// src/screens/Reminders/RemindersScreen.tsx
+import React, { useMemo } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
-  Alert,
-  TouchableOpacity,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { fetchReminders } from "../../reminders/repository";
 import { formatReminder, formatSendAt } from "../../reminders/utils";
@@ -16,8 +19,27 @@ import { Screen } from "../../components/Screen";
 import { REMINDER_STATUS, ReminderDTO } from "../../events/types";
 import { useAppearance } from "../../appearance/AppearanceContext";
 
+type ReminderColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  danger: string;
+  warning: string;
+  success: string;
+  shadow: string;
+};
+
 export default function RemindersScreen({ navigation }: any) {
   const { settings } = useAppearance();
+  const colors = useMemo(() => makeReminderColors(settings), [settings]);
 
   const [reminders, setReminders] = React.useState<ReminderDTO[]>([]);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -40,14 +62,21 @@ export default function RemindersScreen({ navigation }: any) {
       setReminders(sorted);
     } catch (error) {
       console.log("Failed to load reminders", error);
-      Alert.alert("Error", "Failed to load reminders");
+      Alert.alert("Error", "Failed to load reminders.");
     } finally {
       setLoading(false);
     }
   }
 
   React.useEffect(() => {
+    navigation.setOptions?.({
+      headerShown: false,
+    });
+  }, [navigation]);
+
+  React.useEffect(() => {
     const unsubscribe = navigation?.addListener?.("focus", load);
+
     load();
 
     return unsubscribe;
@@ -59,11 +88,21 @@ export default function RemindersScreen({ navigation }: any) {
     setRefreshing(false);
   }
 
+  function openAddReminder() {
+    navigation.navigate("AddReminder");
+  }
+
+  const isEmpty = !loading && reminders.length === 0;
+
   if (loading && reminders.length === 0) {
     return (
       <Screen>
-        <View style={styles.center}>
-          <Text style={[styles.loadingText, { color: settings.textColor }]}>Loading reminders…</Text>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <ActivityIndicator color={colors.primary} />
+
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            Loading reminders…
+          </Text>
         </View>
       </Screen>
     );
@@ -71,254 +110,605 @@ export default function RemindersScreen({ navigation }: any) {
 
   return (
     <Screen>
-      <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: settings.titleColor }]}>Reminders</Text>
-            <Text style={[styles.subtitle, { color: settings.textColor }]}>Smart reminders connected to people.</Text>
-          </View>
-<TouchableOpacity
-  style={{
-    margin: 16,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#111827",
-    alignItems: "center",
-  }}
-  onPress={() => navigation.navigate("AddReminder")}
->
-  <Text style={{ color: "#fff", fontWeight: "900" }}>
-    Add smart reminder
-  </Text>
-</TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: settings.buttonColor }]}
-            onPress={() => navigation.navigate("AddSmartReminder")}
-          >
-            <Ionicons name="add" size={18} color={settings.buttonTextColor} />
-            <Text style={[styles.addButtonText, { color: settings.buttonTextColor }]}>Smart</Text>
-          </TouchableOpacity>
-        </View>
-
-        {reminders.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: settings.cardColor }]}> 
-            <View style={[styles.emptyIcon, { backgroundColor: settings.primaryColor + "18" }]}> 
-              <Ionicons name="notifications-outline" size={28} color={settings.primaryColor} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: settings.titleColor }]}>No reminders yet</Text>
-            <Text style={[styles.emptyText, { color: settings.textColor }]}>Create one for birthdays, check-ins, interviews, promises, or anything you want to remember.</Text>
-            <TouchableOpacity
-              style={[styles.emptyButton, { backgroundColor: settings.buttonColor }]}
-              onPress={() => navigation.navigate("AddSmartReminder")}
-            >
-              <Text style={[styles.emptyButtonText, { color: settings.buttonTextColor }]}>Create smart reminder</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <FlatList
-            data={reminders}
-            keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={styles.listContent}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            renderItem={({ item }) => (
-              <View style={[styles.card, { backgroundColor: settings.cardColor }]}> 
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.cardIcon, { backgroundColor: statusColor(item.status).bg }]}> 
-                    <Ionicons name="notifications-outline" size={18} color={statusColor(item.status).fg} />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: settings.titleColor }]} numberOfLines={2}>
-                      {formatReminder(item)}
-                    </Text>
-                    <Text style={[styles.cardSub, { color: settings.textColor }]} numberOfLines={1}>
-                      Send at: {formatSendAt(item)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.metaRow}>
-                  <View style={[styles.statusPill, { backgroundColor: statusColor(item.status).bg }]}> 
-                    <Text style={[styles.statusText, { color: statusColor(item.status).fg }]}>{statusLabel(item.status)}</Text>
-                  </View>
-
-                  <Text style={[styles.notificationText, { color: item.notification_id ? "#15803D" : "#B45309" }]}>
-                    {item.notification_id ? "Local notification scheduled" : "No local notification scheduled"}
-                  </Text>
-                </View>
-              </View>
-            )}
-          />
-        )}
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <FlatList
+          data={reminders}
+          keyExtractor={(item) => String(item.id)}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={
+            isEmpty ? styles.emptyContent : styles.listContent
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          ListHeaderComponent={
+            <ReminderHeader
+              count={reminders.length}
+              colors={colors}
+              onAdd={openAddReminder}
+            />
+          }
+          ListEmptyComponent={
+            isEmpty ? (
+              <EmptyRemindersState colors={colors} onAdd={openAddReminder} />
+            ) : null
+          }
+          ListFooterComponent={<View style={styles.footerSpace} />}
+          renderItem={({ item }) => (
+            <ReminderCard reminder={item} colors={colors} />
+          )}
+        />
       </View>
     </Screen>
   );
 }
 
-function statusLabel(status: number) {
+function ReminderHeader({
+  count,
+  colors,
+  onAdd,
+}: {
+  count: number;
+  colors: ReminderColors;
+  onAdd: () => void;
+}) {
+  return (
+    <LinearGradient
+      colors={[colors.primary, colors.button] as [string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.compactHeader}
+    >
+      <View style={styles.headerGlowOne} />
+      <View style={styles.headerGlowTwo} />
+
+      <View style={styles.headerRow}>
+        <View style={styles.headerIconBubble}>
+          <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+        </View>
+
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerEyebrow}>REMINDERS</Text>
+
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Reminders
+          </Text>
+
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {count} {count === 1 ? "reminder" : "reminders"} connected to your moments
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.headerAddButton}
+          onPress={onAdd}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function ReminderCard({
+  reminder,
+  colors,
+}: {
+  reminder: ReminderDTO;
+  colors: ReminderColors;
+}) {
+  const status = getStatusStyle(reminder.status, colors);
+  const hasNotification = Boolean(reminder.notification_id);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <View style={styles.cardTopRow}>
+        <View
+          style={[
+            styles.cardIcon,
+            { backgroundColor: withOpacity(status.color, "18") },
+          ]}
+        >
+          <Ionicons
+            name={status.icon}
+            size={18}
+            color={status.color}
+          />
+        </View>
+
+        <View style={styles.cardTextWrap}>
+          <Text
+            style={[styles.cardTitle, { color: colors.title }]}
+            numberOfLines={2}
+          >
+            {formatReminder(reminder)}
+          </Text>
+
+          <Text
+            style={[styles.cardSub, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            Send at · {formatSendAt(reminder)}
+          </Text>
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.cardDivider,
+          { backgroundColor: colors.border },
+        ]}
+      />
+
+      <View style={styles.metaRow}>
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: withOpacity(status.color, "16"),
+              borderColor: withOpacity(status.color, "34"),
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: status.color },
+            ]}
+          />
+
+          <Text style={[styles.statusText, { color: status.color }]}>
+            {status.label}
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.notificationPill,
+            {
+              backgroundColor: hasNotification
+                ? withOpacity(colors.success, "14")
+                : withOpacity(colors.warning, "14"),
+              borderColor: hasNotification
+                ? withOpacity(colors.success, "34")
+                : withOpacity(colors.warning, "34"),
+            },
+          ]}
+        >
+          <Ionicons
+            name={hasNotification ? "checkmark-circle-outline" : "warning-outline"}
+            size={13}
+            color={hasNotification ? colors.success : colors.warning}
+          />
+
+          <Text
+            style={[
+              styles.notificationText,
+              { color: hasNotification ? colors.success : colors.warning },
+            ]}
+            numberOfLines={1}
+          >
+            {hasNotification ? "Scheduled" : "Not scheduled"}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function EmptyRemindersState({
+  colors,
+  onAdd,
+}: {
+  colors: ReminderColors;
+  onAdd: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.emptyCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.emptyIcon,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons
+          name="notifications-outline"
+          size={28}
+          color={colors.primary}
+        />
+      </View>
+
+      <Text style={[styles.emptyTitle, { color: colors.title }]}>
+        No reminders yet
+      </Text>
+
+      <Text style={[styles.emptyText, { color: colors.text }]}>
+        Create reminders for birthdays, promises, check-ins, interviews, or any
+        important moment connected to someone.
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.emptyButton, { backgroundColor: colors.button }]}
+        onPress={onAdd}
+        activeOpacity={0.88}
+      >
+        <Ionicons
+          name="add-circle-outline"
+          size={17}
+          color={colors.buttonText}
+        />
+
+        <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
+          Create reminder
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/* helpers */
+
+function makeReminderColors(settings: any): ReminderColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "16"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    success: "#7DA56D",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
+function getStatusStyle(status: number, colors: ReminderColors) {
   switch (status) {
     case REMINDER_STATUS.PENDING:
-      return "Pending";
+      return {
+        label: "Pending",
+        color: colors.warning,
+        icon: "time-outline" as keyof typeof Ionicons.glyphMap,
+      };
+
     case REMINDER_STATUS.SENT:
-      return "Sent";
+      return {
+        label: "Sent",
+        color: colors.success,
+        icon: "checkmark-circle-outline" as keyof typeof Ionicons.glyphMap,
+      };
+
     case REMINDER_STATUS.FAILED:
-      return "Failed";
+      return {
+        label: "Failed",
+        color: colors.danger,
+        icon: "alert-circle-outline" as keyof typeof Ionicons.glyphMap,
+      };
+
     case REMINDER_STATUS.CANCELLED:
-      return "Cancelled";
+      return {
+        label: "Cancelled",
+        color: colors.muted,
+        icon: "close-circle-outline" as keyof typeof Ionicons.glyphMap,
+      };
+
     default:
-      return "Unknown";
+      return {
+        label: "Unknown",
+        color: colors.muted,
+        icon: "help-circle-outline" as keyof typeof Ionicons.glyphMap,
+      };
   }
 }
 
-function statusColor(status: number) {
-  switch (status) {
-    case REMINDER_STATUS.PENDING:
-      return { bg: "#FEF3C7", fg: "#B45309" };
-    case REMINDER_STATUS.SENT:
-      return { bg: "#DCFCE7", fg: "#15803D" };
-    case REMINDER_STATUS.FAILED:
-      return { bg: "#FEE2E2", fg: "#B91C1C" };
-    case REMINDER_STATUS.CANCELLED:
-      return { bg: "#E5E7EB", fg: "#4B5563" };
-    default:
-      return { bg: "#E5E7EB", fg: "#4B5563" };
+function withOpacity(hexColor?: string | null, opacityHex = "22") {
+  if (!hexColor || typeof hexColor !== "string") {
+    return `#000000${opacityHex}`;
   }
+
+  const normalized = hexColor.trim();
+
+  if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return `${normalized}${opacityHex}`;
+  }
+
+  return normalized;
 }
+
+/* styles */
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    padding: 16,
   },
+
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+
   loadingText: {
-    fontSize: 14,
-    fontWeight: "600",
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "800",
   },
+
+  listContent: {
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 34,
+  },
+
+  emptyContent: {
+    flexGrow: 1,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 34,
+  },
+
+  compactHeader: {
+    minHeight: 122,
+    borderRadius: 28,
+    padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+
+  headerGlowOne: {
+    position: "absolute",
+    top: -60,
+    right: -40,
+    width: 145,
+    height: 145,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+
+  headerGlowTwo: {
+    position: "absolute",
+    bottom: -75,
+    left: -55,
+    width: 160,
+    height: 160,
+    borderRadius: 86,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
+    gap: 13,
   },
-  title: {
-    fontSize: 26,
+
+  headerIconBubble: {
+    width: 54,
+    height: 54,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  headerEyebrow: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 11,
     fontWeight: "900",
+    letterSpacing: 1,
   },
-  subtitle: {
+
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    lineHeight: 33,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+
+  headerSubtitle: {
+    color: "rgba(255,255,255,0.78)",
     fontSize: 13,
-    opacity: 0.75,
-    fontWeight: "600",
+    lineHeight: 18,
+    fontWeight: "700",
     marginTop: 2,
   },
-  addButton: {
-    minHeight: 42,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  addButtonText: {
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  listContent: {
-    paddingBottom: 22,
-    gap: 10,
-  },
-  card: {
-    borderRadius: 18,
-    padding: 14,
+
+  headerAddButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.14)",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
+  card: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 9,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
   cardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
   },
+
   cardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
   },
+
+  cardTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   cardTitle: {
     fontSize: 15,
-    fontWeight: "900",
     lineHeight: 20,
+    fontWeight: "900",
   },
+
   cardSub: {
     fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
-    opacity: 0.75,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 3,
   },
+
+  cardDivider: {
+    height: 1,
+    marginTop: 12,
+    marginBottom: 11,
+  },
+
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
-    marginTop: 12,
   },
+
   statusPill: {
+    minHeight: 30,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
   statusText: {
     fontSize: 11,
     fontWeight: "900",
   },
-  notificationText: {
-    flex: 1,
-    textAlign: "right",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  emptyCard: {
-    borderRadius: 22,
-    padding: 22,
-    alignItems: "center",
+
+  notificationPill: {
+    minHeight: 30,
+    maxWidth: 150,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
+
+  notificationText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  emptyCard: {
+    borderRadius: 30,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    marginTop: 14,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
   emptyIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 64,
+    height: 64,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
+
   emptyTitle: {
     fontSize: 18,
     fontWeight: "900",
   },
+
   emptyText: {
     fontSize: 13,
     lineHeight: 19,
     textAlign: "center",
-    opacity: 0.75,
-    fontWeight: "600",
-    marginTop: 6,
+    marginTop: 7,
+    fontWeight: "700",
+    opacity: 0.76,
   },
+
   emptyButton: {
-    marginTop: 16,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    minHeight: 44,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
   },
+
   emptyButtonText: {
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  footerSpace: {
+    height: 18,
   },
 });

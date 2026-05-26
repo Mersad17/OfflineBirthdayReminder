@@ -1,21 +1,24 @@
 // src/screens/Events/EditEventScreen.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  StyleSheet,
-  ActivityIndicator,
+  TextInputProps,
   TouchableOpacity,
-  Alert,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
+  View,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { EventsStackParamList } from "../../navigation/EventsStack";
 import { fetchEventById, updateEvent } from "../../events/repository";
@@ -25,23 +28,48 @@ import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
 import { AppId } from "../../contacts/types";
 
-// 👇 Keep this in sync with your Django EventTypes IntEnum
+type Props = NativeStackScreenProps<EventsStackParamList, "EditEvent">;
+
 type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
 
-const EVENT_TYPE_OPTIONS: { label: string; value: EventTypeValue }[] = [
-  { label: "🎂 Birthday", value: 1 },
-  { label: "💍 Anniversary", value: 2 },
-  { label: "⭐ Important date", value: 3 },
-  { label: "🤝 Meeting", value: 4 },
-  { label: "🏝 Holiday", value: 5 },
-  { label: "✨ Other", value: 6 },
-];
+type EventTypeOption = {
+  label: string;
+  icon: string;
+  value: EventTypeValue;
+};
 
-type Props = NativeStackScreenProps<EventsStackParamList, "EditEvent">;
+type EditEventColors = {
+  background: string;
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  button: string;
+  buttonText: string;
+  border: string;
+  muted: string;
+  softCard: string;
+  softPrimary: string;
+  danger: string;
+  warning: string;
+  success: string;
+  shadow: string;
+};
+
+const EVENT_TYPE_OPTIONS: EventTypeOption[] = [
+  { label: "Birthday", icon: "🎂", value: 1 },
+  { label: "Anniversary", icon: "💍", value: 2 },
+  { label: "Important date", icon: "⭐", value: 3 },
+  { label: "Meeting", icon: "🤝", value: 4 },
+  { label: "Holiday", icon: "🏝", value: 5 },
+  { label: "Other", icon: "✨", value: 6 },
+];
 
 export default function EditEventScreen({ route, navigation }: Props) {
   const { eventId, eventTitle, contactId: routeContactId } = route.params;
+
   const { settings } = useAppearance();
+  const colors = useMemo(() => makeEditEventColors(settings), [settings]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,8 +79,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
   const [contactId, setContactId] = useState<AppId | null>(
     routeContactId ?? null
   );
-  
-  const [contactName, setContactName] = useState<string>("Contact");
+  const [contactName, setContactName] = useState("Contact");
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<EventTypeValue>(1);
@@ -60,16 +87,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
   const [dateString, setDateString] = useState("");
   const [date, setDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [hasEndDate, setHasEndDate] = useState(false);
 
-  const [endDateString, setEndDateString] = useState("");
-  const [endDate, setEndDate] = useState<Date | null>(null);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  
-  const [endTimeString, setEndTimeString] = useState("");
-  const [endTime, setEndTime] = useState<Date | null>(null);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-  
   const [startTimeString, setStartTimeString] = useState("");
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -77,202 +95,248 @@ export default function EditEventScreen({ route, navigation }: Props) {
   const [isRecurring, setIsRecurring] = useState(true);
   const [isActive, setIsActive] = useState(true);
 
-  // ---------- helpers ----------
+  const [hasEndDate, setHasEndDate] = useState(false);
 
-  function formatDate(d: Date) {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
+  const [endDateString, setEndDateString] = useState("");
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  const [endTimeString, setEndTimeString] = useState("");
+  const [endTime, setEndTime] = useState<Date | null>(null);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+
+  const selectedType =
+    EVENT_TYPE_OPTIONS.find((option) => option.value === type) ??
+    EVENT_TYPE_OPTIONS[0];
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadEvent() {
+      try {
+        setLoading(true);
+
+        const loadedEvent = await fetchEventById(eventId);
+
+        if (!mounted) return;
+
+        setEvent(loadedEvent);
+
+        setContactId(routeContactId ?? loadedEvent.contact ?? null);
+        setContactName(loadedEvent.contact_name || "Contact");
+
+        setTitle(loadedEvent.title || eventTitle || "");
+        setType((loadedEvent.type as EventTypeValue) ?? 1);
+
+        setDateString(loadedEvent.start_date || "");
+        setDate(parseDateFromString(loadedEvent.start_date));
+
+        if (loadedEvent.start_time) {
+          const time = loadedEvent.start_time.slice(0, 5);
+
+          setStartTimeString(time);
+          setStartTime(parseTimeFromString(time));
+        }
+
+        const recurring = Boolean(loadedEvent.is_recurring);
+        setIsRecurring(recurring);
+
+        if (loadedEvent.end_date) {
+          setHasEndDate(true);
+          setEndDateString(loadedEvent.end_date);
+          setEndDate(parseDateFromString(loadedEvent.end_date));
+        } else {
+          setHasEndDate(false);
+          setEndDateString("");
+          setEndDate(null);
+        }
+
+        if (loadedEvent.end_time) {
+          const time = loadedEvent.end_time.slice(0, 5);
+
+          setEndTimeString(time);
+          setEndTime(parseTimeFromString(time));
+        } else {
+          setEndTimeString("");
+          setEndTime(null);
+        }
+
+        setIsActive(Boolean(loadedEvent.is_active));
+      } catch (error) {
+        console.log("Failed to load event", error);
+        Alert.alert("Error", "Could not load event.");
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadEvent();
+
+    return () => {
+      mounted = false;
+    };
+  }, [eventId, eventTitle, routeContactId]);
+
+  function formatDate(dateValue: Date) {
+    const year = dateValue.getFullYear();
+    const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+    const day = String(dateValue.getDate()).padStart(2, "0");
+
     return `${year}-${month}-${day}`;
   }
 
-  function formatTime(d: Date) {
-    const hours = String(d.getHours()).padStart(2, "0");
-    const minutes = String(d.getMinutes()).padStart(2, "0");
+  function formatTime(dateValue: Date) {
+    const hours = String(dateValue.getHours()).padStart(2, "0");
+    const minutes = String(dateValue.getMinutes()).padStart(2, "0");
+
     return `${hours}:${minutes}`;
   }
 
-  function parseDateFromString(value: string | null | undefined): Date | null {
+  function parseDateFromString(value?: string | null) {
     if (!value) return null;
-    const [year, month, day] = value.split("-").map((p) => Number(p));
+
+    const [year, month, day] = value.split("-").map(Number);
+
     if (!year || !month || !day) return null;
+
     return new Date(year, month - 1, day);
   }
 
-  function parseTimeFromString(value: string | null | undefined): Date | null {
+  function parseTimeFromString(value?: string | null) {
     if (!value) return null;
-    const parts = value.split(":");
-    if (parts.length < 2) return null;
-    const hours = Number(parts[0]);
-    const minutes = Number(parts[1]);
+
+    const [hoursRaw, minutesRaw] = value.split(":");
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+
     const base = new Date();
-    base.setHours(hours || 0, minutes || 0, 0, 0);
+    base.setHours(Number.isNaN(hours) ? 0 : hours);
+    base.setMinutes(Number.isNaN(minutes) ? 0 : minutes);
+    base.setSeconds(0);
+    base.setMilliseconds(0);
+
     return base;
   }
 
-  // ---------- load event ----------
+  function resetEndFields() {
+    setHasEndDate(false);
+    setEndDate(null);
+    setEndDateString("");
+    setEndTime(null);
+    setEndTimeString("");
+    setShowEndDatePicker(false);
+    setShowEndTimePicker(false);
+  }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const e = await fetchEventById(eventId);
-        setEvent(e);
+  function selectRepeatMode(nextIsRecurring: boolean) {
+    setIsRecurring(nextIsRecurring);
 
-        // Contact: prefer backend contact_name, but keep routeContactId
-        setContactId(routeContactId ?? e.contact ?? null);
-        setContactName(e.contact_name || "Contact");
-
-        // Title: backend title OR eventTitle from route OR fallback
-        const initialTitle = e.title || eventTitle || "";
-        setTitle(initialTitle);
-
-        // Type
-        setType((e.type as EventTypeValue) ?? 1);
-
-        // Date
-        setDateString(e.start_date || "");
-        setDate(parseDateFromString(e.start_date));
-
-        // Time
-        if (e.start_time) {
-          const hhmm = e.start_time.slice(0, 5); // "HH:MM"
-          setStartTimeString(hhmm);
-          setStartTime(parseTimeFromString(hhmm));
-        }
-          if (e.end_date) {
-            setHasEndDate(true);
-            setEndDateString(e.end_date);
-            setEndDate(parseDateFromString(e.end_date));
-          }
-
-          // End time
-          if (e.end_time) {
-            const hhmm = e.end_time.slice(0, 5);
-            setEndTimeString(hhmm);
-            setEndTime(parseTimeFromString(hhmm));
-          }
-
-        setIsRecurring(e.is_recurring);
-        setIsActive(e.is_active);
-      } catch (err) {
-        console.log("Failed to load event", err);
-        Alert.alert("Error", "Could not load event.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [eventId, eventTitle, routeContactId]);
-
-  // ---------- pickers ----------
-
-  function onDateChange(evt: DateTimePickerEvent, selectedDate?: Date) {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-    }
-    if (selectedDate) {
-      setDate(selectedDate);
-      setDateString(formatDate(selectedDate));
+    if (nextIsRecurring) {
+      resetEndFields();
     }
   }
 
-  function onTimeChange(evt: DateTimePickerEvent, selectedTime?: Date) {
-    if (Platform.OS === "android") {
-      setShowStartTimePicker(false);
-    }
-    if (selectedTime) {
-      setStartTime(selectedTime);
-      setStartTimeString(formatTime(selectedTime));
-    }
-  }
-
-  function openDatePicker() {
-    setShowDatePicker(true);
-  }
-
-  function openTimePicker() {
-    setShowStartTimePicker(true);
-  }
-  function openEndDatePicker() {
-    setShowEndDatePicker(true);
-  }
-  
-  function openEndTimePicker() {
-    setShowEndTimePicker(true);
-  }
-  
-  function onEndDateChange(evt: DateTimePickerEvent, selectedDate?: Date) {
-    if (Platform.OS === "android") {
-      setShowEndDatePicker(false);
-    }
-    if (selectedDate) {
-      setEndDate(selectedDate);
-      setEndDateString(formatDate(selectedDate));
-  
-      // reset end time when date changes
-      setEndTime(null);
-      setEndTimeString("");
-    }
-  }
-  
-  function onEndTimeChange(evt: DateTimePickerEvent, selectedTime?: Date) {
-    if (Platform.OS === "android") {
-      setShowEndTimePicker(false);
-    }
-    if (selectedTime) {
-      setEndTime(selectedTime);
-      setEndTimeString(formatTime(selectedTime));
-    }
-  }
-  
   function toggleHasEndDate() {
-    setHasEndDate((prev) => {
-      if (prev) {
+    setHasEndDate((current) => {
+      const next = !current;
+
+      if (!next) {
         setEndDate(null);
         setEndDateString("");
         setEndTime(null);
         setEndTimeString("");
+        setShowEndDatePicker(false);
+        setShowEndTimePicker(false);
       }
-      return !prev;
+
+      return next;
     });
   }
-  
-  // ---------- save ----------
+
+  function onDateChange(_: DateTimePickerEvent, selectedDate?: Date) {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+
+    if (!selectedDate) return;
+
+    setDate(selectedDate);
+    setDateString(formatDate(selectedDate));
+  }
+
+  function onStartTimeChange(_: DateTimePickerEvent, selectedTime?: Date) {
+    if (Platform.OS === "android") {
+      setShowStartTimePicker(false);
+    }
+
+    if (!selectedTime) return;
+
+    setStartTime(selectedTime);
+    setStartTimeString(formatTime(selectedTime));
+  }
+
+  function onEndDateChange(_: DateTimePickerEvent, selectedDate?: Date) {
+    if (Platform.OS === "android") {
+      setShowEndDatePicker(false);
+    }
+
+    if (!selectedDate) return;
+
+    setEndDate(selectedDate);
+    setEndDateString(formatDate(selectedDate));
+
+    setEndTime(null);
+    setEndTimeString("");
+  }
+
+  function onEndTimeChange(_: DateTimePickerEvent, selectedTime?: Date) {
+    if (Platform.OS === "android") {
+      setShowEndTimePicker(false);
+    }
+
+    if (!selectedTime) return;
+
+    setEndTime(selectedTime);
+    setEndTimeString(formatTime(selectedTime));
+  }
 
   async function onSave() {
     if (!event) return;
+
+    if (!title.trim()) {
+      Alert.alert("Title required", "Please add a title.");
+      return;
+    }
 
     if (!dateString) {
       Alert.alert("Date required", "Please pick a date for this event.");
       return;
     }
-    if (!title.trim()) {
-      Alert.alert("Title required", "Please add a title.");
-      return;
-    }
-    if (!isRecurring && endDateString && endDateString < dateString) {
+
+    if (!isRecurring && hasEndDate && endDateString && endDateString < dateString) {
       Alert.alert(
         "Invalid end date",
         "End date cannot be earlier than start date."
       );
       return;
     }
-    
+
     if (
+      !isRecurring &&
       hasEndDate &&
       endDateString === dateString &&
       startTimeString &&
       endTimeString &&
       endTimeString <= startTimeString
     ) {
-      Alert.alert(
-        "Invalid end time",
-        "End time must be after start time."
-      );
+      Alert.alert("Invalid end time", "End time must be after start time.");
       return;
     }
-    
+
     setSaving(true);
+
     try {
       await updateEvent(eventId, {
         title: title.trim(),
@@ -283,21 +347,21 @@ export default function EditEventScreen({ route, navigation }: Props) {
           !isRecurring && hasEndDate && endDateString
             ? endDateString
             : undefined,
-
         end_time:
           !isRecurring && hasEndDate && endTimeString
             ? `${endTimeString}:00`
             : undefined,
         is_recurring: isRecurring,
         is_active: isActive,
-        // contact left unchanged
       });
 
       Alert.alert("Saved", "Event updated.");
       navigation.goBack();
-    } catch (e: any) {
-      console.log("Failed to update event", e);
-      const detail = e?.response?.data?.detail;
+    } catch (error: any) {
+      console.log("Failed to update event", error);
+
+      const detail = error?.response?.data?.detail;
+
       if (detail) {
         Alert.alert("Cannot update event", detail);
       } else {
@@ -308,14 +372,13 @@ export default function EditEventScreen({ route, navigation }: Props) {
     }
   }
 
-  // ---------- loading states ----------
-
   if (loading) {
     return (
-      <Screen scroll>
-        <View style={styles.center}>
-          <ActivityIndicator color={settings.primaryColor} />
-          <Text style={{ marginTop: 8, color: settings.textColor }}>
+      <Screen>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <ActivityIndicator color={colors.primary} />
+
+          <Text style={[styles.loadingText, { color: colors.text }]}>
             Loading event…
           </Text>
         </View>
@@ -325,544 +388,360 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
   if (!event) {
     return (
-      <Screen scroll>
-        <View style={styles.center}>
-          <Text style={{ color: settings.textColor }}>Event not found.</Text>
+      <Screen>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            Event not found.
+          </Text>
         </View>
       </Screen>
     );
   }
 
-  // ---------- UI ----------
-
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
       <Screen scroll>
-        <View style={styles.container}>
+        <View style={[styles.root, { backgroundColor: colors.background }]}>
           <ScrollView
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
           >
+            <CompactHeader
+              colors={colors}
+              contactName={contactName}
+              selectedType={selectedType}
+              isActive={isActive}
+            />
+
             <View
               style={[
                 styles.card,
                 {
-                  backgroundColor: settings.cardColor,
-                  borderColor: settings.cardColor + "40",
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  shadowColor: colors.shadow,
                 },
               ]}
             >
-              {/* Contact info */}
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: settings.titleColor },
-                ]}
-              >
-                Contact
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={[
-                  styles.contactPill,
-                  { backgroundColor: settings.backgroundColor },
-                ]}
-                disabled
-              >
-                <Text
-                  style={[
-                    styles.contactPillLabel,
-                    { color: settings.textColor + "AA" },
-                  ]}
-                >
-                  For
-                </Text>
-                <Text
-                  style={[
-                    styles.contactPillName,
-                    { color: settings.titleColor },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {contactName}
-                </Text>
-              </TouchableOpacity>
+              <SectionTitle
+                icon="person-outline"
+                title="Contact"
+                colors={colors}
+              />
 
               <View
                 style={[
-                  styles.divider,
-                  { backgroundColor: settings.cardColor + "40" },
-                ]}
-              />
-
-              {/* Basic info */}
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: settings.titleColor },
+                  styles.contactPill,
+                  {
+                    backgroundColor: colors.softCard,
+                    borderColor: colors.border,
+                  },
                 ]}
               >
-                Basic info
-              </Text>
-
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: settings.titleColor },
-                    ]}
-                  >
-                    Event title
-                  </Text>
-                </View>
-                <TextInput
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholder="Birthday party, First date, Coffee, etc."
+                <View
                   style={[
-                    styles.input,
-                    {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
-                      color: settings.textColor,
-                    },
-                  ]}
-                  placeholderTextColor={settings.textColor + "66"}
-                  autoCapitalize="sentences"
-                  returnKeyType="done"
-                />
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text
-                  style={[
-                    styles.label,
-                    { color: settings.titleColor },
+                    styles.contactIcon,
+                    { backgroundColor: colors.softPrimary },
                   ]}
                 >
-                  Type
-                </Text>
+                  <Ionicons
+                    name="person-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                </View>
+
+                <View style={styles.contactTextWrap}>
+                  <Text style={[styles.contactPillLabel, { color: colors.text }]}>
+                    For
+                  </Text>
+
+                  <Text
+                    style={[styles.contactPillName, { color: colors.title }]}
+                    numberOfLines={1}
+                  >
+                    {contactName}
+                  </Text>
+                </View>
+              </View>
+
+              <Divider colors={colors} />
+
+              <SectionTitle
+                icon="sparkles-outline"
+                title="Basic info"
+                colors={colors}
+              />
+
+              <FieldGroup label="Event title" required colors={colors}>
+                <ThemedInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="Birthday party, coffee, first date..."
+                  autoCapitalize="sentences"
+                  returnKeyType="done"
+                  colors={colors}
+                />
+              </FieldGroup>
+
+              <FieldGroup label="Type" colors={colors}>
                 <View style={styles.typeRow}>
-                  {EVENT_TYPE_OPTIONS.map((t) => {
-                    const active = type === t.value;
+                  {EVENT_TYPE_OPTIONS.map((option) => {
+                    const active = type === option.value;
+
                     return (
                       <TouchableOpacity
-                        key={t.value}
+                        key={option.value}
                         style={[
                           styles.typeChip,
                           {
                             backgroundColor: active
-                              ? settings.buttonColor
-                              : settings.backgroundColor,
+                              ? colors.primary
+                              : colors.softCard,
+                            borderColor: active ? colors.primary : colors.border,
                           },
                         ]}
-                        onPress={() => setType(t.value)}
+                        onPress={() => setType(option.value)}
+                        activeOpacity={0.85}
                       >
+                        <Text style={styles.typeEmoji}>{option.icon}</Text>
+
                         <Text
                           style={[
                             styles.typeChipText,
                             {
-                              color: active
-                                ? settings.buttonTextColor
-                                : settings.textColor,
+                              color: active ? colors.buttonText : colors.text,
                             },
                           ]}
+                          numberOfLines={1}
                         >
-                          {t.label}
+                          {option.label}
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
-              </View>
+              </FieldGroup>
 
-              <View
-                style={[
-                  styles.divider,
-                  { backgroundColor: settings.cardColor + "40" },
-                ]}
+              <Divider colors={colors} />
+
+              <SectionTitle
+                icon="calendar-outline"
+                title="When"
+                colors={colors}
               />
 
-              {/* Date and time */}
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: settings.titleColor },
-                ]}
+              <FieldGroup
+                label={hasEndDate ? "Start date" : "Date"}
+                required
+                colors={colors}
               >
-                When
-              </Text>
+                <PickerField
+                  icon="calendar-outline"
+                  value={dateString ? formatDateEU(dateString) : ""}
+                  placeholder="Pick a date"
+                  colors={colors}
+                  onPress={() => setShowDatePicker(true)}
+                />
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: settings.titleColor },
-                    ]}
-                  >
-                    {hasEndDate ? "Start Date" : "Date"}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.labelHint,
-                      { color: settings.textColor + "99" },
-                    ]}
-                  >
-                    Required
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={openDatePicker}
-                  style={[
-                    styles.input,
-                    styles.dateInput,
-                    {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={
-                      dateString
-                        ? [styles.dateText, { color: settings.textColor }]
-                        : [
-                            styles.datePlaceholder,
-                            { color: settings.textColor + "66" },
-                          ]
-                    }
-                  >
-                    {formatDateEU(dateString) || "Pick a date"}
-                  </Text>
-                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
-                    📅
-                  </Text>
-                </TouchableOpacity>
-
-                {showDatePicker && (
+                {showDatePicker ? (
                   <DateTimePicker
                     value={date || new Date()}
                     mode="date"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={onDateChange}
                   />
-                )}
-              </View>
+                ) : null}
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: settings.titleColor },
-                    ]}
-                  >
-                  {hasEndDate ? "Start Time" : "Time"}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.optionalTag,
-                      { color: settings.textColor + "99" },
-                    ]}
-                  >
-                    Optional
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={openTimePicker}
-                  style={[
-                    styles.input,
-                    styles.dateInput,
-                    {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={
-                      startTimeString
-                        ? [styles.dateText, { color: settings.textColor }]
-                        : [
-                            styles.datePlaceholder,
-                            { color: settings.textColor + "66" },
-                          ]
-                    }
-                  >
-                    {startTimeString || "No specific time"}
-                  </Text>
-                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
-                    ⏰
-                  </Text>
-                </TouchableOpacity>
+              <FieldGroup
+                label={hasEndDate ? "Start time" : "Time"}
+                hint="Optional"
+                colors={colors}
+              >
+                <PickerField
+                  icon="time-outline"
+                  value={startTimeString}
+                  placeholder="No specific time"
+                  colors={colors}
+                  onPress={() => setShowStartTimePicker(true)}
+                />
 
-                {showStartTimePicker && (
+                {showStartTimePicker ? (
                   <DateTimePicker
                     value={startTime || new Date()}
                     mode="time"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={onTimeChange}
+                    onChange={onStartTimeChange}
                   />
-                )}
-              </View>
-              {!isRecurring &&(
-              <View style={styles.fieldGroup}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={toggleHasEndDate}
-                style={{ flexDirection: "row", alignItems: "center" }}
-              >
-                <Text style={{ fontSize: 18, marginRight: 10 }}>
-                  {hasEndDate ? "☑️" : "⬜️"}
-                </Text>
-                <Text style={[styles.label, { color: settings.textColor }]}>
-                  This event has an end date
-                </Text>
-              </TouchableOpacity>
-            </View>
-                          )}
-            {!isRecurring && hasEndDate && (
+                ) : null}
+              </FieldGroup>
 
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: settings.textColor }]}>
-                    End date
-                  </Text>
+              <FieldGroup label="Repeat" colors={colors}>
+                <View style={styles.repeatRow}>
+                  <RepeatChip
+                    label="Every year"
+                    icon="repeat-outline"
+                    selected={isRecurring}
+                    colors={colors}
+                    onPress={() => selectRepeatMode(true)}
+                  />
+
+                  <RepeatChip
+                    label="One-time"
+                    icon="ellipse-outline"
+                    selected={!isRecurring}
+                    colors={colors}
+                    onPress={() => selectRepeatMode(false)}
+                  />
                 </View>
+              </FieldGroup>
 
+              {!isRecurring ? (
                 <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={openEndDatePicker}
                   style={[
-                    styles.input,
-                    styles.dateInput,
+                    styles.endDateToggle,
                     {
-                      backgroundColor: settings.cardColor,
-                      borderColor: settings.cardColor + "60",
+                      backgroundColor: colors.softCard,
+                      borderColor: colors.border,
                     },
                   ]}
+                  onPress={toggleHasEndDate}
+                  activeOpacity={0.85}
                 >
-                  <Text
-                    style={
-                      endDateString
-                        ? [styles.dateText, { color: settings.textColor }]
-                        : [styles.datePlaceholder, { color: settings.textColor + "66" }]
-                    }
+                  <View
+                    style={[
+                      styles.checkbox,
+                      {
+                        backgroundColor: hasEndDate
+                          ? colors.primary
+                          : "transparent",
+                        borderColor: hasEndDate ? colors.primary : colors.border,
+                      },
+                    ]}
                   >
-                    {formatDateEU(endDateString) || "No end date"}
-                  </Text>
-                  <Text style={[styles.dateIcon, { color: settings.textColor }]}>
-                    📅
-                  </Text>
+                    {hasEndDate ? (
+                      <Ionicons
+                        name="checkmark"
+                        size={15}
+                        color={colors.buttonText}
+                      />
+                    ) : null}
+                  </View>
+
+                  <View style={styles.endDateToggleTextWrap}>
+                    <Text
+                      style={[
+                        styles.endDateToggleTitle,
+                        { color: colors.title },
+                      ]}
+                    >
+                      This event has an end date
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.endDateToggleSubtitle,
+                        { color: colors.text },
+                      ]}
+                    >
+                      Useful for trips, holidays, or multi-day moments.
+                    </Text>
+                  </View>
                 </TouchableOpacity>
-                <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: settings.textColor }]}>
-                  End time
-                </Text>
-              </View>
+              ) : null}
 
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={openEndTimePicker}
-                style={[
-                  styles.input,
-                  styles.dateInput,
-                  {
-                    backgroundColor: settings.cardColor,
-                    borderColor: settings.cardColor + "60",
-                  },
-                ]}
-              >
-                <Text
-                  style={
-                    endTimeString
-                      ? [styles.dateText, { color: settings.textColor }]
-                      : [styles.datePlaceholder, { color: settings.textColor + "66" }]
-                  }
-                >
-                  {endTimeString || "No end time"}
-                </Text>
-                <Text style={[styles.dateIcon, { color: settings.textColor }]}>
-                  ⏰
-                </Text>
-              </TouchableOpacity>
+              {!isRecurring && hasEndDate ? (
+                <View style={styles.endDateBox}>
+                  <FieldGroup label="End date" colors={colors}>
+                    <PickerField
+                      icon="calendar-outline"
+                      value={endDateString ? formatDateEU(endDateString) : ""}
+                      placeholder="No end date"
+                      colors={colors}
+                      onPress={() => setShowEndDatePicker(true)}
+                    />
 
-              {showEndTimePicker && (
-                <DateTimePicker
-                  value={endTime || new Date()}
-                  mode="time"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onEndTimeChange}
+                    {showEndDatePicker ? (
+                      <DateTimePicker
+                        value={endDate || date || new Date()}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onEndDateChange}
+                      />
+                    ) : null}
+                  </FieldGroup>
+
+                  <FieldGroup label="End time" hint="Optional" colors={colors}>
+                    <PickerField
+                      icon="time-outline"
+                      value={endTimeString}
+                      placeholder="No end time"
+                      colors={colors}
+                      onPress={() => setShowEndTimePicker(true)}
+                    />
+
+                    {showEndTimePicker ? (
+                      <DateTimePicker
+                        value={endTime || new Date()}
+                        mode="time"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onEndTimeChange}
+                      />
+                    ) : null}
+                  </FieldGroup>
+                </View>
+              ) : null}
+
+              <Divider colors={colors} />
+
+              <SectionTitle
+                icon="power-outline"
+                title="Status"
+                colors={colors}
+              />
+
+              <View style={styles.repeatRow}>
+                <RepeatChip
+                  label="Active"
+                  icon="checkmark-circle-outline"
+                  selected={isActive}
+                  colors={colors}
+                  onPress={() => setIsActive(true)}
                 />
-              )}
-            </View>
 
-                {showEndDatePicker && (
-                  <DateTimePicker
-                    value={endDate || date || new Date()}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={onEndDateChange}
-                  />
-                )}
-              </View>
-              
-            )}
-
-             
-
-              {/* Recurrence */}
-              <View style={styles.fieldGroup}>
-                <Text
-                  style={[
-                    styles.label,
-                    { color: settings.titleColor },
-                  ]}
-                >
-                  Repeat
-                </Text>
-                <View style={styles.repeatRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.repeatChip,
-                      {
-                        backgroundColor: isRecurring
-                          ? settings.buttonColor
-                          : settings.backgroundColor,
-                        marginRight: 6,
-                      },
-                    ]}
-                    onPress={() => setIsRecurring(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.repeatChipText,
-                        {
-                          color: isRecurring
-                            ? settings.buttonTextColor
-                            : settings.textColor,
-                        },
-                      ]}
-                    >
-                      Every year
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.repeatChip,
-                      {
-                        backgroundColor: !isRecurring
-                          ? settings.buttonColor
-                          : settings.backgroundColor,
-                        marginRight: 0,
-                      },
-                    ]}
-                    onPress={() => setIsRecurring(false)}
-                  >
-                    <Text
-                      style={[
-                        styles.repeatChipText,
-                        {
-                          color: !isRecurring
-                            ? settings.buttonTextColor
-                            : settings.textColor,
-                        },
-                      ]}
-                    >
-                      One-time only
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Status */}
-              <View style={styles.fieldGroup}>
-                <Text
-                  style={[
-                    styles.label,
-                    { color: settings.titleColor },
-                  ]}
-                >
-                  Status
-                </Text>
-                <View style={styles.repeatRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.repeatChip,
-                      {
-                        backgroundColor: isActive
-                          ? settings.buttonColor
-                          : settings.backgroundColor,
-                        marginRight: 6,
-                      },
-                    ]}
-                    onPress={() => setIsActive(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.repeatChipText,
-                        {
-                          color: isActive
-                            ? settings.buttonTextColor
-                            : settings.textColor,
-                        },
-                      ]}
-                    >
-                      Active
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.repeatChip,
-                      {
-                        backgroundColor: !isActive
-                          ? settings.buttonColor
-                          : settings.backgroundColor,
-                        marginRight: 0,
-                      },
-                    ]}
-                    onPress={() => setIsActive(false)}
-                  >
-                    <Text
-                      style={[
-                        styles.repeatChipText,
-                        {
-                          color: !isActive
-                            ? settings.buttonTextColor
-                            : settings.textColor,
-                        },
-                      ]}
-                    >
-                      Paused
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <RepeatChip
+                  label="Paused"
+                  icon="pause-circle-outline"
+                  selected={!isActive}
+                  colors={colors}
+                  onPress={() => setIsActive(false)}
+                />
               </View>
             </View>
 
-            {/* Actions */}
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={[
                   styles.secondaryButton,
-                  { borderColor: settings.cardColor + "60" },
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
                 ]}
                 onPress={() => navigation.goBack()}
                 disabled={saving}
+                activeOpacity={0.85}
               >
                 <Text
                   style={[
                     styles.secondaryButtonText,
-                    { color: settings.textColor },
+                    { color: colors.text },
                   ]}
                 >
                   Cancel
@@ -872,22 +751,25 @@ export default function EditEventScreen({ route, navigation }: Props) {
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  {
-                    backgroundColor: settings.buttonColor,
-                    opacity: saving ? 0.6 : 1,
-                  },
+                  { backgroundColor: colors.button },
+                  saving && styles.primaryButtonDisabled,
                 ]}
                 onPress={onSave}
                 disabled={saving}
+                activeOpacity={0.88}
               >
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { color: settings.buttonTextColor },
-                  ]}
-                >
-                  {saving ? "Saving..." : "Save changes"}
-                </Text>
+                {saving ? (
+                  <ActivityIndicator color={colors.buttonText} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: colors.buttonText },
+                    ]}
+                  >
+                    Save changes
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -897,152 +779,657 @@ export default function EditEventScreen({ route, navigation }: Props) {
   );
 }
 
-// ---------- styles (structure only, colors overridden with settings) ----------
+function CompactHeader({
+  colors,
+  contactName,
+  selectedType,
+  isActive,
+}: {
+  colors: EditEventColors;
+  contactName: string;
+  selectedType: EventTypeOption;
+  isActive: boolean;
+}) {
+  return (
+    <LinearGradient
+      colors={[colors.primary, colors.button] as [string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.compactHeader}
+    >
+      <View style={styles.headerGlowOne} />
+      <View style={styles.headerGlowTwo} />
+
+      <View style={styles.headerTopRow}>
+        <View style={styles.headerIconBubble}>
+          <Text style={styles.headerEmoji}>{selectedType.icon}</Text>
+        </View>
+
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerEyebrow}>EDIT MOMENT</Text>
+
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            Edit event
+          </Text>
+
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            For {contactName}
+          </Text>
+        </View>
+
+        <View style={styles.statusPill}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: isActive ? colors.success : colors.warning },
+            ]}
+          />
+
+          <Text style={styles.statusPillText}>
+            {isActive ? "Active" : "Paused"}
+          </Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function SectionTitle({
+  icon,
+  title,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  colors: EditEventColors;
+}) {
+  return (
+    <View style={styles.sectionTitleRow}>
+      <View
+        style={[
+          styles.sectionIconBubble,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name={icon} size={15} color={colors.primary} />
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: colors.title }]}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+function FieldGroup({
+  label,
+  hint,
+  required,
+  colors,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  colors: EditEventColors;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.fieldGroup}>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, { color: colors.title }]}>
+          {label}
+        </Text>
+
+        {required ? (
+          <Text style={[styles.requiredTag, { color: colors.primary }]}>
+            Required
+          </Text>
+        ) : hint ? (
+          <Text style={[styles.optionalTag, { color: colors.muted }]}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+
+      {children}
+    </View>
+  );
+}
+
+function ThemedInput({
+  colors,
+  style,
+  ...props
+}: TextInputProps & {
+  colors: EditEventColors;
+}) {
+  return (
+    <TextInput
+      {...props}
+      placeholderTextColor={colors.muted}
+      style={[
+        styles.input,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+          color: colors.title,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+function PickerField({
+  icon,
+  value,
+  placeholder,
+  colors,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  placeholder: string;
+  colors: EditEventColors;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={onPress}
+      style={[
+        styles.input,
+        styles.pickerInput,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.pickerText,
+          { color: value ? colors.title : colors.muted },
+        ]}
+        numberOfLines={1}
+      >
+        {value || placeholder}
+      </Text>
+
+      <Ionicons name={icon} size={18} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
+
+function RepeatChip({
+  label,
+  icon,
+  selected,
+  colors,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  selected: boolean;
+  colors: EditEventColors;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.repeatChip,
+        {
+          backgroundColor: selected ? colors.primary : colors.softCard,
+          borderColor: selected ? colors.primary : colors.border,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Ionicons
+        name={icon}
+        size={16}
+        color={selected ? colors.buttonText : colors.primary}
+      />
+
+      <Text
+        style={[
+          styles.repeatChipText,
+          { color: selected ? colors.buttonText : colors.text },
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function Divider({ colors }: { colors: EditEventColors }) {
+  return (
+    <View
+      style={[
+        styles.divider,
+        { backgroundColor: colors.border },
+      ]}
+    />
+  );
+}
+
+function makeEditEventColors(settings: any): EditEventColors {
+  return {
+    background: settings.backgroundColor,
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    button: settings.buttonColor || settings.primaryColor,
+    buttonText: settings.buttonTextColor,
+    border: withOpacity(settings.textColor, "16"),
+    muted: withOpacity(settings.textColor, "88"),
+    softCard: withOpacity(settings.textColor, "08"),
+    softPrimary: withOpacity(settings.primaryColor, "16"),
+    danger: "#EE6A5E",
+    warning: "#EBA55B",
+    success: "#7DA56D",
+    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+  };
+}
+
+function withOpacity(hexColor?: string | null, opacityHex = "22") {
+  if (!hexColor || typeof hexColor !== "string") {
+    return `#000000${opacityHex}`;
+  }
+
+  const normalized = hexColor.trim();
+
+  if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+    return `${normalized}${opacityHex}`;
+  }
+
+  return normalized;
+}
 
 const styles = StyleSheet.create({
+  keyboardRoot: {
+    flex: 1,
+  },
+
+  root: {
+    flex: 1,
+  },
+
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 20,
+
+  loadingText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "800",
   },
+
   scrollContent: {
-    paddingBottom: 80,
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 90,
   },
-  card: {
-    borderRadius: 16,
+
+  compactHeader: {
+    minHeight: 122,
+    borderRadius: 28,
     padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+
+  headerGlowOne: {
+    position: "absolute",
+    top: -60,
+    right: -40,
+    width: 145,
+    height: 145,
+    borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+
+  headerGlowTwo: {
+    position: "absolute",
+    bottom: -75,
+    left: -55,
+    width: 160,
+    height: 160,
+    borderRadius: 86,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+  },
+
+  headerIconBubble: {
+    width: 54,
+    height: 54,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.16)",
     borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sectionTitle: {
-    fontSize: 14,
+
+  headerEmoji: {
+    fontSize: 24,
+  },
+
+  headerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  headerEyebrow: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 27,
+    lineHeight: 32,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+
+  headerSubtitle: {
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
-    marginBottom: 8,
+    marginTop: 2,
   },
+
+  statusPill: {
+    minHeight: 32,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
+  statusPillText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  card: {
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 15,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
+  sectionTitleRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  sectionIconBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.1,
+  },
+
+  contactPill: {
+    minHeight: 58,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  contactIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  contactTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  contactPillLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    opacity: 0.68,
+  },
+
+  contactPillName: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+    marginTop: 1,
+  },
+
   divider: {
     height: 1,
-    marginVertical: 12,
+    marginVertical: 18,
   },
+
   fieldGroup: {
     marginBottom: 14,
   },
+
   labelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    marginBottom: 4,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  labelHint: {
-    fontSize: 11,
-  },
-  optionalTag: {
-    fontSize: 11,
-  },
-  input: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
-  },
-  contactPill: {
+    minHeight: 22,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 999,
+    justifyContent: "space-between",
+    marginBottom: 6,
+    gap: 10,
   },
-  contactPillLabel: {
-    fontSize: 12,
-    marginRight: 6,
+
+  label: {
+    fontSize: 13,
+    fontWeight: "900",
   },
-  contactPillName: {
+
+  requiredTag: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  optionalTag: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  input: {
+    minHeight: 50,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
     fontSize: 14,
-    fontWeight: "600",
-    flexShrink: 1,
+    fontWeight: "700",
   },
+
   typeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
+
   typeChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    minHeight: 38,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  typeEmoji: {
+    fontSize: 14,
+  },
+
+  typeChipText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  pickerInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  pickerText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  repeatRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  repeatChip: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  repeatChipText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  endDateToggle: {
+    minHeight: 70,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 14,
+  },
+
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  endDateToggleTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  endDateToggleTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  endDateToggleSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.72,
+    marginTop: 3,
+  },
+
+  endDateBox: {
+    marginTop: 2,
+  },
+
+  actionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+
+  secondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  primaryButton: {
+    flex: 1,
+    minHeight: 52,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  typeChipText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  dateInput: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dateText: {
-    fontSize: 14,
-  },
-  datePlaceholder: {
-    fontSize: 14,
-  },
-  dateIcon: {
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  repeatRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  repeatChip: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignItems: "center",
-  },
-  repeatChipText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    marginTop: 18,
-  },
-  secondaryButton: {
-    flex: 1,
-    marginRight: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  primaryButton: {
-    flex: 1,
-    marginLeft: 8,
-    borderRadius: 20,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
+
   primaryButtonDisabled: {
     opacity: 0.6,
   },
+
   primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "900",
   },
 });
