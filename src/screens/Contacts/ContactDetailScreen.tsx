@@ -16,7 +16,12 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
-
+import { ProfileLayoutModal } from "./ProfileLayoutModal";
+import { useContactProfileLayout } from "../../profileSections/useContactProfileLayout";
+import {
+  ContactProfileLayoutSource,
+  ContactProfileSectionKey,
+} from "../../profileSections/types";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -164,7 +169,98 @@ function makeContactDetailsColors(settings: any): ContactDetailsColors {
   };
 }
 
+function CustomizeProfileButton({
+  source,
+  onPress,
+}: {
+  source: ContactProfileLayoutSource;
+  onPress: () => void;
+}) {
+  const label =
+    source === "contact"
+      ? "Custom layout"
+      : source === "global"
+      ? "Global layout"
+      : "Default layout";
 
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={onPress}
+      style={{
+        marginHorizontal: 18,
+        marginTop: 12,
+        marginBottom: 4,
+        paddingVertical: 13,
+        paddingHorizontal: 14,
+        borderRadius: 22,
+        backgroundColor: contactDetailTheme.card,
+        borderWidth: 1,
+        borderColor: contactDetailTheme.border,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          flex: 1,
+          paddingRight: 10,
+        }}
+      >
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: contactDetailTheme.softPrimary,
+            marginRight: 10,
+          }}
+        >
+          <Ionicons
+            name="options-outline"
+            size={18}
+            color={contactDetailTheme.primary}
+          />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "800",
+              color: contactDetailTheme.title,
+              marginBottom: 2,
+            }}
+            numberOfLines={1}
+          >
+            Customize profile
+          </Text>
+
+          <Text
+            style={{
+              fontSize: 12,
+              color: contactDetailTheme.muted,
+            }}
+            numberOfLines={1}
+          >
+            {label} · reorder and hide sections
+          </Text>
+        </View>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={contactDetailTheme.muted}
+      />
+    </TouchableOpacity>
+  );
+}
 function parseDate(value?: string | null) {
   if (!value) return null;
 
@@ -609,6 +705,18 @@ const [activeCustomInfo, setActiveCustomInfo] = useState<{
 const [editingCustomSection, setEditingCustomSection] =
   useState<CustomInfoSection | null>(null);
 const [savingCustomInfo, setSavingCustomInfo] = useState(false);
+const [showProfileLayoutModal, setShowProfileLayoutModal] = useState(false);
+
+const {
+  layout: profileLayout,
+  source: profileLayoutSource,
+  saving: savingProfileLayout,
+  saveForContact: saveProfileLayoutForContact,
+  saveForGroup: saveProfileLayoutForGroup,
+  saveForGlobal: saveProfileLayoutForGlobal,
+  resetContactLayout,
+  canSaveForGroup,
+} = useContactProfileLayout(contactId as any, contact?.group ?? null);
   const loadProfile = useCallback(async () => {
     try {
         const [
@@ -1106,87 +1214,80 @@ async function saveContactTags() {
     );
   }
 
-  const name = fullName(contact);
-  const birthdayLeft = daysUntilBirthday(contact.birthday);
+const currentContact: Contact = contact;
+const currentProfile = profile;
 
-  return (
-    <Screen>
-      <View style={styles.root}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-            />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
-          <ProfileHero
-          contact={contact}
-          name={name}
-          onBack={() => navigation.goBack()}
-          onEdit={() =>
-            navigation.navigate("EditContact", {
-              contactId: contact.id as any,
-            })
-          }
-        onAddTag={openTagPicker}
-      />
+const name = fullName(currentContact);
+const birthdayLeft = daysUntilBirthday(currentContact.birthday);
 
-          <PrimaryActionBar
-            onQuickNote={() =>
+function renderProfileSection(sectionKey: ContactProfileSectionKey) {
+  switch (sectionKey) {
+    case "primary_actions":
+      return (
+        <PrimaryActionBar
+          onQuickNote={() =>
             navigation.navigate("QuickNote", {
-              contactId: contact.id as any,
-              contactName: `${contact.first_name || ""} ${
-                contact.last_name || ""
+              contactId: currentContact.id as any,
+              contactName: `${currentContact.first_name || ""} ${
+                currentContact.last_name || ""
               }`.trim(),
             })
           }
           onLogInteraction={() =>
             navigation.navigate("LogInteraction", {
-              contactId: contact.id as any,
+              contactId: currentContact.id as any,
             })
           }
-           onSetReminder={() =>
+          onSetReminder={() =>
             navigation.navigate("AddReminder", {
-              contactId: contact.id as any,
+              contactId: currentContact.id as any,
               contactName: name,
             })
           }
-            onSaveMemory={() => openCreateMemoryModal("important")}
-          />
+          onSaveMemory={() => openCreateMemoryModal("important")}
+        />
+      );
 
-          <AboutContactCard
-            contact={contact}
-            interactions={interactions}
-          />
-        
-          
-         <NextUpCarousel
-    items={profile.askNextMemories}
-    onAdd={() => openCreateMemoryModal("ask_next_time")}
-    onDone={markNextActionDone}
-    onSetReminder={(memory) =>
-      navigation.navigate("AddReminder", {
-        contactId: contact.id as any,
-        contactName: name,
-        note: memory.text,
-        })
-      }
-  />
+    case "about":
+      return (
+        <AboutContactCard
+          contact={currentContact}
+          interactions={interactions}
+        />
+      );
 
-          <MemoryHubCard
-          contact={contact}
-          importantMemories={profile.importantMemories}
-          askNextMemories={profile.askNextMemories}
-          notes={profile.notes}
+    case "ask_next_time":
+      return (
+        <NextUpCarousel
+          items={currentProfile.askNextMemories}
+          onAdd={() => openCreateMemoryModal("ask_next_time")}
+          onDone={markNextActionDone}
+          onSetReminder={(memory) =>
+            navigation.navigate("AddReminder", {
+              contactId: currentContact.id as any,
+              contactName: name,
+              note: memory.text,
+            })
+          }
+        />
+      );
+
+    case "memory_hub":
+      return (
+        <MemoryHubCard
+          contact={currentContact}
+          importantMemories={currentProfile.importantMemories}
+          askNextMemories={currentProfile.askNextMemories}
+          notes={currentProfile.notes}
           onAddImportant={() => openCreateMemoryModal("important")}
           onAddAskNext={() => openCreateMemoryModal("ask_next_time")}
           onAddNote={() => openCreateMemoryModal("note")}
           onDelete={confirmDeleteMemory}
         />
+      );
+
+    case "custom_info":
+      return (
         <CustomInfoPanel
           sections={customInfoSections}
           onCreate={() => {
@@ -1206,79 +1307,146 @@ async function saveContactTags() {
           }
           onRemoveEntry={(_, entry) => handleRemoveCustomEntry(entry)}
         />
-          <View style={styles.eventsGridRow}>
-            <UpcomingPanel
-              variant="half"
-              contact={contact}
-              events={profile.upcomingEvents}
-              birthdayLeft={birthdayLeft}
-              onAdd={() =>
-                navigation.navigate("AddEvent", {
-                  contactId: contact.id as any,
-                  contactName: name,
-                })
-              }
-              onOpen={(event) =>
-                navigation.navigate("EventDetails", {
-                  eventId: event.id as any,
-                  eventTitle: event.title,
-                  from: "contact",
-                  contactId: contact.id as any,
-                })
-              }
-            />
+      );
 
-            <ImportantDatesPanel
-              variant="half"
-              contact={contact}
-              events={profile.importantDates}
-              onAdd={() =>
-                navigation.navigate("AddEvent", {
-                  contactId: contact.id as any,
-                  contactName: name,
-                })
-              }
-            />
-          </View>
-
-          <RecentHistoryPanel
-            variant="full"
-            interactions={profile.recentHistory}
-            onViewAll={() =>
-              navigation.navigate("InteractionsHistory", {
-                contactId: contact.id as any,
+    case "events":
+      return (
+        <View style={styles.eventsGridRow}>
+          <UpcomingPanel
+            variant="half"
+            contact={currentContact}
+            events={currentProfile.upcomingEvents}
+            birthdayLeft={birthdayLeft}
+            onAdd={() =>
+              navigation.navigate("AddEvent", {
+                contactId: currentContact.id as any,
+                contactName: name,
+              })
+            }
+            onOpen={(event) =>
+              navigation.navigate("EventDetails", {
+                eventId: event.id as any,
+                eventTitle: event.title,
+                from: "contact",
+                contactId: currentContact.id as any,
               })
             }
           />
-          <RelationshipHealthCard
-            health={profile.health}
-            contact={contact}
-            interactions={interactions}
-            saving={savingTalk}
-            onSave={saveTalkCadence}
+
+          <ImportantDatesPanel
+            variant="half"
+            contact={currentContact}
+            events={currentProfile.importantDates}
+            onAdd={() =>
+              navigation.navigate("AddEvent", {
+                contactId: currentContact.id as any,
+                contactName: name,
+              })
+            }
           />
-          <LifeCircleCard
-          contact={contact}
+        </View>
+      );
+
+    case "recent_history":
+      return (
+        <RecentHistoryPanel
+          variant="full"
+          interactions={currentProfile.recentHistory}
+          onViewAll={() =>
+            navigation.navigate("InteractionsHistory", {
+              contactId: currentContact.id as any,
+            })
+          }
+        />
+      );
+
+    case "relationship_health":
+      return (
+        <RelationshipHealthCard
+          health={currentProfile.health}
+          contact={currentContact}
+          interactions={interactions}
+          saving={savingTalk}
+          onSave={saveTalkCadence}
+        />
+      );
+
+    case "life_circle":
+      return (
+        <LifeCircleCard
+          contact={currentContact}
           navigation={navigation}
         />
-          <PhotoAlbumsPanel
-            albums={albums}
-            contactName={name}
-            onCreate={() => setShowAlbumModal(true)}
-            onOpen={(album) =>
-              navigation.navigate("ContactAlbumDetails", {
-                contactId: contact.id as any,
-                albumId: album.id as any,
-                albumTitle: album.title,
+      );
+
+    case "photo_albums":
+      return (
+        <PhotoAlbumsPanel
+          albums={albums}
+          contactName={name}
+          onCreate={() => setShowAlbumModal(true)}
+          onOpen={(album) =>
+            navigation.navigate("ContactAlbumDetails", {
+              contactId: currentContact.id as any,
+              albumId: album.id as any,
+              albumTitle: album.title,
+            })
+          }
+        />
+      );
+
+    default:
+      return null;
+  }
+}
+  return (
+    <Screen>
+      <View style={styles.root}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          contentContainerStyle={styles.scrollContent}
+        >
+          <ProfileHero
+            contact={currentContact}
+            name={name}
+            onBack={() => navigation.goBack()}
+            onEdit={() =>
+              navigation.navigate("EditContact", {
+                contactId: currentContact.id as any,
               })
             }
+            onAddTag={openTagPicker}
           />
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={confirmDeleteContact}
-          >
-            <Text style={styles.deleteText}>Delete contact</Text>
-          </TouchableOpacity>
+
+
+
+{profileLayout.items
+  .filter((item) => item.visible)
+  .sort((a, b) => a.order - b.order)
+  .map((item) => (
+    <React.Fragment key={item.key}>
+      {renderProfileSection(item.key)}
+    </React.Fragment>
+  ))}
+  <CustomizeProfileButton
+  source={profileLayoutSource}
+  onPress={() => setShowProfileLayoutModal(true)}
+/>
+  <TouchableOpacity
+  style={styles.deleteButton}
+  onPress={confirmDeleteContact}
+>
+  <Text style={styles.deleteText}>Delete contact</Text>
+</TouchableOpacity>
+
+<View style={{ height: Platform.OS === "android" ? 36 : 18 }} />
         </ScrollView>
 
     
@@ -1304,6 +1472,59 @@ async function saveContactTags() {
           onSave={handleSaveMemory}
           settings={settings}
         />
+   <ProfileLayoutModal
+  visible={showProfileLayoutModal}
+  contactName={name || "this contact"}
+  groupName={currentContact.group_detail?.name ?? null}
+  source={profileLayoutSource}
+  items={profileLayout.items}
+  saving={savingProfileLayout}
+  settings={settings}
+  onCancel={() => setShowProfileLayoutModal(false)}
+  onSaveForContact={async (items) => {
+    try {
+      await saveProfileLayoutForContact(items);
+      setShowProfileLayoutModal(false);
+    } catch (error) {
+      console.log("Save contact profile layout failed:", error);
+      Alert.alert("Profile layout", "Could not save this contact layout.");
+    }
+  }}
+  onSaveForGroup={
+    canSaveForGroup
+      ? async (items) => {
+          try {
+            await saveProfileLayoutForGroup(items);
+            setShowProfileLayoutModal(false);
+          } catch (error) {
+            console.log("Save group profile layout failed:", error);
+            Alert.alert("Profile layout", "Could not save this group layout.");
+          }
+        }
+      : undefined
+  }
+  onSaveForGlobal={async (items) => {
+    try {
+      await saveProfileLayoutForGlobal(items);
+      setShowProfileLayoutModal(false);
+    } catch (error) {
+      console.log("Save global profile layout failed:", error);
+      Alert.alert(
+        "Profile layout",
+        "Could not save this layout as the global default."
+      );
+    }
+  }}
+  onResetContact={async () => {
+    try {
+      await resetContactLayout();
+      setShowProfileLayoutModal(false);
+    } catch (error) {
+      console.log("Reset contact profile layout failed:", error);
+      Alert.alert("Profile layout", "Could not reset this contact layout.");
+    }
+  }}
+/>
         <TagPickerModal
         visible={showTagModal}
         tags={allTags}

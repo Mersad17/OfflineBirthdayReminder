@@ -20,9 +20,7 @@ export function MigrationProvider({ children }: Props) {
           Database migration failed
         </Text>
 
-        <Text style={{ textAlign: "center" }}>
-          {error.message}
-        </Text>
+        <Text style={{ textAlign: "center" }}>{error.message}</Text>
       </View>
     );
   }
