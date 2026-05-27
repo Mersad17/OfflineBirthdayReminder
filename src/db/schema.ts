@@ -163,7 +163,251 @@ export const contactTagLink = sqliteTable(
     index("contact_tag_link_tag_idx").on(table.tagId),
   ]
 );
+/**
+ * CUSTOM INFO SECTION
+ *
+ * User-created section definition.
+ *
+ * Examples:
+ * - Kids
+ * - Work details
+ * - Gift ideas
+ * - Health
+ *
+ * scope:
+ * - "contact" = only one contact
+ * - "global" = available for all contacts
+ */
+export const customInfoSection = sqliteTable(
+  "custom_info_section",
+  {
+    id: text("id").primaryKey(),
 
+    userId: text("user_id").notNull().default("local"),
+
+    /**
+     * If scope = "contact", this points to one contact.
+     * If scope = "global", this stays null.
+     */
+    contactId: text("contact_id").references(() => contact.id, {
+      onDelete: "cascade",
+    }),
+
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+
+    icon: text("icon"),
+    color: text("color"),
+
+    /**
+     * "contact" | "global"
+     */
+    scope: text("scope").notNull().default("contact"),
+
+    /**
+     * true = section can have many entries.
+     * Example: Kids -> Emma, Lucas, Nora
+     *
+     * false = one entry only.
+     * Example: Work details
+     */
+    isRepeatable: integer("is_repeatable", { mode: "boolean" })
+      .notNull()
+      .default(true),
+
+    sortOrder: integer("sort_order").notNull().default(0),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("custom_info_section_user_idx").on(table.userId),
+
+    index("custom_info_section_contact_idx").on(
+      table.userId,
+      table.contactId
+    ),
+
+    index("custom_info_section_scope_idx").on(
+      table.userId,
+      table.scope
+    ),
+
+    index("custom_info_section_sort_idx").on(
+      table.userId,
+      table.sortOrder
+    ),
+  ]
+);
+
+/**
+ * CUSTOM INFO FIELD
+ *
+ * Field definitions inside a section.
+ *
+ * Example:
+ * Section: Kids
+ * Fields:
+ * - Child name / text
+ * - Birthday / date
+ * - School / text
+ */
+export const customInfoField = sqliteTable(
+  "custom_info_field",
+  {
+    id: text("id").primaryKey(),
+
+    sectionId: text("section_id")
+      .notNull()
+      .references(() => customInfoSection.id, {
+        onDelete: "cascade",
+      }),
+
+    label: text("label").notNull(),
+    fieldKey: text("field_key").notNull(),
+
+    /**
+     * V1:
+     * - text
+     * - long_text
+     * - date
+     * - number
+     * - boolean
+     */
+    fieldType: text("field_type").notNull().default("text"),
+
+    placeholder: text("placeholder"),
+
+    /**
+     * For later:
+     * select / multi_select options.
+     */
+    optionsJson: text("options_json"),
+
+    isRequired: integer("is_required", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
+    sortOrder: integer("sort_order").notNull().default(0),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("custom_info_field_section_idx").on(table.sectionId),
+
+    index("custom_info_field_sort_idx").on(
+      table.sectionId,
+      table.sortOrder
+    ),
+  ]
+);
+
+/**
+ * CUSTOM INFO ENTRY
+ *
+ * One filled item for a contact.
+ *
+ * Example:
+ * Section: Kids
+ * Entry 1: Emma
+ * Entry 2: Lucas
+ */
+export const customInfoEntry = sqliteTable(
+  "custom_info_entry",
+  {
+    id: text("id").primaryKey(),
+
+    sectionId: text("section_id")
+      .notNull()
+      .references(() => customInfoSection.id, {
+        onDelete: "cascade",
+      }),
+
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, {
+        onDelete: "cascade",
+      }),
+
+    sortOrder: integer("sort_order").notNull().default(0),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("custom_info_entry_contact_idx").on(table.contactId),
+
+    index("custom_info_entry_section_contact_idx").on(
+      table.sectionId,
+      table.contactId
+    ),
+
+    index("custom_info_entry_sort_idx").on(
+      table.sectionId,
+      table.contactId,
+      table.sortOrder
+    ),
+  ]
+);
+
+/**
+ * CUSTOM INFO VALUE
+ *
+ * Actual value for a field inside an entry.
+ *
+ * Example:
+ * field = Birthday
+ * valueDate = "2020-06-12"
+ */
+export const customInfoValue = sqliteTable(
+  "custom_info_value",
+  {
+    id: text("id").primaryKey(),
+
+    entryId: text("entry_id")
+      .notNull()
+      .references(() => customInfoEntry.id, {
+        onDelete: "cascade",
+      }),
+
+    fieldId: text("field_id")
+      .notNull()
+      .references(() => customInfoField.id, {
+        onDelete: "cascade",
+      }),
+
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, {
+        onDelete: "cascade",
+      }),
+
+    valueText: text("value_text"),
+    valueNumber: integer("value_number"),
+    valueDate: text("value_date"),
+    valueJson: text("value_json"),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("custom_info_value_entry_idx").on(table.entryId),
+
+    index("custom_info_value_field_idx").on(table.fieldId),
+
+    index("custom_info_value_contact_idx").on(table.contactId),
+
+    uniqueIndex("unique_custom_info_value_per_entry_field").on(
+      table.entryId,
+      table.fieldId
+    ),
+  ]
+);
 /**
  * CONTACT MEMORY TABLE
  *
