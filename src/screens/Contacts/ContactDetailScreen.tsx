@@ -34,7 +34,7 @@ import {
   fetchContactTags,
   updateContact,
 } from "../../contacts/repository";
-
+import LifeCircleCard from "./LifeCircleCard";
 import {
   DEFAULT_TAG_COLOR,
   LABEL_COLORS,
@@ -1031,14 +1031,8 @@ async function saveContactTags() {
             contact={contact}
             interactions={interactions}
           />
-
-          <RelationshipHealthCard
-            health={profile.health}
-            contact={contact}
-            interactions={interactions}
-            saving={savingTalk}
-            onSave={saveTalkCadence}
-          />
+        
+          
          <NextUpCarousel
     items={profile.askNextMemories}
     onAdd={() => openCreateMemoryModal("ask_next_time")}
@@ -1106,6 +1100,17 @@ async function saveContactTags() {
               })
             }
           />
+          <RelationshipHealthCard
+            health={profile.health}
+            contact={contact}
+            interactions={interactions}
+            saving={savingTalk}
+            onSave={saveTalkCadence}
+          />
+          <LifeCircleCard
+          contact={contact}
+          navigation={navigation}
+        />
           <PhotoAlbumsPanel
             albums={albums}
             contactName={name}
