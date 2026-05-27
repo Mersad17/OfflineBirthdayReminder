@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/expo-sqlite";
 import { openDatabaseSync } from "expo-sqlite";
 import * as schema from "./schema";
 
-export const sqlite = openDatabaseSync("reminderapp.db", {
+export const sqlite = openDatabaseSync("friendly_reminder_v1.db", {
   enableChangeListener: true,
 });
 

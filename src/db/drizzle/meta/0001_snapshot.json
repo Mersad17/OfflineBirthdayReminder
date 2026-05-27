@@ -1,8 +1,8 @@
 {
+  "id": "2682c162-2d4f-4fc4-ae65-d901fff1bf53",
+  "prevId": "e5667f8d-7fde-47a3-9ffc-2cb661207495",
   "version": "6",
   "dialect": "sqlite",
-  "id": "59f05571-b253-4987-afa4-121f815ef44d",
-  "prevId": "8ba0518d-9aa2-42d8-9153-317fb0378117",
   "tables": {
     "app_setting": {
       "name": "app_setting",
@@ -118,6 +118,27 @@
           "autoincrement": false,
           "default": false
         },
+        "met_at": {
+          "name": "met_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "known_since": {
+          "name": "known_since",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "relationship_label": {
+          "name": "relationship_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -228,15 +249,15 @@
         "contact_group_id_contact_group_id_fk": {
           "name": "contact_group_id_contact_group_id_fk",
           "tableFrom": "contact",
-          "tableTo": "contact_group",
           "columnsFrom": [
             "group_id"
           ],
+          "tableTo": "contact_group",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -334,15 +355,15 @@
         "contact_album_contact_id_contact_id_fk": {
           "name": "contact_album_contact_id_contact_id_fk",
           "tableFrom": "contact_album",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -453,28 +474,28 @@
         "contact_album_photo_album_id_contact_album_id_fk": {
           "name": "contact_album_photo_album_id_contact_album_id_fk",
           "tableFrom": "contact_album_photo",
-          "tableTo": "contact_album",
           "columnsFrom": [
             "album_id"
           ],
+          "tableTo": "contact_album",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "contact_album_photo_contact_id_contact_id_fk": {
           "name": "contact_album_photo_contact_id_contact_id_fk",
           "tableFrom": "contact_album_photo",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -624,15 +645,15 @@
         "contact_event_contact_id_contact_id_fk": {
           "name": "contact_event_contact_id_contact_id_fk",
           "tableFrom": "contact_event",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -835,15 +856,15 @@
         "contact_memory_contact_id_contact_id_fk": {
           "name": "contact_memory_contact_id_contact_id_fk",
           "tableFrom": "contact_memory",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -974,28 +995,28 @@
         "contact_relationship_contact_id_contact_id_fk": {
           "name": "contact_relationship_contact_id_contact_id_fk",
           "tableFrom": "contact_relationship",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "contact_relationship_related_contact_id_contact_id_fk": {
           "name": "contact_relationship_related_contact_id_contact_id_fk",
           "tableFrom": "contact_relationship",
-          "tableTo": "contact",
           "columnsFrom": [
             "related_contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1138,28 +1159,28 @@
         "contact_tag_link_contact_id_contact_id_fk": {
           "name": "contact_tag_link_contact_id_contact_id_fk",
           "tableFrom": "contact_tag_link",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "contact_tag_link_tag_id_contact_tag_id_fk": {
           "name": "contact_tag_link_tag_id_contact_tag_id_fk",
           "tableFrom": "contact_tag_link",
-          "tableTo": "contact_tag",
           "columnsFrom": [
             "tag_id"
           ],
+          "tableTo": "contact_tag",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -1171,6 +1192,553 @@
           "name": "contact_tag_link_contact_id_tag_id_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "custom_info_entry": {
+      "name": "custom_info_entry",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "section_id": {
+          "name": "section_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "custom_info_entry_contact_idx": {
+          "name": "custom_info_entry_contact_idx",
+          "columns": [
+            "contact_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_entry_section_contact_idx": {
+          "name": "custom_info_entry_section_contact_idx",
+          "columns": [
+            "section_id",
+            "contact_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_entry_sort_idx": {
+          "name": "custom_info_entry_sort_idx",
+          "columns": [
+            "section_id",
+            "contact_id",
+            "sort_order"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "custom_info_entry_section_id_custom_info_section_id_fk": {
+          "name": "custom_info_entry_section_id_custom_info_section_id_fk",
+          "tableFrom": "custom_info_entry",
+          "columnsFrom": [
+            "section_id"
+          ],
+          "tableTo": "custom_info_section",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "custom_info_entry_contact_id_contact_id_fk": {
+          "name": "custom_info_entry_contact_id_contact_id_fk",
+          "tableFrom": "custom_info_entry",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "tableTo": "contact",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "custom_info_field": {
+      "name": "custom_info_field",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "section_id": {
+          "name": "section_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "field_key": {
+          "name": "field_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "field_type": {
+          "name": "field_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'text'"
+        },
+        "placeholder": {
+          "name": "placeholder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "options_json": {
+          "name": "options_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_required": {
+          "name": "is_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "custom_info_field_section_idx": {
+          "name": "custom_info_field_section_idx",
+          "columns": [
+            "section_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_field_sort_idx": {
+          "name": "custom_info_field_sort_idx",
+          "columns": [
+            "section_id",
+            "sort_order"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "custom_info_field_section_id_custom_info_section_id_fk": {
+          "name": "custom_info_field_section_id_custom_info_section_id_fk",
+          "tableFrom": "custom_info_field",
+          "columnsFrom": [
+            "section_id"
+          ],
+          "tableTo": "custom_info_section",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "custom_info_section": {
+      "name": "custom_info_section",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'local'"
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "normalized_name": {
+          "name": "normalized_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'contact'"
+        },
+        "is_repeatable": {
+          "name": "is_repeatable",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "custom_info_section_user_idx": {
+          "name": "custom_info_section_user_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_section_contact_idx": {
+          "name": "custom_info_section_contact_idx",
+          "columns": [
+            "user_id",
+            "contact_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_section_scope_idx": {
+          "name": "custom_info_section_scope_idx",
+          "columns": [
+            "user_id",
+            "scope"
+          ],
+          "isUnique": false
+        },
+        "custom_info_section_sort_idx": {
+          "name": "custom_info_section_sort_idx",
+          "columns": [
+            "user_id",
+            "sort_order"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "custom_info_section_contact_id_contact_id_fk": {
+          "name": "custom_info_section_contact_id_contact_id_fk",
+          "tableFrom": "custom_info_section",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "tableTo": "contact",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "custom_info_value": {
+      "name": "custom_info_value",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "field_id": {
+          "name": "field_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value_text": {
+          "name": "value_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "value_number": {
+          "name": "value_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "value_date": {
+          "name": "value_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "value_json": {
+          "name": "value_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "custom_info_value_entry_idx": {
+          "name": "custom_info_value_entry_idx",
+          "columns": [
+            "entry_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_value_field_idx": {
+          "name": "custom_info_value_field_idx",
+          "columns": [
+            "field_id"
+          ],
+          "isUnique": false
+        },
+        "custom_info_value_contact_idx": {
+          "name": "custom_info_value_contact_idx",
+          "columns": [
+            "contact_id"
+          ],
+          "isUnique": false
+        },
+        "unique_custom_info_value_per_entry_field": {
+          "name": "unique_custom_info_value_per_entry_field",
+          "columns": [
+            "entry_id",
+            "field_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "custom_info_value_entry_id_custom_info_entry_id_fk": {
+          "name": "custom_info_value_entry_id_custom_info_entry_id_fk",
+          "tableFrom": "custom_info_value",
+          "columnsFrom": [
+            "entry_id"
+          ],
+          "tableTo": "custom_info_entry",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "custom_info_value_field_id_custom_info_field_id_fk": {
+          "name": "custom_info_value_field_id_custom_info_field_id_fk",
+          "tableFrom": "custom_info_value",
+          "columnsFrom": [
+            "field_id"
+          ],
+          "tableTo": "custom_info_field",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "custom_info_value_contact_id_contact_id_fk": {
+          "name": "custom_info_value_contact_id_contact_id_fk",
+          "tableFrom": "custom_info_value",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "tableTo": "contact",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -1354,15 +1922,15 @@
         "interaction_contact_id_contact_id_fk": {
           "name": "interaction_contact_id_contact_id_fk",
           "tableFrom": "interaction",
-          "tableTo": "contact",
           "columnsFrom": [
             "contact_id"
           ],
+          "tableTo": "contact",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1494,15 +2062,15 @@
         "reminder_event_id_contact_event_id_fk": {
           "name": "reminder_event_id_contact_event_id_fk",
           "tableFrom": "reminder",
-          "tableTo": "contact_event",
           "columnsFrom": [
             "event_id"
           ],
+          "tableTo": "contact_event",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1513,9 +2081,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}
