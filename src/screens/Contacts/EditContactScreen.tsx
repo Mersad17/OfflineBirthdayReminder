@@ -111,7 +111,11 @@ export default function EditContactScreen({ route, navigation }: Props) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [shortDescription, setShortDescription] = useState("");
-
+  const [relationshipLabel, setRelationshipLabel] = useState("");
+  const [metAt, setMetAt] = useState("");
+  const [knownSince, setKnownSince] = useState("");
+  const [knownSinceDateObj, setKnownSinceDateObj] = useState(new Date());
+  const [showKnownSincePicker, setShowKnownSincePicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
 
@@ -151,6 +155,36 @@ export default function EditContactScreen({ route, navigation }: Props) {
         setEmail(contactData.email || "");
         setPhone(contactData.phone || "");
         setShortDescription(contactData.short_description || "");
+
+        const contactAny = contactData as any;
+
+        setRelationshipLabel(
+          contactAny.relationship_label ||
+            contactAny.relationshipLabel ||
+            contactAny.relationship ||
+            ""
+        );
+
+        setMetAt(
+          contactAny.met_at ||
+            contactAny.metAt ||
+            contactAny.met_location ||
+            contactAny.metLocation ||
+            ""
+        );
+
+        const savedKnownSince =
+          contactAny.known_since || contactAny.knownSince || "";
+
+        setKnownSince(savedKnownSince);
+
+        if (savedKnownSince) {
+          const parsedKnownSince = new Date(savedKnownSince);
+
+          if (!Number.isNaN(parsedKnownSince.getTime())) {
+            setKnownSinceDateObj(parsedKnownSince);
+          }
+        }
 
         setSelectedGroupId(contactData.group || null);
 
@@ -259,7 +293,19 @@ export default function EditContactScreen({ route, navigation }: Props) {
     setBirthdayDateObj(selectedDate);
     setBirthday(formatDate(selectedDate));
   }
+    function onKnownSinceDateChange(
+      _: DateTimePickerEvent,
+      selectedDate?: Date
+    ) {
+      if (Platform.OS === "android") {
+        setShowKnownSincePicker(false);
+      }
 
+      if (!selectedDate) return;
+
+      setKnownSinceDateObj(selectedDate);
+      setKnownSince(formatDate(selectedDate));
+    }
   async function pickPhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -441,7 +487,10 @@ export default function EditContactScreen({ route, navigation }: Props) {
       setError("Birthday date must be in YYYY-MM-DD format.");
       return;
     }
-
+    if (knownSince && !knownSince.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      setError("Known since date must be in YYYY-MM-DD format.");
+      return;
+    }
     if (!firstName.trim()) {
       setError("First name is required.");
       return;
@@ -450,22 +499,30 @@ export default function EditContactScreen({ route, navigation }: Props) {
     setSaving(true);
 
     try {
-      await updateContact(contactId, {
-        first_name: firstName.trim(),
-        last_name: lastName.trim() || null,
-        birthday: birthday ? birthday : null,
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        short_description: shortDescription.trim() || null,
-        group: selectedGroupId,
-        tag_names: tagNames,
-        photo_uri:
-          photoUri === originalPhotoUri
-            ? undefined
-            : photoUri === null
-            ? null
-            : photoUri,
-      });
+      await updateContact(
+  contactId,
+  {
+    first_name: firstName.trim(),
+    last_name: lastName.trim() || null,
+    birthday: birthday ? birthday : null,
+    email: email.trim() || null,
+    phone: phone.trim() || null,
+    short_description: shortDescription.trim() || null,
+
+    relationship_label: relationshipLabel.trim() || null,
+    met_at: metAt.trim() || null,
+    known_since: knownSince || null,
+
+    group: selectedGroupId,
+    tag_names: tagNames,
+    photo_uri:
+      photoUri === originalPhotoUri
+        ? undefined
+        : photoUri === null
+        ? null
+        : photoUri,
+  } as any
+);
 
       navigation.goBack();
     } catch (error: any) {
@@ -881,7 +938,76 @@ export default function EditContactScreen({ route, navigation }: Props) {
                   />
                 ) : null}
               </FieldGroup>
+                <FieldGroup label="Met at" hint="Optional" colors={colors}>
+                  <ThemedInput
+                    value={metAt}
+                    onChangeText={setMetAt}
+                    placeholder="Gym, school, work, coffee shop..."
+                    autoCapitalize="sentences"
+                    colors={colors}
+                  />
+                </FieldGroup>
 
+                <FieldGroup label="Known since" hint="Optional" colors={colors}>
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() => setShowKnownSincePicker(true)}
+                    style={[
+                      styles.input,
+                      styles.dateInput,
+                      {
+                        backgroundColor: colors.softCard,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateText,
+                        { color: knownSince ? colors.title : colors.muted },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {formatDateEU(knownSince) || "Pick a date"}
+                    </Text>
+
+                    <Ionicons
+                      name="calendar-number-outline"
+                      size={18}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+
+                  {knownSince ? (
+                    <View style={styles.tagWrap}>
+                      <TouchableOpacity
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: colors.softCard,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                        onPress={() => setKnownSince("")}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.chipText, { color: colors.text }]}>
+                          Clear date
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+
+                  {showKnownSincePicker ? (
+                    <DateTimePicker
+                      mode="date"
+                      value={knownSinceDateObj}
+                      onChange={onKnownSinceDateChange}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      maximumDate={new Date()}
+                    />
+                  ) : null}
+                </FieldGroup>
               <FieldGroup label="Email" hint="Optional" colors={colors}>
                 <ThemedInput
                   value={email}
@@ -902,7 +1028,17 @@ export default function EditContactScreen({ route, navigation }: Props) {
                   colors={colors}
                 />
               </FieldGroup>
+<FieldGroup label="Relationship to you" hint="Optional" colors={colors}>
+  <ThemedInput
+    value={relationshipLabel}
+    onChangeText={setRelationshipLabel}
+    placeholder="Friend, girlfriend, wife, client..."
+    autoCapitalize="words"
+    colors={colors}
+  />
 
+
+</FieldGroup>
               {error ? (
                 <View
                   style={[

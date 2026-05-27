@@ -27,7 +27,7 @@ import {
   HomeSummaryDTO,
 } from "../../events/types";
 import { fetchHomeSummary } from "../../events/repository";
-
+import BeforeMeetSearchCard from "../BeforeMeet/BeforeMeetSearchCard";
 type Props = {
   navigation: any;
 };
@@ -232,7 +232,7 @@ export default function HomeScreen({ navigation }: Props) {
     : t("hero.addEvents");
 
   return (
-    <Screen scroll>
+    <Screen scroll keyboardShouldPersistTaps="always">
       <View style={[styles.page, { backgroundColor: colors.background }]}>
         <View style={styles.container}>
           <View style={styles.appBar}>
@@ -297,66 +297,22 @@ export default function HomeScreen({ navigation }: Props) {
             <View style={styles.heroGlowTwo} />
 
             <View style={styles.heroContent}>
-              <View style={styles.heroIconBubble}>
-                <Ionicons name="heart-outline" size={24} color={colors.buttonText} />
-              </View>
+            
 
-              <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
-                {t("hero.hello")}
-              </Text>
+             <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
+              {t("hero.hello")}
+            </Text>
 
-              <Text
-                style={[styles.heroSubtitle, { color: colors.buttonText }]}
-                numberOfLines={3}
-              >
-                {heroText}
-              </Text>
+            <Text
+              style={[styles.heroSubtitle, { color: colors.buttonText }]}
+              numberOfLines={3}
+            >
+              {heroText}
+            </Text>
 
-              <View style={styles.heroFooter}>
-                <TouchableOpacity
-                  style={[
-                    styles.primaryButton,
-                    {
-                      backgroundColor: colors.softButtonText,
-                      borderColor: withOpacity(colors.buttonText, "24"),
-                    },
-                  ]}
-                  onPress={openAddContact}
-                  activeOpacity={0.88}
-                >
-                  <Ionicons
-                    name="person-add-outline"
-                    size={18}
-                    color={colors.buttonText}
-                  />
-                  <Text
-                    style={[
-                      styles.primaryButtonText,
-                      { color: colors.buttonText },
-                    ]}
-                  >
-                    {t("hero.newContact")}
-                  </Text>
-                </TouchableOpacity>
+            <BeforeMeetSearchCard colors={colors} navigation={navigation} />
 
-                <View style={styles.secondaryHeroRow}>
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={14}
-                    color={colors.buttonText}
-                  />
 
-                  <Text
-                    style={[
-                      styles.secondaryHeroText,
-                      { color: colors.buttonText },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {t("hero.reminderHint")}
-                  </Text>
-                </View>
-              </View>
             </View>
           </LinearGradient>
 
