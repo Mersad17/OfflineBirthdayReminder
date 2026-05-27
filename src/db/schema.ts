@@ -529,3 +529,40 @@ export const appSetting = sqliteTable(
     index("app_setting_updated_idx").on(table.updatedAt),
   ]
 );
+
+export const contactRelationship = sqliteTable(
+  "contact_relationship",
+  {
+    id: text("id").primaryKey().notNull(),
+
+    userId: text("user_id").default("local").notNull(),
+
+    // Prevent duplicate Sarah→Emma and Emma→Sarah connections.
+    pairKey: text("pair_key").notNull(),
+
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+
+    relatedContactId: text("related_contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+
+    relationshipType: text("relationship_type").notNull(),
+    reverseRelationshipType: text("reverse_relationship_type").notNull(),
+
+    relationshipGroup: text("relationship_group").default("other").notNull(),
+
+    note: text("note"),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("contact_relationship_pair_unique_idx").on(table.pairKey),
+    index("contact_relationship_contact_idx").on(table.contactId),
+    index("contact_relationship_related_contact_idx").on(table.relatedContactId),
+    index("contact_relationship_group_idx").on(table.relationshipGroup),
+  ]
+);
