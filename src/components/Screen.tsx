@@ -1,10 +1,14 @@
 // src/components/Screen.tsx
 import React from "react";
 import {
-  View,
   ImageBackground,
+  Keyboard,
   ScrollView,
+  ScrollViewProps,
+  StyleProp,
   StyleSheet,
+  TouchableWithoutFeedback,
+  View,
   ViewStyle,
 } from "react-native";
 import { useAppearance } from "../appearance/AppearanceContext";
@@ -12,39 +16,77 @@ import { useAppearance } from "../appearance/AppearanceContext";
 type Props = {
   children: React.ReactNode;
   scroll?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+
+  /**
+   * Important for screens with inputs inside ScrollView.
+   * "always" prevents the first tap from only closing the keyboard.
+   */
+  keyboardShouldPersistTaps?: ScrollViewProps["keyboardShouldPersistTaps"];
+  keyboardDismissMode?: ScrollViewProps["keyboardDismissMode"];
+  dismissKeyboardOnPress?: boolean;
+  showsVerticalScrollIndicator?: boolean;
 };
 
-export function Screen({ children, scroll = false, style }: Props) {
+export function Screen({
+  children,
+  scroll = false,
+  style,
+  keyboardShouldPersistTaps = "handled",
+  keyboardDismissMode = "on-drag",
+  dismissKeyboardOnPress = false,
+  showsVerticalScrollIndicator = false,
+}: Props) {
   const { settings } = useAppearance();
+
   const resizeMode = settings.backgroundResizeMode || "cover";
   const hasBgImage = !!settings.backgroundImageUri;
 
-  const Container = scroll ? ScrollView : View;
+  const content = scroll ? (
+    <ScrollView
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      keyboardDismissMode={keyboardDismissMode}
+      showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+      contentContainerStyle={[styles.contentScroll, style]}
+    >
+      {children}
+    </ScrollView>
+  ) : (
+    <View style={[styles.content, style]}>{children}</View>
+  );
 
-  // 👇 ICI : on force le type
-  const Background: React.ElementType = hasBgImage ? ImageBackground : View;
+  const wrappedContent = dismissKeyboardOnPress ? (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      {content}
+    </TouchableWithoutFeedback>
+  ) : (
+    content
+  );
 
-  const backgroundProps = hasBgImage
-    ? {
-        source: { uri: settings.backgroundImageUri! },
-        resizeMode,
-      }
-    : { style: { backgroundColor: settings.backgroundColor } };
+  if (hasBgImage) {
+    return (
+      <ImageBackground
+        source={{ uri: settings.backgroundImageUri! }}
+        resizeMode={resizeMode}
+        style={[
+          styles.background,
+          { backgroundColor: settings.backgroundColor },
+        ]}
+      >
+        {wrappedContent}
+      </ImageBackground>
+    );
+  }
 
   return (
-    <Background
-      {...backgroundProps}
-      style={[styles.background, backgroundProps.style]}
+    <View
+      style={[
+        styles.background,
+        { backgroundColor: settings.backgroundColor },
+      ]}
     >
-      <Container
-        {...(scroll
-          ? { contentContainerStyle: [styles.contentScroll, style] }
-          : { style: [styles.content, style] })}
-      >
-        {children}
-      </Container>
-    </Background>
+      {wrappedContent}
+    </View>
   );
 }
 
@@ -52,9 +94,11 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
   },
+
   content: {
     flex: 1,
   },
+
   contentScroll: {
     flexGrow: 1,
   },

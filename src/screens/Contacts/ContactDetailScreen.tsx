@@ -551,8 +551,9 @@ function getMetAt(contact: Contact, interactions: Interaction[]) {
 
 function getRelationshipLabel(contact: Contact) {
   return (
-    getAny<string>(contact, "relationship") ||
     getAny<string>(contact, "relationship_label") ||
+    getAny<string>(contact, "relationshipLabel") ||
+    getAny<string>(contact, "relationship") ||
     contact.group_detail?.name ||
     "Not set"
   );
@@ -1874,11 +1875,21 @@ function AboutContactCard({
         />
 
         <AboutItem
-          icon="calendar-number-outline"
-          iconColor={contactDetailTheme.success}
-          label="Known since"
-          value={firstMet ? formatMonthYear(firstMet) : formatMonthYear(contact.created_at)}
-        />
+        icon="calendar-number-outline"
+        iconColor={contactDetailTheme.success}
+        label="Known since"
+        value={
+          getAny<string>(contact, "known_since") ||
+          getAny<string>(contact, "knownSince")
+            ? formatMonthYear(
+                getAny<string>(contact, "known_since") ||
+                  getAny<string>(contact, "knownSince")
+              )
+            : firstMet
+            ? formatMonthYear(firstMet)
+            : formatMonthYear(contact.created_at)
+        }
+      />
 
         <AboutItem
           icon="time-outline"

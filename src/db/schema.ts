@@ -104,7 +104,9 @@ export const contact = sqliteTable(
     isFavorite: integer("is_favorite", { mode: "boolean" })
       .notNull()
       .default(false),
-
+    metAt: text("met_at"),
+    knownSince: text("known_since"),
+    relationshipLabel: text("relationship_label"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

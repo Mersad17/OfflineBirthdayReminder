@@ -52,7 +52,9 @@ export type Contact = {
   birthday?: string | null;
   email?: string | null;
   phone?: string | null;
-
+    met_at?: string | null;
+    known_since?: string | null;
+    relationship_label?: string | null;
   /**
    * Keep same idea as Django API:
    * group = id
@@ -102,7 +104,9 @@ export type CreateContactInput = {
   birthday?: string | null;
   email?: string | null;
   phone?: string | null;
-
+met_at?: string | null;
+known_since?: string | null;
+relationship_label?: string | null;
   /**
    * group is now UUID string instead of number.
    */

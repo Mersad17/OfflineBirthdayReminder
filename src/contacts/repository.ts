@@ -164,6 +164,10 @@ async function mapContactToApi(
 
     short_description: row.shortDescription,
 
+    met_at: row.metAt ?? null,
+    known_since: row.knownSince ?? null,
+    relationship_label: row.relationshipLabel ?? null,
+
     photo: row.photoUri,
     photo_uri: row.photoUri,
 
@@ -633,7 +637,9 @@ export async function fetchContacts(
         like(contact.lastName, search),
         like(contact.phone, search),
         like(contact.email, search),
-        like(contact.shortDescription, search)
+        like(contact.shortDescription, search),
+        like(contact.metAt, search),
+        like(contact.relationshipLabel, search)
       ) as SQL
     );
   }
@@ -723,6 +729,10 @@ export async function createContact(
     photoUri: payload.photo_uri ?? null,
 
     shortDescription: payload.short_description ?? null,
+
+    metAt: payload.met_at?.trim() || null,
+    knownSince: toDateOnly(payload.known_since),
+    relationshipLabel: payload.relationship_label?.trim() || null,
 
     talkNotifiedAt: toDateOnly(payload.talk_notified_at),
   };
@@ -825,6 +835,18 @@ export async function updateContact(
  if (payload.short_description !== undefined) {
   updateData.shortDescription = payload.short_description;
 }
+
+  if (payload.met_at !== undefined) {
+    updateData.metAt = payload.met_at?.trim() || null;
+  }
+
+  if (payload.known_since !== undefined) {
+    updateData.knownSince = toDateOnly(payload.known_since);
+  }
+
+  if (payload.relationship_label !== undefined) {
+    updateData.relationshipLabel = payload.relationship_label?.trim() || null;
+  }
 
   await db
     .update(contact)
