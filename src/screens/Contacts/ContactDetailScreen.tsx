@@ -55,6 +55,26 @@ import {
   updateContactMemory,
   deleteContactMemory,
 } from "../../memories/repository";
+
+import {
+  CustomInfoBuilderModal,
+  CustomInfoBuilderPayload,
+  CustomInfoEntryModal,
+  CustomInfoPanel,
+} from "./CustomInfoCards";
+import {
+  CustomInfoEntry,
+  CustomInfoSection,
+} from "../../customInfo/types";
+import {
+  createCustomInfoSection,
+  deleteCustomInfoEntry,
+  deleteCustomInfoSection,
+  fetchCustomInfoForContact,
+  saveCustomInfoEntry,
+  updateCustomInfoSection,
+} from "../../customInfo/repository";
+
 import { ContactMemory } from "../../memories/types";
 import { MEMORY_TYPES } from "../../memories/helper";
 import { ContactAlbumSummary } from "../../albums/types";
@@ -75,7 +95,6 @@ const ORANGE = "#EBA55B";
 const GREEN = "#7DA56D";
 const PURPLE = "#8A6BD8";
 const BLUE = "#4D82D8";
-const HEART_GOLD = "#F4B23E";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const NEXT_SLIDE_WIDTH = SCREEN_WIDTH - 58;
 const DEFAULT_HERO =
@@ -577,7 +596,18 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
   const [newMemoryPinned, setNewMemoryPinned] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [savingTalk, setSavingTalk] = useState(false);
-
+  const [customInfoSections, setCustomInfoSections] = useState<
+  CustomInfoSection[]
+>([]);
+const [showCustomInfoBuilder, setShowCustomInfoBuilder] = useState(false);
+const [savingCustomSection, setSavingCustomSection] = useState(false);
+const [activeCustomInfo, setActiveCustomInfo] = useState<{
+  section: CustomInfoSection;
+  entry: CustomInfoEntry | null;
+} | null>(null);
+const [editingCustomSection, setEditingCustomSection] =
+  useState<CustomInfoSection | null>(null);
+const [savingCustomInfo, setSavingCustomInfo] = useState(false);
   const loadProfile = useCallback(async () => {
     try {
         const [
@@ -587,6 +617,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           interactionsData,
           tagData,
           albumsData,
+           customInfoData,
         ] = await Promise.all([
           fetchContactById(contactId),
           fetchMemoriesForContact(contactId as any),
@@ -594,6 +625,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
           fetchInteractionForContact(contactId as any),
           fetchContactTags(),
           fetchAlbumsForContact(contactId as any),
+           fetchCustomInfoForContact(contactId as any),
         ]);
 
       setContact(contactData);
@@ -601,6 +633,7 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
       setInteractions(interactionsData ?? []);
       setAllTags(tagData ?? []);
       setAlbums(albumsData ?? []);
+      setCustomInfoSections(customInfoData ?? []);
 
       const eventResults = Array.isArray(eventsData)
         ? eventsData
@@ -632,8 +665,105 @@ export default function ContactDetailScreen({ route, navigation }: Props) {
     await loadProfile();
     setRefreshing(false);
   }
+async function handleRemoveCustomSection(section: CustomInfoSection) {
+  try {
+    await deleteCustomInfoSection(section.id);
+    await loadProfile();
+  } catch (error: any) {
+    console.log("Remove custom info section failed:", error);
 
-  
+    Alert.alert(
+      "Custom info",
+      error?.message || "Could not remove this custom section."
+    );
+  }
+}
+
+async function handleRemoveCustomEntry(entry: CustomInfoEntry) {
+  try {
+    await deleteCustomInfoEntry(entry.id);
+    await loadProfile();
+  } catch (error: any) {
+    console.log("Remove custom info entry failed:", error);
+
+    Alert.alert(
+      "Custom info",
+      error?.message || "Could not remove this custom item."
+    );
+  }
+}
+async function handleSaveCustomSection(payload: CustomInfoBuilderPayload) {
+  if (!contact) return;
+
+  try {
+    setSavingCustomSection(true);
+
+    if (editingCustomSection) {
+      await updateCustomInfoSection({
+        contact_id: contact.id,
+        section_id: editingCustomSection.id,
+        name: payload.name,
+        scope: payload.scope,
+        is_repeatable: payload.is_repeatable,
+        icon: payload.icon,
+        color: payload.color,
+        fields: payload.fields,
+      });
+    } else {
+      await createCustomInfoSection({
+        contact_id: contact.id,
+        name: payload.name,
+        scope: payload.scope,
+        is_repeatable: payload.is_repeatable,
+        icon: payload.icon,
+        color: payload.color,
+        fields: payload.fields,
+      });
+    }
+
+    setShowCustomInfoBuilder(false);
+    setEditingCustomSection(null);
+    await loadProfile();
+  } catch (error: any) {
+    console.log("Save custom info section failed:", error);
+
+    Alert.alert(
+      "Custom info",
+      error?.message || "Could not save this custom section."
+    );
+  } finally {
+    setSavingCustomSection(false);
+  }
+}
+async function handleSaveCustomEntry(
+  valuesByFieldId: Record<string, string>,
+  entryId?: string | null
+) {
+  if (!contact || !activeCustomInfo) return;
+
+  try {
+    setSavingCustomInfo(true);
+
+    await saveCustomInfoEntry({
+      contact_id: contact.id,
+      section_id: activeCustomInfo.section.id,
+      entry_id: entryId ?? null,
+      values_by_field_id: valuesByFieldId,
+    });
+
+    setActiveCustomInfo(null);
+    await loadProfile();
+  } catch (error: any) {
+    console.log("Save custom info failed:", error);
+
+    Alert.alert(
+      "Custom info",
+      error?.message || "Could not save this information."
+    );
+  } finally {
+    setSavingCustomInfo(false);
+  }
+}
 async function saveTalkCadence(days: number | null) {
   if (!contact || savingTalk) return;
 
@@ -1056,6 +1186,25 @@ async function saveContactTags() {
           onAddNote={() => openCreateMemoryModal("note")}
           onDelete={confirmDeleteMemory}
         />
+        <CustomInfoPanel
+          sections={customInfoSections}
+          onCreate={() => {
+            setEditingCustomSection(null);
+            setShowCustomInfoBuilder(true);
+          }}
+          onEditSection={(section) => {
+            setEditingCustomSection(section);
+            setShowCustomInfoBuilder(true);
+          }}
+          onRemoveSection={handleRemoveCustomSection}
+          onOpenEntry={(section, entry = null) =>
+            setActiveCustomInfo({
+              section,
+              entry,
+            })
+          }
+          onRemoveEntry={(_, entry) => handleRemoveCustomEntry(entry)}
+        />
           <View style={styles.eventsGridRow}>
             <UpcomingPanel
               variant="half"
@@ -1173,7 +1322,25 @@ async function saveContactTags() {
         }}
         onSave={saveContactTags}
       />
+      <CustomInfoBuilderModal
+        visible={showCustomInfoBuilder}
+        section={editingCustomSection}
+        saving={savingCustomSection}
+        onCancel={() => {
+          setShowCustomInfoBuilder(false);
+          setEditingCustomSection(null);
+        }}
+        onSave={handleSaveCustomSection}
+      />
 
+      <CustomInfoEntryModal
+      visible={!!activeCustomInfo}
+      section={activeCustomInfo?.section ?? null}
+      entry={activeCustomInfo?.entry ?? null}
+      saving={savingCustomInfo}
+      onCancel={() => setActiveCustomInfo(null)}
+      onSave={handleSaveCustomEntry}
+    />
       <AlbumCreateModal
         visible={showAlbumModal}
         value={newAlbumTitle}
@@ -1773,7 +1940,6 @@ function RelationshipHealthCard({
   const enabled = !!contact.talk_every_days;
   const cadence = contact.talk_every_days ?? 7;
   const fillPercent = health.fillPercent;
-  const status = getTalkStatus(contact, interactions);
   const lastContacted = getLastInteractionDate(contact, interactions);
   const presets = [7, 14, 30];
 
@@ -2955,7 +3121,7 @@ function AlbumPreviewCard({
             <Ionicons name="image-outline" size={26} color={contactDetailTheme.muted} />
           </View>
         ) : (
-          photos.slice(0, 4).map((photo, index) => (
+          photos.slice(0, 4).map((photo) => (
             <Image
               key={String(photo.id)}
               source={{ uri: photo.uri }}
@@ -3345,6 +3511,10 @@ function MemoryModal({
     </Modal>
   );
 }
+
+
+
+
 
 function createContactDetailStyles(theme: ContactDetailsColors) {
   return StyleSheet.create({
@@ -5504,7 +5674,364 @@ albumModalSaveButton: {
   alignItems: "center",
   justifyContent: "center",
 },
+customInfoPanel: {
+  marginHorizontal: 16,
+  marginTop: 14,
+  padding: 14,
+  borderRadius: 28,
+  backgroundColor: theme.card,
+  borderWidth: 1,
+  borderColor: theme.border,
+  shadowColor: theme.shadow,
+  shadowOpacity: 0.08,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 4,
+},
 
+customInfoHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: 12,
+},
+
+customInfoSubtitle: {
+  color: theme.muted,
+  fontSize: 12,
+  lineHeight: 17,
+  fontWeight: "600",
+  marginTop: 2,
+},
+
+customInfoAddButton: {
+  width: 38,
+  height: 38,
+  borderRadius: 19,
+  backgroundColor: theme.primary,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+customInfoEmptyCard: {
+  borderRadius: 22,
+  backgroundColor: theme.softCard,
+  borderWidth: 1,
+  borderColor: theme.border,
+  padding: 16,
+},
+
+customInfoEmptyTitle: {
+  color: theme.title,
+  fontSize: 16,
+  fontWeight: "900",
+},
+
+customInfoEmptyText: {
+  color: theme.muted,
+  fontSize: 13,
+  lineHeight: 19,
+  fontWeight: "600",
+  marginTop: 6,
+},
+
+customInfoEmptyButton: {
+  marginTop: 14,
+  height: 44,
+  borderRadius: 18,
+  backgroundColor: theme.primary,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 7,
+},
+
+customInfoEmptyButtonText: {
+  color: "#FFFFFF",
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+customSectionCard: {
+  borderRadius: 24,
+  backgroundColor: theme.softCard,
+  borderWidth: 1,
+  borderColor: theme.border,
+  padding: 14,
+  marginTop: 10,
+},
+
+customSectionTopRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+},
+
+customSectionTitleRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+  flex: 1,
+},
+
+customSectionIcon: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: theme.softPrimary,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+customSectionTitle: {
+  color: theme.title,
+  fontSize: 16,
+  fontWeight: "900",
+},
+
+customSectionMeta: {
+  color: theme.muted,
+  fontSize: 11,
+  fontWeight: "700",
+  marginTop: 2,
+},
+
+customFieldsPreview: {
+  marginTop: 12,
+  gap: 8,
+},
+
+customFieldRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+},
+
+customFieldLabel: {
+  color: theme.title,
+  fontSize: 13,
+  fontWeight: "800",
+  flex: 1,
+},
+
+customFieldValue: {
+  color: theme.muted,
+  fontSize: 13,
+  fontWeight: "700",
+  flex: 1,
+  textAlign: "right",
+},
+
+customNoEntryBox: {
+  marginTop: 12,
+  borderRadius: 18,
+  backgroundColor: theme.softPrimary,
+  padding: 12,
+},
+
+customNoEntryText: {
+  color: theme.primary,
+  fontSize: 13,
+  fontWeight: "800",
+  textAlign: "center",
+},
+
+customAddEntryButton: {
+  marginTop: 14,
+  height: 42,
+  borderRadius: 17,
+  borderWidth: 1,
+  borderColor: withOpacity(theme.primary, "55"),
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+},
+
+customAddEntryText: {
+  color: theme.primary,
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+customBuilderScreen: {
+  flex: 1,
+  backgroundColor: theme.background,
+},
+
+customBuilderHeader: {
+  paddingTop: 54,
+  paddingHorizontal: 16,
+  paddingBottom: 14,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  backgroundColor: theme.background,
+},
+
+customBuilderTitle: {
+  color: theme.title,
+  fontSize: 18,
+  fontWeight: "900",
+  flex: 1,
+  textAlign: "center",
+},
+
+customBuilderContent: {
+  paddingHorizontal: 18,
+  paddingBottom: 130,
+},
+
+customBuilderLabel: {
+  color: theme.title,
+  fontSize: 13,
+  fontWeight: "900",
+  marginTop: 18,
+  marginBottom: 8,
+},
+
+customBuilderInput: {
+  minHeight: 52,
+  borderRadius: 18,
+  borderWidth: 1,
+  borderColor: theme.border,
+  backgroundColor: theme.card,
+  paddingHorizontal: 14,
+  color: theme.title,
+  fontSize: 15,
+  fontWeight: "800",
+},
+
+customFieldBuilderCard: {
+  borderRadius: 24,
+  backgroundColor: theme.card,
+  borderWidth: 1,
+  borderColor: theme.border,
+  padding: 10,
+},
+
+customFieldBuilderRow: {
+  minHeight: 56,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  borderBottomWidth: 1,
+  borderBottomColor: theme.border,
+},
+
+customFieldTypeIcon: {
+  width: 34,
+  height: 34,
+  borderRadius: 12,
+  backgroundColor: theme.softPrimary,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+customFieldTypeIconText: {
+  color: theme.primary,
+  fontSize: 14,
+  fontWeight: "900",
+},
+
+customFieldNameInput: {
+  flex: 1,
+  color: theme.title,
+  fontSize: 14,
+  fontWeight: "800",
+  minHeight: 44,
+},
+
+customFieldTypeChip: {
+  minWidth: 78,
+  height: 34,
+  borderRadius: 13,
+  borderWidth: 1,
+  borderColor: theme.border,
+  backgroundColor: theme.softCard,
+  alignItems: "center",
+  justifyContent: "center",
+  paddingHorizontal: 8,
+},
+
+customFieldTypeChipText: {
+  color: theme.title,
+  fontSize: 11,
+  fontWeight: "900",
+  textTransform: "capitalize",
+},
+
+customAddFieldButton: {
+  marginTop: 10,
+  height: 44,
+  borderRadius: 16,
+  borderWidth: 1,
+  borderStyle: "dashed",
+  borderColor: withOpacity(theme.primary, "66"),
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+},
+
+customAddFieldText: {
+  color: theme.primary,
+  fontSize: 13,
+  fontWeight: "900",
+},
+
+customScopeRow: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  gap: 12,
+  paddingVertical: 12,
+},
+
+customScopeTitle: {
+  color: theme.title,
+  fontSize: 15,
+  fontWeight: "900",
+},
+
+customScopeSubtitle: {
+  color: theme.muted,
+  fontSize: 12,
+  lineHeight: 17,
+  fontWeight: "600",
+  marginTop: 2,
+},
+
+customBuilderFooter: {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  padding: 18,
+  paddingBottom: 30,
+  backgroundColor: theme.background,
+  borderTopWidth: 1,
+  borderTopColor: theme.border,
+},
+
+customBuilderSave: {
+  height: 54,
+  borderRadius: 22,
+  backgroundColor: theme.primary,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+customBuilderSaveText: {
+  color: "#FFFFFF",
+  fontSize: 15,
+  fontWeight: "900",
+},
+
+customEntryFieldBlock: {
+  marginBottom: 4,
+},
 albumModalSaveText: {
   color: "#FFFFFF",
   fontSize: 14,
