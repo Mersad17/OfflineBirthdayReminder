@@ -178,7 +178,9 @@ function goToAddBirthday() {
     <>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          headerShown: false,
+           headerShown: false,
+        lazy: true,
+        freezeOnBlur: true,
           tabBarActiveTintColor: settings.primaryColor,
           tabBarInactiveTintColor: withAlpha(settings.textColor, "80"),
           tabBarStyle: {

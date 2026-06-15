@@ -5,7 +5,9 @@ import {
   Alert,
   FlatList,
   Image,
+  Modal,
   Platform,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -67,7 +69,7 @@ type ReminderListRow =
       reminder: ReminderWithContextDTO;
     };
 
-const LIST_BATCH_SIZE = 9;
+const LIST_BATCH_SIZE = 6;
 
 const FILTERS: Array<{
   key: ReminderFilter;
@@ -79,7 +81,11 @@ const FILTERS: Array<{
   { key: "today", label: "Today", icon: "time-outline" },
   { key: "next7", label: "Next 7 days", icon: "calendar-outline" },
   { key: "later", label: "Later", icon: "play-forward-outline" },
-  { key: "in_app_only", label: "In-app only", icon: "notifications-off-outline" },
+  {
+    key: "in_app_only",
+    label: "In-app only",
+    icon: "notifications-off-outline",
+  },
 ];
 
 export default function RemindersScreen({ navigation }: any) {
@@ -92,7 +98,10 @@ export default function RemindersScreen({ navigation }: any) {
 
   const [tab, setTab] = React.useState<ReminderTab>("upcoming");
   const [filter, setFilter] = React.useState<ReminderFilter>("all");
-  const [reminders, setReminders] = React.useState<ReminderWithContextDTO[]>([]);
+  const [filterVisible, setFilterVisible] = React.useState(false);
+  const [reminders, setReminders] = React.useState<ReminderWithContextDTO[]>(
+    []
+  );
   const [refreshing, setRefreshing] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [bulkLoading, setBulkLoading] = React.useState(false);
@@ -408,7 +417,7 @@ export default function RemindersScreen({ navigation }: any) {
       }
 
       return (
-        <ReminderCard
+        <MemoReminderCard
           reminder={item.reminder}
           colors={colors}
           loading={actionLoadingId === String(item.reminder.id)}
@@ -456,16 +465,15 @@ export default function RemindersScreen({ navigation }: any) {
           }
           ListHeaderComponent={
             <>
-              <ReminderHeader
-                count={tab === "done" ? counts.done : counts.upcoming}
-                totalCount={reminders.length}
-                overdueCount={counts.overdue}
-                todayCount={counts.today}
-                colors={colors}
-                canGoBack={Boolean(navigation.canGoBack?.())}
-                onBack={() => navigation.goBack?.()}
-                onAdd={openAddReminder}
-              />
+<ReminderHeader
+  count={tab === "done" ? counts.done : counts.upcoming}
+  totalCount={reminders.length}
+  overdueCount={counts.overdue}
+  todayCount={counts.today}
+  colors={colors}
+  canGoBack={Boolean(navigation.canGoBack?.())}
+  onBack={() => navigation.goBack?.()}
+/>
 
               <ReminderTabs
                 activeTab={tab}
@@ -480,25 +488,23 @@ export default function RemindersScreen({ navigation }: any) {
                 }}
               />
 
-              {tab === "upcoming" ? (
-                <>
-                  <ReminderFilterBar
-                    activeFilter={filter}
-                    reminders={reminders}
-                    colors={colors}
-                    onChange={setFilter}
-                  />
+             {tab === "upcoming" ? (
+            <FilterAccessCard
+              filter={filter}
+              colors={colors}
+              onPress={() => setFilterVisible(true)}
+              onClear={() => setFilter("all")}
+            />
+          ) : null}
 
-                  {counts.overdue > 0 ? (
-                    <OverdueActionCard
-                      count={counts.overdue}
-                      colors={colors}
-                      loading={bulkLoading}
-                      onDeleteAll={confirmDeleteAllOverdue}
-                    />
-                  ) : null}
-                </>
-              ) : null}
+          {tab === "upcoming" && filter === "overdue" && counts.overdue > 0 ? (
+            <OverdueActionCard
+              count={counts.overdue}
+              colors={colors}
+              loading={bulkLoading}
+              onDeleteAll={confirmDeleteAllOverdue}
+            />
+          ) : null}
             </>
           }
           ListEmptyComponent={
@@ -514,9 +520,22 @@ export default function RemindersScreen({ navigation }: any) {
           ListFooterComponent={<View style={styles.footerSpace} />}
           initialNumToRender={LIST_BATCH_SIZE}
           maxToRenderPerBatch={LIST_BATCH_SIZE}
-          updateCellsBatchingPeriod={50}
-          windowSize={7}
+          updateCellsBatchingPeriod={80}
+          windowSize={5}
           removeClippedSubviews={Platform.OS === "android"}
+          extraData={actionLoadingId}
+        />
+
+        <FilterSheet
+          visible={filterVisible}
+          activeFilter={filter}
+          reminders={reminders}
+          colors={colors}
+          onClose={() => setFilterVisible(false)}
+          onChange={(nextFilter) => {
+            setFilter(nextFilter);
+            setFilterVisible(false);
+          }}
         />
       </View>
     </Screen>
@@ -531,7 +550,6 @@ function ReminderHeader({
   colors,
   canGoBack,
   onBack,
-  onAdd,
 }: {
   count: number;
   totalCount: number;
@@ -540,7 +558,6 @@ function ReminderHeader({
   colors: ReminderColors;
   canGoBack: boolean;
   onBack: () => void;
-  onAdd: () => void;
 }) {
   return (
     <LinearGradient
@@ -552,7 +569,7 @@ function ReminderHeader({
       <View style={styles.headerGlowOne} />
       <View style={styles.headerGlowTwo} />
 
-      <View style={styles.headerTopActions}>
+      <View style={styles.headerMainRow}>
         {canGoBack ? (
           <TouchableOpacity
             style={styles.headerRoundButton}
@@ -561,20 +578,8 @@ function ReminderHeader({
           >
             <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.headerRoundPlaceholder} />
-        )}
+        ) : null}
 
-        <TouchableOpacity
-          style={styles.headerRoundButton}
-          onPress={onAdd}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.headerMainRow}>
         <View style={styles.headerIconBubble}>
           <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
         </View>
@@ -677,80 +682,198 @@ function ReminderTabs({
   );
 }
 
-function ReminderFilterBar({
+function FilterAccessCard({
+  filter,
+  colors,
+  onPress,
+  onClear,
+}: {
+  filter: ReminderFilter;
+  colors: ReminderColors;
+  onPress: () => void;
+  onClear: () => void;
+}) {
+  const isActive = filter !== "all";
+  const label = getFilterLabel(filter);
+
+  return (
+    <View
+      style={[
+        styles.filterAccessCard,
+        {
+          backgroundColor: isActive ? colors.softPrimary : colors.card,
+          borderColor: isActive
+            ? withOpacity(colors.primary, "28")
+            : colors.border,
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.filterAccessMain}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Ionicons
+          name="filter-outline"
+          size={16}
+          color={isActive ? colors.primary : colors.text}
+        />
+
+        <Text
+          style={[
+            styles.filterAccessText,
+            { color: isActive ? colors.primary : colors.text },
+          ]}
+        >
+          Filter: {label}
+        </Text>
+      </TouchableOpacity>
+
+      {isActive ? (
+        <TouchableOpacity onPress={onClear} activeOpacity={0.85}>
+          <Text style={[styles.filterAccessClear, { color: colors.primary }]}>
+            Clear
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+          <Text style={[styles.filterAccessClear, { color: colors.primary }]}>
+            Change
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+function FilterSheet({
+  visible,
   activeFilter,
   reminders,
   colors,
+  onClose,
   onChange,
 }: {
+  visible: boolean;
   activeFilter: ReminderFilter;
   reminders: ReminderWithContextDTO[];
   colors: ReminderColors;
+  onClose: () => void;
   onChange: (filter: ReminderFilter) => void;
 }) {
   return (
-    <View style={styles.filterWrap}>
-      <FlatList
-        horizontal
-        data={FILTERS}
-        keyExtractor={(item) => item.key}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterContent}
-        renderItem={({ item }) => {
-          const active = activeFilter === item.key;
-          const count = getFilterCount(reminders, item.key);
-
-          return (
-            <TouchableOpacity
-              style={[
-                styles.filterPill,
-                {
-                  backgroundColor: active ? colors.primary : colors.softCard,
-                  borderColor: active ? colors.primary : colors.border,
-                },
-              ]}
-              onPress={() => onChange(item.key)}
-              activeOpacity={0.85}
-            >
-              <Ionicons
-                name={item.icon}
-                size={15}
-                color={active ? colors.buttonText : colors.primary}
-              />
-
-              <Text
-                style={[
-                  styles.filterText,
-                  { color: active ? colors.buttonText : colors.text },
-                ]}
-              >
-                {item.label}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.sheetOverlay} onPress={onClose}>
+        <Pressable
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              shadowColor: colors.shadow,
+            },
+          ]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <View style={styles.sheetHeader}>
+            <View>
+              <Text style={[styles.sheetTitle, { color: colors.title }]}>
+                Filters
               </Text>
 
-              <View
-                style={[
-                  styles.filterCount,
-                  {
-                    backgroundColor: active
-                      ? "rgba(255,255,255,0.18)"
-                      : colors.softPrimary,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterCountText,
-                    { color: active ? colors.buttonText : colors.primary },
-                  ]}
-                >
-                  {count}
-                </Text>
-              </View>
+              <Text style={[styles.sheetSubtitle, { color: colors.text }]}>
+                Show the reminders you need right now.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.sheetCloseButton, { backgroundColor: colors.softCard }]}
+              onPress={onClose}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="close" size={19} color={colors.title} />
             </TouchableOpacity>
-          );
-        }}
-      />
-    </View>
+          </View>
+
+          <View style={styles.sheetFilterList}>
+            {FILTERS.map((item) => {
+              const active = activeFilter === item.key;
+              const count = getFilterCount(reminders, item.key);
+
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[
+                    styles.sheetFilterRow,
+                    {
+                      backgroundColor: active
+                        ? colors.softPrimary
+                        : colors.softCard,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => onChange(item.key)}
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.sheetFilterIcon,
+                      {
+                        backgroundColor: active
+                          ? colors.primary
+                          : colors.softPrimary,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={17}
+                      color={active ? colors.buttonText : colors.primary}
+                    />
+                  </View>
+
+                  <View style={styles.sheetFilterTextWrap}>
+                    <Text
+                      style={[
+                        styles.sheetFilterTitle,
+                        { color: active ? colors.primary : colors.title },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+
+                    <Text
+                      style={[styles.sheetFilterSubtitle, { color: colors.text }]}
+                    >
+                      {count} reminder{count === 1 ? "" : "s"}
+                    </Text>
+                  </View>
+
+                  {active ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={21}
+                      color={colors.primary}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={17}
+                      color={colors.muted}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -945,14 +1068,12 @@ function ReminderCard({
           color={status.color}
           label={status.label}
           icon={status.icon}
-          colors={colors}
         />
 
         <StatusPill
           color={timeState.color}
           label={timeState.label}
           icon={timeState.icon}
-          colors={colors}
         />
 
         <StatusPill
@@ -963,7 +1084,6 @@ function ReminderCard({
               ? "checkmark-circle-outline"
               : "notifications-off-outline"
           }
-          colors={colors}
         />
       </View>
 
@@ -987,6 +1107,7 @@ function ReminderCard({
                 size={15}
                 color={colors.primary}
               />
+
               <Text style={[styles.actionText, { color: colors.primary }]}>
                 Done
               </Text>
@@ -1005,6 +1126,7 @@ function ReminderCard({
               disabled={loading}
             >
               <Ionicons name="time-outline" size={15} color={colors.text} />
+
               <Text style={[styles.actionText, { color: colors.text }]}>
                 Snooze
               </Text>
@@ -1025,6 +1147,7 @@ function ReminderCard({
           disabled={loading}
         >
           <Ionicons name="trash-outline" size={15} color={colors.danger} />
+
           <Text style={[styles.actionText, { color: colors.danger }]}>
             Delete
           </Text>
@@ -1034,16 +1157,22 @@ function ReminderCard({
   );
 }
 
+const MemoReminderCard = React.memo(
+  ReminderCard,
+  (prev, next) =>
+    prev.reminder === next.reminder &&
+    prev.loading === next.loading &&
+    prev.colors === next.colors
+);
+
 function StatusPill({
   color,
   label,
   icon,
-  colors,
 }: {
   color: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  colors: ReminderColors;
 }) {
   return (
     <View
@@ -1171,16 +1300,20 @@ function getReminderBucket(reminder: ReminderWithContextDTO) {
 
   if (Number.isNaN(target.getTime())) return "no_date";
 
-  const today = startOfDay(new Date());
+  const now = new Date();
+
+  if (!isReminderDone(reminder) && target.getTime() < now.getTime()) {
+    return "overdue";
+  }
+
+  const today = startOfDay(now);
   const targetDay = startOfDay(target);
   const diff = Math.round((targetDay.getTime() - today.getTime()) / 86_400_000);
 
-  if (diff < 0) return "overdue";
   if (diff === 0) return "today";
   if (diff <= 7) return "next7";
   return "later";
 }
-
 function matchesReminderFilter(
   reminder: ReminderWithContextDTO,
   filter: ReminderFilter
@@ -1200,6 +1333,10 @@ function getFilterCount(
 
     return matchesReminderFilter(reminder, filter);
   }).length;
+}
+
+function getFilterLabel(filter: ReminderFilter) {
+  return FILTERS.find((item) => item.key === filter)?.label ?? "All";
 }
 
 function buildReminderRows(
@@ -1523,17 +1660,17 @@ const styles = StyleSheet.create({
     gap: 9,
   },
 
-  compactHeader: {
-    minHeight: 168,
-    borderRadius: 28,
-    padding: 16,
-    marginBottom: 3,
-    overflow: "hidden",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
+compactHeader: {
+  minHeight: 146,
+  borderRadius: 28,
+  padding: 16,
+  marginBottom: 3,
+  overflow: "hidden",
+  shadowOpacity: 0.18,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 6,
+},
 
   headerGlowOne: {
     position: "absolute",
@@ -1562,6 +1699,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+
+
   headerRoundButton: {
     width: 38,
     height: 38,
@@ -1573,16 +1712,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+
+
+
   headerRoundPlaceholder: {
     width: 38,
     height: 38,
   },
 
-  headerMainRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-  },
+headerMainRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
 
   headerIconBubble: {
     width: 54,
@@ -1626,7 +1768,7 @@ const styles = StyleSheet.create({
   headerStatsRow: {
     flexDirection: "row",
     gap: 9,
-    marginTop: 16,
+    marginTop: 14,
   },
 
   headerStatPill: {
@@ -1690,43 +1832,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  filterWrap: {
-    minHeight: 44,
-  },
+ 
 
-  filterContent: {
-    gap: 8,
-    paddingRight: 8,
-  },
 
-  filterPill: {
-    minHeight: 40,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
 
-  filterText: {
-    fontSize: 12,
-    fontWeight: "900",
-  },
-
-  filterCount: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-
-  filterCountText: {
-    fontSize: 11,
-    fontWeight: "900",
-  },
 
   overdueCard: {
     minHeight: 76,
@@ -1998,4 +2107,123 @@ const styles = StyleSheet.create({
   footerSpace: {
     height: 18,
   },
+
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(20, 14, 10, 0.42)",
+    justifyContent: "flex-end",
+  },
+
+  sheet: {
+    marginHorizontal: 10,
+    marginBottom: Platform.OS === "ios" ? 22 : 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 22,
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+
+  sheetHeader: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  sheetTitle: {
+    fontSize: 23,
+    fontWeight: "900",
+  },
+
+  sheetSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 2,
+  },
+
+  sheetCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sheetFilterList: {
+    gap: 8,
+  },
+
+  sheetFilterRow: {
+    minHeight: 62,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  sheetFilterIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sheetFilterTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  sheetFilterTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  sheetFilterSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.72,
+    marginTop: 2,
+  },
+  filterAccessCard: {
+  minHeight: 44,
+  borderRadius: 17,
+  borderWidth: 1,
+  paddingHorizontal: 12,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+},
+
+filterAccessMain: {
+  flex: 1,
+  minWidth: 0,
+  minHeight: 42,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 7,
+},
+
+filterAccessText: {
+  fontSize: 12,
+  fontWeight: "900",
+},
+
+filterAccessClear: {
+  fontSize: 12,
+  fontWeight: "900",
+},
 });

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,10 +17,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { fetchContacts, fetchContactGroups } from "../../contacts/repository";
@@ -54,6 +54,15 @@ type ContactRowProps = {
   colors: ContactListColors;
   onPress: () => void;
 };
+
+type LoadContactsOptions = {
+  pageToLoad?: number;
+  reset?: boolean;
+  clearBeforeLoad?: boolean;
+};
+
+const CONTACTS_STALE_AFTER_MS = 30_000;
+const LIST_BATCH_SIZE = 10;
 
 const ContactRow = React.memo(function ContactRow({
   item,
@@ -145,17 +154,8 @@ const ContactRow = React.memo(function ContactRow({
         </View>
       </View>
 
-      <View
-        style={[
-          styles.chevronCircle,
-          { backgroundColor: colors.softCard },
-        ]}
-      >
-        <Ionicons
-          name="chevron-forward"
-          size={16}
-          color={colors.text}
-        />
+      <View style={[styles.chevronCircle, { backgroundColor: colors.softCard }]}>
+        <Ionicons name="chevron-forward" size={16} color={colors.text} />
       </View>
     </TouchableOpacity>
   );
@@ -178,9 +178,21 @@ export default function ContactsScreen({ navigation }: Props) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const isFocused = useIsFocused();
   const loadingRef = useRef(false);
-const requestIdRef = useRef(0);
+  const requestIdRef = useRef(0);
+  const hasLoadedOnceRef = useRef(false);
+  const lastLoadedAtRef = useRef<number | null>(null);
+  const selectedGroupIdRef = useRef<AppId | null>(selectedGroupId);
+  const debouncedSearchRef = useRef(debouncedSearch);
+
+  useEffect(() => {
+    selectedGroupIdRef.current = selectedGroupId;
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    debouncedSearchRef.current = debouncedSearch;
+  }, [debouncedSearch]);
+
   const loadGroups = useCallback(async () => {
     try {
       const data = await fetchContactGroups({ onlyUsed: true });
@@ -190,55 +202,64 @@ const requestIdRef = useRef(0);
     }
   }, []);
 
-const load = useCallback(
-  async (pageToLoad = 1, reset = false) => {
-    if (loadingRef.current && !reset) return;
+  const load = useCallback(
+    async ({
+      pageToLoad = 1,
+      reset = false,
+      clearBeforeLoad = false,
+    }: LoadContactsOptions = {}) => {
+      if (loadingRef.current && !reset) return;
 
-    const requestId = ++requestIdRef.current;
+      const requestId = ++requestIdRef.current;
 
-    loadingRef.current = true;
-    setLoading(true);
+      loadingRef.current = true;
+      setLoading(true);
 
-    try {
-      const response = await fetchContacts({
-        page: pageToLoad,
-        group: selectedGroupId,
-        search: debouncedSearch || undefined,
-      });
-
-      if (requestId !== requestIdRef.current) return;
-
-      const results: Contact[] = Array.isArray(response)
-        ? response
-        : response.results ?? [];
-
-      setContacts((prev) => {
-        if (reset) return results;
-
-        const existingIds = new Set(prev.map((contact) => contact.id));
-
-        const filtered = results.filter(
-          (contact) => !existingIds.has(contact.id)
-        );
-
-        return [...prev, ...filtered];
-      });
-
-      setHasMore(!Array.isArray(response) && Boolean(response.next));
-      setPage(pageToLoad);
-    } catch (error) {
-      if (requestId === requestIdRef.current) {
-        console.log("Failed to load contacts:", error);
+      if (reset && clearBeforeLoad) {
+        setContacts([]);
       }
-    } finally {
-      if (requestId === requestIdRef.current) {
-        loadingRef.current = false;
-        setLoading(false);
+
+      try {
+        const response = await fetchContacts({
+          page: pageToLoad,
+          group: selectedGroupIdRef.current,
+          search: debouncedSearchRef.current || undefined,
+        });
+
+        if (requestId !== requestIdRef.current) return;
+
+        const results: Contact[] = Array.isArray(response)
+          ? response
+          : response.results ?? [];
+
+        setContacts((prev) => {
+          if (reset) return results;
+
+          const existingIds = new Set(prev.map((contact) => contact.id));
+
+          const filtered = results.filter(
+            (contact) => !existingIds.has(contact.id)
+          );
+
+          return [...prev, ...filtered];
+        });
+
+        setHasMore(!Array.isArray(response) && Boolean(response.next));
+        setPage(pageToLoad);
+        lastLoadedAtRef.current = Date.now();
+      } catch (error) {
+        if (requestId === requestIdRef.current) {
+          console.log("Failed to load contacts:", error);
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
       }
-    }
-  },
-  [debouncedSearch, selectedGroupId]
-);
+    },
+    []
+  );
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -248,35 +269,76 @@ const load = useCallback(
     return () => clearTimeout(timeout);
   }, [search]);
 
-useEffect(() => {
-  if (!isFocused) return;
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
 
-  loadGroups();
-}, [isFocused, loadGroups]);
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
 
-useEffect(() => {
-  if (!isFocused) return;
+        setPage(1);
+        setHasMore(true);
 
-  setPage(1);
-  setHasMore(true);
-  load(1, true);
-}, [isFocused, selectedGroupId, debouncedSearch, load]);
+        loadGroups();
+        load({
+          pageToLoad: 1,
+          reset: true,
+          clearBeforeLoad: false,
+        });
 
-async function onRefresh() {
-  setRefreshing(true);
+        return;
+      }
 
-  try {
+      const isStale =
+        !lastLoadedAtRef.current ||
+        now - lastLoadedAtRef.current > CONTACTS_STALE_AFTER_MS;
+
+      if (isStale) {
+        loadGroups();
+        load({
+          pageToLoad: 1,
+          reset: true,
+          clearBeforeLoad: false,
+        });
+      }
+    }, [load, loadGroups])
+  );
+
+  useEffect(() => {
+    if (!hasLoadedOnceRef.current) return;
+
     setPage(1);
     setHasMore(true);
 
-    await Promise.all([
-      loadGroups(),
-      load(1, true),
-    ]);
-  } finally {
-    setRefreshing(false);
+    load({
+      pageToLoad: 1,
+      reset: true,
+      clearBeforeLoad: true,
+    });
+  }, [selectedGroupId, debouncedSearch, load]);
+
+  async function onRefresh() {
+    if (refreshing) return;
+
+    setRefreshing(true);
+
+    try {
+      setPage(1);
+      setHasMore(true);
+
+      await Promise.all([
+        loadGroups(),
+        load({
+          pageToLoad: 1,
+          reset: true,
+          clearBeforeLoad: false,
+        }),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   }
-}
+
   function openAddContact() {
     navigation.navigate("AddContact");
   }
@@ -297,13 +359,28 @@ async function onRefresh() {
     [colors, navigation]
   );
 
-  const isEmpty = !loading && contacts.length === 0;
-const handleEndReached = useCallback(() => {
-  if (!hasMore) return;
-  if (loadingRef.current) return;
+  const handleEndReached = useCallback(() => {
+    if (!hasMore) return;
+    if (loadingRef.current) return;
 
-  load(page + 1);
-}, [hasMore, load, page]);
+    load({
+      pageToLoad: page + 1,
+      reset: false,
+      clearBeforeLoad: false,
+    });
+  }, [hasMore, load, page]);
+
+  const isEmpty = !loading && contacts.length === 0;
+  const showSkeleton = loading && contacts.length === 0 && !refreshing;
+
+  if (showSkeleton) {
+    return (
+      <Screen>
+        <ContactsSkeleton colors={colors} />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -342,15 +419,6 @@ const handleEndReached = useCallback(() => {
                 colors={colors}
                 onSelect={setSelectedGroupId}
               />
-
-              {loading && contacts.length === 0 ? (
-                <View style={styles.initialLoader}>
-                  <ActivityIndicator color={colors.primary} />
-                  <Text style={[styles.initialLoaderText, { color: colors.text }]}>
-                    Loading contacts…
-                  </Text>
-                </View>
-              ) : null}
             </View>
           }
           ListEmptyComponent={
@@ -372,19 +440,97 @@ const handleEndReached = useCallback(() => {
               <View style={styles.footerSpace} />
             )
           }
-         onEndReached={handleEndReached}
+          onEndReached={handleEndReached}
           onEndReachedThreshold={0.6}
-          initialNumToRender={10}
-maxToRenderPerBatch={10}
-updateCellsBatchingPeriod={50}
-windowSize={7}
-removeClippedSubviews={Platform.OS === "android"}
-keyboardShouldPersistTaps="handled"
+          initialNumToRender={LIST_BATCH_SIZE}
+          maxToRenderPerBatch={LIST_BATCH_SIZE}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === "android"}
+          keyboardShouldPersistTaps="handled"
         />
       </View>
     </Screen>
   );
 }
+
+/* skeleton */
+
+function ContactsSkeleton({ colors }: { colors: ContactListColors }) {
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      >
+        <View style={styles.skeletonHeaderCard}>
+          <SkeletonBlock colors={colors} style={styles.skeletonHeaderTitle} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeaderLine} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeaderLineSmall} />
+        </View>
+
+        <SkeletonBlock colors={colors} style={styles.skeletonSearchBox} />
+
+        <View style={styles.skeletonGroupRow}>
+          <SkeletonBlock colors={colors} style={styles.skeletonGroupChip} />
+          <SkeletonBlock colors={colors} style={styles.skeletonGroupChipWide} />
+          <SkeletonBlock colors={colors} style={styles.skeletonGroupChip} />
+        </View>
+
+        {Array.from({ length: 8 }).map((_, index) => (
+          <SkeletonContactRow key={`contact-skeleton-${index}`} colors={colors} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function SkeletonContactRow({ colors }: { colors: ContactListColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonContactCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonAvatar} />
+
+      <View style={styles.skeletonContactText}>
+        <SkeletonBlock colors={colors} style={styles.skeletonNameLine} />
+        <SkeletonBlock colors={colors} style={styles.skeletonMetaLine} />
+      </View>
+
+      <SkeletonBlock colors={colors} style={styles.skeletonChevron} />
+    </View>
+  );
+}
+
+function SkeletonBlock({
+  colors,
+  style,
+}: {
+  colors: ContactListColors;
+  style?: any;
+}) {
+  return (
+    <View
+      style={[
+        styles.skeletonBlock,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/* components */
 
 function ContactsHeader({
   count,
@@ -406,15 +552,17 @@ function ContactsHeader({
       <View style={styles.headerGlowTwo} />
 
       <View style={styles.headerTopRow}>
-       <View style={styles.headerTextBlock}>
-        <Text style={styles.headerTitle}>Contacts</Text>
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.headerTitle}>Contacts</Text>
 
-        <Text style={styles.headerSubtitle}>
-          {count > 0
-            ? `${count} contact${count !== 1 ? "s" : ""} saved in your private memory.`
-            : "Start building your private memory of the people who matter."}
-        </Text>
-      </View>
+          <Text style={styles.headerSubtitle}>
+            {count > 0
+              ? `${count} contact${
+                  count !== 1 ? "s" : ""
+                } saved in your private memory.`
+              : "Start building your private memory of the people who matter."}
+          </Text>
+        </View>
 
         <TouchableOpacity
           style={styles.headerAddButton}
@@ -425,8 +573,6 @@ function ContactsHeader({
           <Text style={styles.headerAddText}>Add</Text>
         </TouchableOpacity>
       </View>
-
-     
     </LinearGradient>
   );
 }
@@ -508,8 +654,7 @@ function GroupFilter({
           style={[
             styles.groupChipText,
             {
-              color:
-                selectedGroupId === null ? colors.buttonText : colors.text,
+              color: selectedGroupId === null ? colors.buttonText : colors.text,
             },
           ]}
           numberOfLines={1}
@@ -583,12 +728,7 @@ function EmptyContactsState({
         },
       ]}
     >
-      <View
-        style={[
-          styles.emptyIcon,
-          { backgroundColor: colors.softPrimary },
-        ]}
-      >
+      <View style={[styles.emptyIcon, { backgroundColor: colors.softPrimary }]}>
         <Ionicons
           name={hasSearch ? "search-outline" : "people-outline"}
           size={28}
@@ -612,7 +752,12 @@ function EmptyContactsState({
           onPress={onAdd}
           activeOpacity={0.88}
         >
-          <Ionicons name="person-add-outline" size={17} color={colors.buttonText} />
+          <Ionicons
+            name="person-add-outline"
+            size={17}
+            color={colors.buttonText}
+          />
+
           <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
             Add first contact
           </Text>
@@ -626,17 +771,17 @@ function EmptyContactsState({
 
 function makeContactListColors(settings: any): ContactListColors {
   return {
-    background: settings.backgroundColor,
-    card: settings.cardColor,
-    title: settings.titleColor,
-    text: settings.textColor,
-    primary: settings.primaryColor,
-    button: settings.buttonColor || settings.primaryColor,
-    buttonText: settings.buttonTextColor,
-    border: withOpacity(settings.textColor, "16"),
-    muted: withOpacity(settings.textColor, "80"),
-    softCard: withOpacity(settings.textColor, "08"),
-    softPrimary: withOpacity(settings.primaryColor, "16"),
+    background: settings.backgroundColor ?? "#F8F4FF",
+    card: settings.cardColor ?? "#FFFFFF",
+    title: settings.titleColor ?? "#10162F",
+    text: settings.textColor ?? "#5F6680",
+    primary: settings.primaryColor ?? "#6651E5",
+    button: settings.buttonColor || settings.primaryColor || "#6651E5",
+    buttonText: settings.buttonTextColor ?? "#FFFFFF",
+    border: withOpacity(settings.textColor ?? "#10162F", "16"),
+    muted: withOpacity(settings.textColor ?? "#10162F", "80"),
+    softCard: withOpacity(settings.textColor ?? "#10162F", "08"),
+    softPrimary: withOpacity(settings.primaryColor ?? "#6651E5", "16"),
     danger: "#EE6A5E",
     warning: "#EBA55B",
     shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
@@ -658,8 +803,10 @@ function withOpacity(hexColor?: string | null, opacityHex = "22") {
 }
 
 function fullName(contact: Contact) {
-  return `${contact.first_name || ""} ${contact.last_name || ""}`.trim() ||
-    "Unnamed contact";
+  return (
+    `${contact.first_name || ""} ${contact.last_name || ""}`.trim() ||
+    "Unnamed contact"
+  );
 }
 
 function getInitials(contact: Contact) {
@@ -699,7 +846,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
-   
 
   headerGlowOne: {
     position: "absolute",
@@ -727,17 +873,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  headerIconBubble: {
-    width: 50,
-    height: 50,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   headerAddButton: {
     minHeight: 40,
     borderRadius: 999,
@@ -757,14 +892,10 @@ const styles = StyleSheet.create({
   },
 
   headerTextBlock: {
+    flex: 1,
+    minWidth: 0,
     marginTop: 27,
-  },
-
-  headerEyebrow: {
-    color: "rgba(255,255,255,0.62)",
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1,
+    marginRight: 12,
   },
 
   headerTitle: {
@@ -838,18 +969,6 @@ const styles = StyleSheet.create({
   groupChipText: {
     fontSize: 12,
     fontWeight: "900",
-  },
-
-  initialLoader: {
-    minHeight: 78,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  initialLoaderText: {
-    fontSize: 12,
-    fontWeight: "800",
   },
 
   contactCard: {
@@ -1006,5 +1125,109 @@ const styles = StyleSheet.create({
   emptyButtonText: {
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  skeletonBlock: {
+    borderWidth: 1,
+    opacity: 0.86,
+  },
+
+  skeletonHeaderCard: {
+    minHeight: 142,
+    borderRadius: 32,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: "rgba(0,0,0,0.04)",
+    overflow: "hidden",
+  },
+
+  skeletonHeaderTitle: {
+    width: 150,
+    height: 34,
+    borderRadius: 14,
+    marginTop: 26,
+  },
+
+  skeletonHeaderLine: {
+    width: "82%",
+    height: 14,
+    borderRadius: 7,
+    marginTop: 14,
+  },
+
+  skeletonHeaderLineSmall: {
+    width: "55%",
+    height: 14,
+    borderRadius: 7,
+    marginTop: 8,
+  },
+
+  skeletonSearchBox: {
+    height: 50,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+
+  skeletonGroupRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+
+  skeletonGroupChip: {
+    width: 72,
+    height: 36,
+    borderRadius: 999,
+  },
+
+  skeletonGroupChipWide: {
+    width: 112,
+    height: 36,
+    borderRadius: 999,
+  },
+
+  skeletonContactCard: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 24,
+    padding: 12,
+    marginBottom: 9,
+    borderWidth: 1,
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+
+  skeletonAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 19,
+    marginRight: 11,
+  },
+
+  skeletonContactText: {
+    flex: 1,
+    gap: 8,
+  },
+
+  skeletonNameLine: {
+    width: "72%",
+    height: 15,
+    borderRadius: 8,
+  },
+
+  skeletonMetaLine: {
+    width: "48%",
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonChevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginLeft: 9,
   },
 });

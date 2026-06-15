@@ -52,7 +52,7 @@ export default function SettingsStack(){
             <Stack.Screen name="Backup" component={BackupScreen} options={{ title: "Backup & restore" }}/>
             <Stack.Screen name="LocalFirst" component={LocalFirstScreen} options={{ title: "Local First" }}/>
             <Stack.Screen name="Language" component={LanguageScreen}/> 
-            <Stack.Screen name="PlanAccess" component={PlanAccessScreen} options={{ headerShown: false }}
+            <Stack.Screen name="PlanAccess" component={PlanAccessScreen} 
 />
             <Stack.Screen name="ManageGroupsTags" component={ManageGroupsTagsScreen}/> 
         </Stack.Navigator>

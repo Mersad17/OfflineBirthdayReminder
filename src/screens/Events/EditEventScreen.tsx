@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -80,7 +81,7 @@ export default function EditEventScreen({ route, navigation }: Props) {
     routeContactId ?? null
   );
   const [contactName, setContactName] = useState("Contact");
-
+  const [contactPhoto, setContactPhoto] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [type, setType] = useState<EventTypeValue>(1);
 
@@ -124,7 +125,12 @@ export default function EditEventScreen({ route, navigation }: Props) {
 
         setContactId(routeContactId ?? loadedEvent.contact ?? null);
         setContactName(loadedEvent.contact_name || "Contact");
-
+        setContactPhoto(
+          (loadedEvent as any).contact_photo ||
+            (loadedEvent as any).contact_detail?.photo ||
+            (loadedEvent as any).contact_detail?.photo_uri ||
+            null
+        );
         setTitle(loadedEvent.title || eventTitle || "");
         setType((loadedEvent.type as EventTypeValue) ?? 1);
 
@@ -443,30 +449,32 @@ export default function EditEventScreen({ route, navigation }: Props) {
                   },
                 ]}
               >
-                <View
-                  style={[
-                    styles.contactIcon,
-                    { backgroundColor: colors.softPrimary },
-                  ]}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                </View>
+                {contactPhoto ? (
+  <Image source={{ uri: contactPhoto }} style={styles.contactPhoto} />
+) : (
+  <View
+    style={[
+      styles.contactIcon,
+      { backgroundColor: colors.softPrimary },
+    ]}
+  >
+    <Text style={[styles.contactInitials, { color: colors.primary }]}>
+      {getInitials(contactName)}
+    </Text>
+  </View>
+)}
 
                 <View style={styles.contactTextWrap}>
                   <Text style={[styles.contactPillLabel, { color: colors.text }]}>
                     For
                   </Text>
 
-                  <Text
-                    style={[styles.contactPillName, { color: colors.title }]}
-                    numberOfLines={1}
-                  >
-                    {contactName}
-                  </Text>
+                 <Text
+                style={[styles.contactPillName, { color: colors.title }]}
+                numberOfLines={2}
+              >
+                {contactName}
+              </Text>
                 </View>
               </View>
 
@@ -1015,7 +1023,17 @@ function Divider({ colors }: { colors: EditEventColors }) {
     />
   );
 }
+function getInitials(name?: string | null) {
+  const parts = (name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
 function makeEditEventColors(settings: any): EditEventColors {
   return {
     background: settings.backgroundColor,
@@ -1051,6 +1069,22 @@ function withOpacity(hexColor?: string | null, opacityHex = "22") {
 }
 
 const styles = StyleSheet.create({
+  contactPhoto: {
+  width: 36,
+  height: 36,
+  borderRadius: 15,
+},
+
+contactInitials: {
+  fontSize: 12,
+  fontWeight: "900",
+},
+contactPillName: {
+  fontSize: 15,
+  lineHeight: 20,
+  fontWeight: "900",
+  marginTop: 1,
+},
   keyboardRoot: {
     flex: 1,
   },
@@ -1244,12 +1278,7 @@ const styles = StyleSheet.create({
     opacity: 0.68,
   },
 
-  contactPillName: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "900",
-    marginTop: 1,
-  },
+
 
   divider: {
     height: 1,

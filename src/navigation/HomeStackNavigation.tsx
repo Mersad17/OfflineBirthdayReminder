@@ -13,6 +13,7 @@ import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";
 import InteractionsHistoryScreen from "../screens/Interactions/InteractionsHistoryScreen";
 import AddSmartReminderScreen from "../screens/Reminders/AddSmartReminderScreen";
 import QuickNoteScreen from "../screens/Contacts/QuickNotesScreen";
+import PlanAccessScreen from "../screens/Settings/PlanAccessScreen";
 
 import { useAppearance } from "../appearance/AppearanceContext";
 import { AppId } from "../contacts/types";
@@ -42,14 +43,14 @@ export type HomeStackParamList = {
     eventId: AppId;
     eventTitle?: string;
     from: string;
-    contactId: AppId;
+    contactId?: AppId;
   };
 
   EditEvent: {
     eventId: AppId;
     eventTitle?: string;
     from: string;
-    contactId: AppId;
+    contactId?: AppId;
   };
 
   AddReminder: {
@@ -71,6 +72,8 @@ export type HomeStackParamList = {
   InteractionsHistory: {
     contactId: AppId;
   };
+
+  PlanAccess: undefined;
 };
 
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -161,6 +164,12 @@ export default function HomeStackNavigator() {
         name="InteractionsHistory"
         component={InteractionsHistoryScreen}
         options={{ title: "Interactions" }}
+      />
+
+      <HomeStack.Screen
+        name="PlanAccess"
+        component={PlanAccessScreen}
+        options={{ title: "Plan access" }}
       />
     </HomeStack.Navigator>
   );

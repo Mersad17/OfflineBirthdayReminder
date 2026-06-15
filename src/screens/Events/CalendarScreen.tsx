@@ -1,4 +1,5 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+// src/screens/Events/CalendarScreen.tsx
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,7 +30,8 @@ type Props = {
   navigation: any;
 };
 
-type CalendarMode = "month" | "agenda" ;
+type CalendarMode = "month" | "agenda";
+type AgendaScope = "day" | "upcoming";
 
 type CalendarFilter =
   | "all"
@@ -78,6 +80,7 @@ const INITIAL_BACK_DAYS = 7;
 const PAGE_DAYS = 30;
 const MAX_LOOKAHEAD_DAYS = 365;
 const LIST_RENDER_BATCH = 8;
+const CALENDAR_STALE_AFTER_MS = 30_000;
 
 const FILTERS: Array<{
   key: CalendarFilter;
@@ -103,21 +106,24 @@ export default function CalendarScreen({ navigation }: Props) {
     [today]
   );
 
+  const hasLoadedOnceRef = useRef(false);
+  const lastLoadedAtRef = useRef<number | null>(null);
+  const loadingRequestRef = useRef(false);
+
   const [mode, setMode] = useState<CalendarMode>("month");
   const [filter, setFilter] = useState<CalendarFilter>("all");
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [visibleMonth, setVisibleMonth] = useState<Date>(today);
+  const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
+  const [agendaScope, setAgendaScope] = useState<AgendaScope>("day");
   const [filterVisible, setFilterVisible] = useState(false);
-const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
+
   const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  const [loadedStartDate, setLoadedStartDate] = useState(() =>
-    toYMD(addDays(today, -INITIAL_BACK_DAYS))
-  );
 
   const [loadedEndDate, setLoadedEndDate] = useState(() =>
     toYMD(addDays(today, PAGE_DAYS))
@@ -131,7 +137,11 @@ const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
       reset?: boolean;
       forceRefresh?: boolean;
     } = {}) => {
+      if (loadingRequestRef.current) return;
+
       try {
+        loadingRequestRef.current = true;
+
         if (reset) {
           setLoading(true);
         }
@@ -146,13 +156,14 @@ const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
         });
 
         setItems(calendarItems);
-        setLoadedStartDate(startDate);
         setLoadedEndDate(endDate);
         setHasMore(endDate < absoluteEndDate);
+        lastLoadedAtRef.current = Date.now();
       } catch (error) {
         console.log("Calendar load failed:", error);
         Alert.alert("Calendar", "Could not load your calendar items.");
       } finally {
+        loadingRequestRef.current = false;
         setLoading(false);
       }
     },
@@ -194,24 +205,34 @@ const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
     } finally {
       setLoadingMore(false);
     }
-  }, [
-    absoluteEndDate,
-    hasMore,
-    loadedEndDate,
-    loading,
-    loadingMore,
-  ]);
+  }, [absoluteEndDate, hasMore, loadedEndDate, loading, loadingMore]);
 
   useFocusEffect(
     useCallback(() => {
-      loadCalendar({ reset: true, forceRefresh: false });
+      const now = Date.now();
+
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        loadCalendar({ reset: true, forceRefresh: false });
+        return;
+      }
+
+      const isStale =
+        !lastLoadedAtRef.current ||
+        now - lastLoadedAtRef.current > CALENDAR_STALE_AFTER_MS;
+
+      if (isStale) {
+        loadCalendar({ reset: false, forceRefresh: false });
+      }
     }, [loadCalendar])
   );
 
   async function onRefresh() {
     setRefreshing(true);
     setHasMore(true);
+
     await loadCalendar({ reset: false, forceRefresh: true });
+
     setRefreshing(false);
   }
 
@@ -246,7 +267,9 @@ const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
   }, [itemDates, today]);
 
   const selectedDayItems = useMemo(() => {
-    return [...(itemDates.get(toYMD(selectedDate)) ?? [])].sort(sortCalendarItems);
+    return [...(itemDates.get(toYMD(selectedDate)) ?? [])].sort(
+      sortCalendarItems
+    );
   }, [itemDates, selectedDate]);
 
   const upcomingItems = useMemo(() => {
@@ -261,77 +284,35 @@ const [agendaSelectedDate, setAgendaSelectedDate] = useState<Date>(today);
       .slice(0, 8);
   }, [today, visibleItems]);
 
-const agendaRows = useMemo(() => {
-  const selectedDateKey = toYMD(agendaSelectedDate);
+  const agendaRows = useMemo(() => {
+    const sourceItems =
+      agendaScope === "upcoming"
+        ? visibleItems.filter((item) => {
+            const date = parseYMD(item.date);
+            if (!date) return false;
 
-  const selectedItems = visibleItems.filter(
-    (item) => item.date === selectedDateKey
-  );
+            return date > today;
+          })
+        : visibleItems.filter((item) => item.date === toYMD(agendaSelectedDate));
 
-  return buildAgendaRows(selectedItems, today);
-}, [agendaSelectedDate, today, visibleItems]);
+    return buildAgendaRows(sourceItems, today);
+  }, [agendaScope, agendaSelectedDate, today, visibleItems]);
 
+  function changeMode(nextMode: CalendarMode) {
+    if (nextMode === "agenda" && mode !== "agenda") {
+      setAgendaScope("day");
+    }
 
-
-  const smartSuggestion = useMemo(() => {
-    return [...visibleItems]
-      .filter((item) => item.type === "check_in")
-      .sort(sortCalendarItems)[0];
-  }, [visibleItems]);
+    setMode(nextMode);
+  }
 
   function selectDate(date: Date) {
     setSelectedDate(date);
+    setAgendaSelectedDate(date);
     setVisibleMonth(date);
+    setAgendaScope("day");
   }
-function EmptyDayState({
-  date,
-  colors,
-  onAdd,
-}: {
-  date: Date;
-  colors: CalendarColors;
-  onAdd: () => void;
-}) {
-  return (
-    <View
-      style={[
-        styles.emptyCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          shadowColor: colors.shadow,
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.emptyIcon,
-          { backgroundColor: withOpacity(colors.primary, "16") },
-        ]}
-      >
-        <Ionicons name="calendar-outline" size={28} color={colors.primary} />
-      </View>
 
-      <Text style={[styles.emptyTitle, { color: colors.title }]}>
-        Nothing on {formatShortDate(date)}
-      </Text>
-
-      <Text style={[styles.emptyText, { color: colors.text }]}>
-        No reminders, meetings, birthdays, follow-ups, or memories for this day.
-      </Text>
-
-      <TouchableOpacity
-        style={[styles.emptyButton, { backgroundColor: colors.button }]}
-        onPress={onAdd}
-        activeOpacity={0.85}
-      >
-        <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
-          Add something
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
   function moveMonth(direction: "previous" | "next") {
     setVisibleMonth((current) => {
       const next = new Date(current);
@@ -340,29 +321,39 @@ function EmptyDayState({
     });
   }
 
-function openAddMenu() {
-  Alert.alert("Add to Calendar", "Choose what you want to add.", [
-    { text: "Cancel", style: "cancel" },
-    {
-      text: "Smart reminder",
-      onPress: () => {
-        navigation.navigate("AddReminder");
+  function openAddMenu() {
+    Alert.alert("Add to Calendar", "Choose what you want to add.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Smart reminder",
+        onPress: () => {
+          navigation.navigate("AddReminder");
+        },
       },
-    },
-    {
-      text: "Event",
-      onPress: () => {
-        navigation.navigate("AddEvent");
+      {
+        text: "Event",
+        onPress: () => {
+          navigation.navigate("AddEvent");
+        },
       },
-    },
-  ]);
-}
-function openAllReminders() {
-  navigation.navigate("AllReminders");
-}
+    ]);
+  }
+
+  function openAllReminders() {
+    navigation.navigate("AllReminders");
+  }
+
+  function openAllUpcoming() {
+    setAgendaScope("upcoming");
+    setMode("agenda");
+  }
+
   function openItem(item: CalendarItem) {
     if (item.type === "before_meet") {
-      Alert.alert(item.title, item.subtitle || "Review this person before meeting.");
+      Alert.alert(
+        item.title,
+        item.subtitle || "Review this person before meeting."
+      );
       return;
     }
 
@@ -376,7 +367,10 @@ function openAllReminders() {
     }
 
     if (item.memoryId) {
-      Alert.alert(item.title, item.subtitle || "Open this memory from the contact profile.");
+      Alert.alert(
+        item.title,
+        item.subtitle || "Open this memory from the contact profile."
+      );
       return;
     }
 
@@ -398,36 +392,32 @@ function openAllReminders() {
     }
   }
 
-  function renderCalendarRow({ item }: { item: CalendarListRow }) {
-    if (item.kind === "section") {
+  const renderCalendarRow = useCallback(
+    ({ item }: { item: CalendarListRow }) => {
+      if (item.kind === "section") {
+        return (
+          <Text style={[styles.timelineDateTitle, { color: colors.primary }]}>
+            {item.title}
+          </Text>
+        );
+      }
+
       return (
-        <Text style={[styles.timelineDateTitle, { color: colors.primary }]}>
-          {item.title}
-        </Text>
+        <CalendarCard
+          item={item.item}
+          colors={colors}
+          onOpen={openItem}
+          onDone={markDone}
+        />
       );
-    }
-
-    return (
-      <CalendarCard
-        item={item.item}
-        colors={colors}
-        onOpen={openItem}
-        onDone={markDone}
-      />
-    );
-  }
-
-
+    },
+    [colors]
+  );
 
   if (loading && items.length === 0) {
     return (
       <Screen>
-        <View style={[styles.loadingRoot, { backgroundColor: colors.background }]}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>
-            Loading calendar…
-          </Text>
-        </View>
+        <CalendarSkeleton colors={colors} />
       </Screen>
     );
   }
@@ -435,7 +425,7 @@ function openAllReminders() {
   return (
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
-        {mode === "month" && (
+        {mode === "month" ? (
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}
@@ -448,13 +438,16 @@ function openAllReminders() {
             }
           >
             <Header
-          colors={colors}
-          onReminders={openAllReminders}
-          onFilter={() => setFilterVisible(true)}
-          onAdd={openAddMenu}
-        />
+              colors={colors}
+              onReminders={openAllReminders}
+              onFilter={() => setFilterVisible(true)}
+            />
 
-            <SegmentedControl mode={mode} onChange={setMode} colors={colors} />
+            <SegmentedControl
+              mode={mode}
+              onChange={changeMode}
+              colors={colors}
+            />
 
             <MonthHeader
               visibleMonth={visibleMonth}
@@ -484,7 +477,9 @@ function openAllReminders() {
                       selectedDayItems.length === 1 ? "" : "s"
                     }`
               }
-              items={isSameDay(selectedDate, today) ? todayItems : selectedDayItems}
+              items={
+                isSameDay(selectedDate, today) ? todayItems : selectedDayItems
+              }
               colors={colors}
               onOpen={openItem}
             />
@@ -493,19 +488,10 @@ function openAllReminders() {
               items={upcomingItems}
               colors={colors}
               onOpen={openItem}
+              onSeeAll={openAllUpcoming}
             />
-
-            {!!smartSuggestion && (
-              <SmartSuggestionCard
-                item={smartSuggestion}
-                colors={colors}
-                onOpen={openItem}
-              />
-            )}
           </ScrollView>
-        )}
-
-        {mode === "agenda" && (
+        ) : (
           <FlatList
             data={agendaRows}
             keyExtractor={(row) => row.id}
@@ -522,37 +508,50 @@ function openAllReminders() {
             ListHeaderComponent={
               <>
                 <Header
-                colors={colors}
-                onReminders={openAllReminders}
-                onFilter={() => setFilterVisible(true)}
-                onAdd={openAddMenu}
-              />
+                  colors={colors}
+                  onReminders={openAllReminders}
+                  onFilter={() => setFilterVisible(true)}
+                />
 
                 <SegmentedControl
                   mode={mode}
-                  onChange={setMode}
+                  onChange={changeMode}
                   colors={colors}
                 />
 
-               <WeekStrip
-                selectedDate={agendaSelectedDate}
-                itemDates={itemDates}
-                colors={colors}
-                onSelect={(date) => {
-                    setAgendaSelectedDate(date);
-                    setSelectedDate(date);
-                    setVisibleMonth(date);
-                }}
-                />
+                {agendaScope === "upcoming" ? (
+                  <UpcomingAgendaBanner
+                    colors={colors}
+                    onBackToDay={() => {
+                      setAgendaScope("day");
+                      setAgendaSelectedDate(today);
+                      setSelectedDate(today);
+                      setVisibleMonth(today);
+                    }}
+                  />
+                ) : (
+                  <WeekStrip
+                    selectedDate={agendaSelectedDate}
+                    itemDates={itemDates}
+                    colors={colors}
+                    onSelect={(date) => {
+                      setAgendaScope("day");
+                      setAgendaSelectedDate(date);
+                      setSelectedDate(date);
+                      setVisibleMonth(date);
+                    }}
+                  />
+                )}
               </>
             }
             ListEmptyComponent={
-        <EmptyDayState
-            date={agendaSelectedDate}
-            colors={colors}
-            onAdd={openAddMenu}
-        />
-}
+              <AgendaEmptyState
+                scope={agendaScope}
+                date={agendaSelectedDate}
+                colors={colors}
+                onAdd={openAddMenu}
+              />
+            }
             ListFooterComponent={
               loadingMore ? (
                 <View style={styles.loadingMore}>
@@ -568,8 +567,6 @@ function openAllReminders() {
             removeClippedSubviews={Platform.OS === "android"}
           />
         )}
-
-
 
         <FilterSheet
           visible={filterVisible}
@@ -587,6 +584,127 @@ function openAllReminders() {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Skeleton                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function CalendarSkeleton({ colors }: { colors: CalendarColors }) {
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.skeletonHeader}>
+          <SkeletonBlock colors={colors} style={styles.skeletonTitle} />
+
+          <View style={styles.skeletonHeaderButtons}>
+            <SkeletonBlock colors={colors} style={styles.skeletonIconButton} />
+            <SkeletonBlock colors={colors} style={styles.skeletonIconButton} />
+          </View>
+        </View>
+
+        <SkeletonBlock colors={colors} style={styles.skeletonSegment} />
+
+        <View style={styles.skeletonMonthHeader}>
+          <SkeletonBlock colors={colors} style={styles.skeletonArrow} />
+          <SkeletonBlock colors={colors} style={styles.skeletonMonthTitle} />
+          <SkeletonBlock colors={colors} style={styles.skeletonArrow} />
+        </View>
+
+        <View style={styles.skeletonGridCard}>
+          <View style={styles.skeletonWeekRow}>
+            {Array.from({ length: 7 }).map((_, index) => (
+              <SkeletonBlock
+                key={`week-${index}`}
+                colors={colors}
+                style={styles.skeletonWeekName}
+              />
+            ))}
+          </View>
+
+          <View style={styles.skeletonMonthGrid}>
+            {Array.from({ length: 35 }).map((_, index) => (
+              <SkeletonBlock
+                key={`day-${index}`}
+                colors={colors}
+                style={styles.skeletonDay}
+              />
+            ))}
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.skeletonCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              shadowColor: colors.shadow,
+            },
+          ]}
+        >
+          <SkeletonBlock colors={colors} style={styles.skeletonCardTitle} />
+          <SkeletonRow colors={colors} />
+          <SkeletonRow colors={colors} />
+        </View>
+
+        <View
+          style={[
+            styles.skeletonCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              shadowColor: colors.shadow,
+            },
+          ]}
+        >
+          <SkeletonBlock colors={colors} style={styles.skeletonSmallTitle} />
+          <SkeletonRow colors={colors} />
+          <SkeletonRow colors={colors} />
+          <SkeletonRow colors={colors} />
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function SkeletonRow({ colors }: { colors: CalendarColors }) {
+  return (
+    <View style={styles.skeletonRow}>
+      <SkeletonBlock colors={colors} style={styles.skeletonAvatar} />
+
+      <View style={styles.skeletonRowText}>
+        <SkeletonBlock colors={colors} style={styles.skeletonLineLarge} />
+        <SkeletonBlock colors={colors} style={styles.skeletonLineSmall} />
+      </View>
+
+      <SkeletonBlock colors={colors} style={styles.skeletonSmallIcon} />
+    </View>
+  );
+}
+
+function SkeletonBlock({
+  colors,
+  style,
+}: {
+  colors: CalendarColors;
+  style?: any;
+}) {
+  return (
+    <View
+      style={[
+        styles.skeletonBlock,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Main UI                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -594,12 +712,10 @@ function Header({
   colors,
   onReminders,
   onFilter,
-  onAdd,
 }: {
   colors: CalendarColors;
   onReminders: () => void;
   onFilter: () => void;
-  onAdd: () => void;
 }) {
   return (
     <View style={styles.header}>
@@ -609,18 +725,19 @@ function Header({
 
       <View style={styles.headerActions}>
         <TouchableOpacity
-  style={[
-    styles.headerButton,
-    {
-      backgroundColor: colors.softCard,
-      borderColor: colors.border,
-    },
-  ]}
-  onPress={onReminders}
-  activeOpacity={0.84}
->
-  <Ionicons name="notifications-outline" size={20} color={colors.title} />
-</TouchableOpacity>
+          style={[
+            styles.headerButton,
+            {
+              backgroundColor: colors.softCard,
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={onReminders}
+          activeOpacity={0.84}
+        >
+          <Ionicons name="notifications-outline" size={20} color={colors.title} />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.headerButton,
@@ -633,20 +750,6 @@ function Header({
           activeOpacity={0.84}
         >
           <Ionicons name="filter-outline" size={20} color={colors.title} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.headerButton,
-            {
-              backgroundColor: colors.softCard,
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={onAdd}
-          activeOpacity={0.84}
-        >
-          <Ionicons name="add" size={23} color={colors.title} />
         </TouchableOpacity>
       </View>
     </View>
@@ -877,10 +980,12 @@ const UpcomingCard = memo(function UpcomingCard({
   items,
   colors,
   onOpen,
+  onSeeAll,
 }: {
   items: CalendarItem[];
   colors: CalendarColors;
   onOpen: (item: CalendarItem) => void;
+  onSeeAll: () => void;
 }) {
   if (items.length === 0) return null;
 
@@ -900,9 +1005,15 @@ const UpcomingCard = memo(function UpcomingCard({
           Upcoming
         </Text>
 
-        <Text style={[styles.seeAllText, { color: colors.primary }]}>
-          See all
-        </Text>
+        <TouchableOpacity
+          style={styles.seeAllButton}
+          onPress={onSeeAll}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.seeAllText, { color: colors.primary }]}>
+            See all
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {items.slice(0, 4).map((item) => (
@@ -954,11 +1065,11 @@ function CompactCalendarRow({
         </Text>
       </View>
 
-      {!!timeLabel && (
+      {!!timeLabel ? (
         <Text style={[styles.compactTime, { color: colors.muted }]}>
           {timeLabel}
         </Text>
-      )}
+      ) : null}
 
       <View
         style={[
@@ -972,62 +1083,53 @@ function CompactCalendarRow({
   );
 }
 
-function SmartSuggestionCard({
-  item,
-  colors,
-  onOpen,
-}: {
-  item: CalendarItem;
-  colors: CalendarColors;
-  onOpen: (item: CalendarItem) => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.86}
-      onPress={() => onOpen(item)}
-      style={[
-        styles.smartCard,
-        {
-          borderColor: withOpacity(colors.primary, "18"),
-        },
-      ]}
-    >
-      <View style={styles.smartLeft}>
-        <View
-          style={[
-            styles.smartIcon,
-            { backgroundColor: withOpacity(colors.primary, "18") },
-          ]}
-        >
-          <Ionicons name="heart-outline" size={21} color={colors.primary} />
-        </View>
-
-        <View style={styles.smartTextWrap}>
-          <Text style={[styles.smartTitle, { color: colors.primary }]}>
-            Smart suggestion
-          </Text>
-
-          <Text
-            style={[styles.smartText, { color: colors.title }]}
-            numberOfLines={2}
-          >
-            {item.subtitle || `Reach out to ${item.contactName}`}
-          </Text>
-        </View>
-      </View>
-
-      <View style={[styles.smartButton, { backgroundColor: colors.card }]}>
-        <Text style={[styles.smartButtonText, { color: colors.primary }]}>
-          Reach out
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /* Agenda / List                                                                */
 /* -------------------------------------------------------------------------- */
+
+function UpcomingAgendaBanner({
+  colors,
+  onBackToDay,
+}: {
+  colors: CalendarColors;
+  onBackToDay: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.upcomingAgendaBanner,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <View style={styles.upcomingAgendaTextWrap}>
+        <Text style={[styles.upcomingAgendaTitle, { color: colors.title }]}>
+          All upcoming
+        </Text>
+
+        <Text style={[styles.upcomingAgendaSubtitle, { color: colors.text }]}>
+          Showing all future reminders, events, birthdays, meetings, and memories.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.upcomingAgendaButton,
+          { backgroundColor: colors.softPrimary },
+        ]}
+        onPress={onBackToDay}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.upcomingAgendaButtonText, { color: colors.primary }]}>
+          Today
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 function WeekStrip({
   selectedDate,
@@ -1065,7 +1167,9 @@ function WeekStrip({
                 { color: active ? colors.buttonText : colors.text },
               ]}
             >
-              {date.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase()}
+              {date
+                .toLocaleDateString(undefined, { weekday: "short" })
+                .toUpperCase()}
             </Text>
 
             <Text
@@ -1156,11 +1260,11 @@ function CalendarCard({
               {buildShortDateLabel(item.date)}
             </Text>
 
-            {!!item.time && (
+            {!!item.time ? (
               <Text style={[styles.badgeDate, { color: colors.muted }]}>
                 {formatTime(item.time)}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
       </View>
@@ -1176,7 +1280,7 @@ function CalendarCard({
           </Text>
         </TouchableOpacity>
 
-        {!!item.reminderId && (
+        {!!item.reminderId ? (
           <TouchableOpacity
             style={[
               styles.secondaryAction,
@@ -1192,7 +1296,7 @@ function CalendarCard({
               Done
             </Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -1216,7 +1320,12 @@ function FilterSheet({
   onChange: (filter: CalendarFilter) => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <Pressable style={styles.sheetOverlay} onPress={onClose}>
         <Pressable
           style={[styles.sheet, { backgroundColor: colors.card }]}
@@ -1249,7 +1358,9 @@ function FilterSheet({
                   style={[
                     styles.sheetPill,
                     {
-                      backgroundColor: active ? colors.softPrimary : colors.softCard,
+                      backgroundColor: active
+                        ? colors.softPrimary
+                        : colors.softCard,
                       borderColor: active ? colors.primary : "transparent",
                     },
                   ]}
@@ -1289,7 +1400,7 @@ function ContactAvatar({
   colors: CalendarColors;
   size: number;
 }) {
-  const initials = getInitials(item.contactName);
+  const initials = getInitials(item.contactName || item.title);
 
   if (item.contactPhotoUri) {
     return (
@@ -1327,13 +1438,19 @@ function ContactAvatar({
   );
 }
 
-function EmptyState({
+function AgendaEmptyState({
+  scope,
+  date,
   colors,
   onAdd,
 }: {
+  scope: AgendaScope;
+  date: Date;
   colors: CalendarColors;
   onAdd: () => void;
 }) {
+  const isUpcoming = scope === "upcoming";
+
   return (
     <View
       style={[
@@ -1351,15 +1468,21 @@ function EmptyState({
           { backgroundColor: withOpacity(colors.primary, "16") },
         ]}
       >
-        <Ionicons name="calendar-outline" size={28} color={colors.primary} />
+        <Ionicons
+          name={isUpcoming ? "calendar-clear-outline" : "calendar-outline"}
+          size={28}
+          color={colors.primary}
+        />
       </View>
 
       <Text style={[styles.emptyTitle, { color: colors.title }]}>
-        No calendar moments yet
+        {isUpcoming ? "No upcoming moments" : `Nothing on ${formatShortDate(date)}`}
       </Text>
 
       <Text style={[styles.emptyText, { color: colors.text }]}>
-        Add reminders, birthdays, meetings, follow-ups, or memories to make this useful.
+        {isUpcoming
+          ? "No future reminders, meetings, birthdays, follow-ups, or memories found."
+          : "No reminders, meetings, birthdays, follow-ups, or memories for this day."}
       </Text>
 
       <TouchableOpacity
@@ -1368,7 +1491,7 @@ function EmptyState({
         activeOpacity={0.85}
       >
         <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
-          Add first item
+          Add something
         </Text>
       </TouchableOpacity>
     </View>
@@ -1438,11 +1561,23 @@ function getItemMeta(
     case "check_in":
       return { label: "Follow-up", icon: "call-outline", color: colors.success };
     case "reminder":
-      return { label: "Reminder", icon: "notifications-outline", color: colors.primary };
+      return {
+        label: "Reminder",
+        icon: "notifications-outline",
+        color: colors.primary,
+      };
     case "ask_next_time":
-      return { label: "Ask next", icon: "chatbubble-ellipses-outline", color: colors.success };
+      return {
+        label: "Ask next",
+        icon: "chatbubble-ellipses-outline",
+        color: colors.success,
+      };
     case "before_meet":
-      return { label: "Before Meet", icon: "document-text-outline", color: colors.purple };
+      return {
+        label: "Before Meet",
+        icon: "document-text-outline",
+        color: colors.purple,
+      };
     case "meeting":
       return { label: "Meeting", icon: "people-outline", color: colors.blue };
     case "memory_date":
@@ -1471,8 +1606,8 @@ function sortCalendarItems(a: CalendarItem, b: CalendarItem) {
   return aTime.localeCompare(bTime);
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+function getInitials(name?: string | null) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
 
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
@@ -1519,8 +1654,17 @@ function addDays(date: Date, days: number) {
 }
 
 function daysBetween(from: Date, to: Date) {
-  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
-  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  const start = new Date(
+    from.getFullYear(),
+    from.getMonth(),
+    from.getDate()
+  ).getTime();
+
+  const end = new Date(
+    to.getFullYear(),
+    to.getMonth(),
+    to.getDate()
+  ).getTime();
 
   return Math.round((end - start) / 86_400_000);
 }
@@ -1545,7 +1689,9 @@ function getMonday(date: Date) {
 function getWeekDays(date: Date) {
   const monday = getMonday(date);
 
-  return Array.from({ length: 7 }).map((_, index) => addDays(monday, index));
+  return Array.from({ length: 7 }).map((_, index) =>
+    addDays(monday, index)
+  );
 }
 
 function getMonthGrid(monthDate: Date) {
@@ -1553,7 +1699,9 @@ function getMonthGrid(monthDate: Date) {
   const mondayIndex = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
   const gridStart = addDays(firstDay, -mondayIndex);
 
-  return Array.from({ length: 42 }).map((_, index) => addDays(gridStart, index));
+  return Array.from({ length: 42 }).map((_, index) =>
+    addDays(gridStart, index)
+  );
 }
 
 function formatTime(time?: string | null) {
@@ -1685,18 +1833,6 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 34,
     gap: 12,
-  },
-
-  loadingRoot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-
-  loadingText: {
-    fontSize: 14,
-    fontWeight: "800",
   },
 
   loadingMore: {
@@ -1867,6 +2003,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
+  seeAllButton: {
+    minHeight: 32,
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+
   seeAllText: {
     fontSize: 12,
     fontWeight: "900",
@@ -1924,59 +2066,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  smartCard: {
-    minHeight: 74,
+  upcomingAgendaBanner: {
+    minHeight: 78,
     borderRadius: 22,
     borderWidth: 1,
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: 12,
-    backgroundColor: "rgba(124,92,255,0.10)",
+    shadowOpacity: 0.045,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
 
-  smartLeft: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-  },
-
-  smartIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  smartTextWrap: {
+  upcomingAgendaTextWrap: {
     flex: 1,
     minWidth: 0,
   },
 
-  smartTitle: {
-    fontSize: 13,
+  upcomingAgendaTitle: {
+    fontSize: 16,
     fontWeight: "900",
   },
 
-  smartText: {
+  upcomingAgendaSubtitle: {
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
-    marginTop: 2,
+    opacity: 0.72,
+    marginTop: 3,
   },
 
-  smartButton: {
-    height: 38,
-    borderRadius: 16,
-    paddingHorizontal: 16,
+  upcomingAgendaButton: {
+    minHeight: 38,
+    borderRadius: 15,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  smartButtonText: {
+  upcomingAgendaButtonText: {
     fontSize: 12,
     fontWeight: "900",
   },
@@ -2162,12 +2292,12 @@ const styles = StyleSheet.create({
   sheetOverlay: {
     flex: 1,
     backgroundColor: "rgba(14, 12, 26, 0.28)",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
   },
 
   sheet: {
     marginHorizontal: 10,
-    marginBottom: Platform.OS === "ios" ? 22 : 12,
+    marginTop: Platform.OS === "ios" ? 62 : 38,
     borderRadius: 30,
     paddingHorizontal: 18,
     paddingTop: 12,
@@ -2228,5 +2358,148 @@ const styles = StyleSheet.create({
   sheetPillText: {
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  skeletonBlock: {
+    borderWidth: 1,
+    opacity: 0.85,
+  },
+
+  skeletonHeader: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  skeletonTitle: {
+    width: 160,
+    height: 34,
+    borderRadius: 14,
+  },
+
+  skeletonHeaderButtons: {
+    flexDirection: "row",
+    gap: 9,
+  },
+
+  skeletonIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+  },
+
+  skeletonSegment: {
+    height: 47,
+    borderRadius: 20,
+  },
+
+  skeletonMonthHeader: {
+    height: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  skeletonArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+
+  skeletonMonthTitle: {
+    width: 128,
+    height: 24,
+    borderRadius: 12,
+  },
+
+  skeletonGridCard: {
+    paddingTop: 2,
+  },
+
+  skeletonWeekRow: {
+    flexDirection: "row",
+    gap: 7,
+    marginBottom: 8,
+  },
+
+  skeletonWeekName: {
+    flex: 1,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonMonthGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  skeletonDay: {
+    width: `${100 / 7}%`,
+    height: 38,
+    borderRadius: 18,
+    marginVertical: 3,
+    transform: [{ scale: 0.86 }],
+  },
+
+  skeletonCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 13,
+    shadowOpacity: 0.045,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+
+  skeletonCardTitle: {
+    width: 150,
+    height: 22,
+    borderRadius: 11,
+    marginBottom: 12,
+  },
+
+  skeletonSmallTitle: {
+    width: 100,
+    height: 20,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+
+  skeletonRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+  },
+
+  skeletonAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+
+  skeletonRowText: {
+    flex: 1,
+    gap: 7,
+  },
+
+  skeletonLineLarge: {
+    width: "78%",
+    height: 14,
+    borderRadius: 7,
+  },
+
+  skeletonLineSmall: {
+    width: "48%",
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonSmallIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
   },
 });

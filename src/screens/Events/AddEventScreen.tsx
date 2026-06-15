@@ -1,8 +1,10 @@
-// src/screens/events/AddEventScreen.tsx
+// src/screens/Events/AddEventScreen.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,9 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -25,28 +25,31 @@ import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
 import { AppId, Contact } from "../../contacts/types";
-import { fetchContacts } from "../../contacts/repository";
+import { fetchContactById, fetchContacts } from "../../contacts/repository";
 import { createReminder } from "../../reminders/repository";
 import { REMINDER_STATUS } from "../../events/types";
-type Props = {
-  navigation: any;
-      route: {
-        params?: {
-          contactId?: AppId;
-          contactName?: string;
-          initialType?: EventTypeValue;
-          initialTitle?: string;
-        };
-      };
-};
 
 type EventTypeValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+type Props = {
+  navigation: any;
+  route: {
+    params?: {
+      contactId?: AppId;
+      contactName?: string;
+      initialType?: EventTypeValue;
+      initialTitle?: string;
+    };
+  };
+};
 
 type EventTypeOption = {
   label: string;
   icon: string;
   value: EventTypeValue;
 };
+
+type ReminderPreset = "none" | "at_time" | "one_hour_before" | "one_day_before";
 
 type AddEventColors = {
   background: string;
@@ -74,7 +77,6 @@ const EVENT_TYPE_OPTIONS: EventTypeOption[] = [
   { label: "Holiday", icon: "🏝", value: 5 },
   { label: "Other", icon: "✨", value: 6 },
 ];
-type ReminderPreset = "none" | "at_time" | "one_hour_before" | "one_day_before";
 
 const REMINDER_OPTIONS: {
   value: ReminderPreset;
@@ -107,30 +109,35 @@ const REMINDER_OPTIONS: {
     icon: "calendar-outline",
   },
 ];
+
 export default function AddEventScreen({ navigation, route }: Props) {
   const { settings } = useAppearance();
   const colors = useMemo(() => makeAddEventColors(settings), [settings]);
-const initialContactId = route?.params?.contactId;
-const initialContactName = route?.params?.contactName;
-const initialType = route?.params?.initialType ?? 1;
-const initialTitle = route?.params?.initialTitle ?? "";
 
-const [contacts, setContacts] = useState<Contact[]>([]);
-const [loadingContacts, setLoadingContacts] = useState(false);
-const [showContactPicker, setShowContactPicker] = useState(!initialContactId);
+  const initialContactId = route?.params?.contactId;
+  const initialContactName = route?.params?.contactName;
+  const initialType = route?.params?.initialType ?? 1;
+  const initialTitle = route?.params?.initialTitle ?? "";
 
-const [selectedContactId, setSelectedContactId] = useState<AppId | undefined>(
-  initialContactId
-);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
-const [selectedContactName, setSelectedContactName] = useState(
-  initialContactName || ""
-);
+  const [showContactPicker, setShowContactPicker] = useState(!initialContactId);
+  const [contactSearch, setContactSearch] = useState("");
 
-const contactName = selectedContactName || "Choose contact";
+  const [selectedContactId, setSelectedContactId] = useState<
+    AppId | undefined
+  >(initialContactId);
 
-const [title, setTitle] = useState(initialTitle);
-const [type, setType] = useState<EventTypeValue>(initialType);
+  const [selectedContactName, setSelectedContactName] = useState(
+    initialContactName || ""
+  );
+
+  const contactName = selectedContactName || "Choose contact";
+
+  const [title, setTitle] = useState(initialTitle);
+  const [type, setType] = useState<EventTypeValue>(initialType);
 
   const [dateString, setDateString] = useState("");
   const [date, setDate] = useState<Date | null>(null);
@@ -152,51 +159,128 @@ const [type, setType] = useState<EventTypeValue>(initialType);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   const [saving, setSaving] = useState(false);
-const [reminderPreset, setReminderPreset] =
-  useState<ReminderPreset>("one_day_before");
 
-const [successVisible, setSuccessVisible] = useState(false);
-const [createdEventTitle, setCreatedEventTitle] = useState("");
+  const [reminderPreset, setReminderPreset] =
+    useState<ReminderPreset>("one_day_before");
+
+  const [successVisible, setSuccessVisible] = useState(false);
+  const [createdEventTitle, setCreatedEventTitle] = useState("");
+
   const selectedTypeOption =
     EVENT_TYPE_OPTIONS.find((option) => option.value === type) ??
     EVENT_TYPE_OPTIONS[0];
-useEffect(() => {
-  if (initialContactId) return;
 
-  let mounted = true;
+  const filteredContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
 
-  async function loadContacts() {
-    try {
-      setLoadingContacts(true);
+    if (!query) {
+      return contacts.slice(0, 8);
+    }
 
-      const response = await fetchContacts({ page: 1 });
-      const loadedContacts = normalizeContactsResponse(response);
+    return contacts
+      .filter((contact) => {
+        const name = fullName(contact).toLowerCase();
+        const phone = contact.phone?.toLowerCase() ?? "";
+        const email = contact.email?.toLowerCase() ?? "";
+        const group = contact.group_detail?.name?.toLowerCase() ?? "";
+        const relationship = contact.relationship_label?.toLowerCase() ?? "";
 
-      if (!mounted) return;
+        return (
+          name.includes(query) ||
+          phone.includes(query) ||
+          email.includes(query) ||
+          group.includes(query) ||
+          relationship.includes(query)
+        );
+      })
+      .slice(0, 12);
+  }, [contacts, contactSearch]);
 
-      setContacts(loadedContacts);
+  useEffect(() => {
+    navigation.setOptions?.({
+      headerShown: false,
+    });
+  }, [navigation]);
 
-      if (loadedContacts.length === 1) {
-        const onlyContact = loadedContacts[0];
-        setSelectedContactId(onlyContact.id);
-        setSelectedContactName(fullName(onlyContact));
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadInitialContact(contactId: AppId) {
+      try {
+        setLoadingContacts(true);
+
+        const contact = await fetchContactById(contactId);
+
+        if (!mounted) return;
+
+        setSelectedContact(contact);
+        setSelectedContactId(contact.id);
+        setSelectedContactName(fullName(contact) || initialContactName || "");
+        setContacts([contact]);
         setShowContactPicker(false);
-      }
-    } catch (error) {
-      console.log("Load contacts for event failed:", error);
-    } finally {
-      if (mounted) {
-        setLoadingContacts(false);
+      } catch (error) {
+        console.log("Load initial event contact failed:", error);
+
+        if (mounted) {
+          setSelectedContactName(initialContactName || "");
+        }
+      } finally {
+        if (mounted) {
+          setLoadingContacts(false);
+        }
       }
     }
+
+    async function loadContacts() {
+      try {
+        setLoadingContacts(true);
+
+        const response = await fetchContacts({ page: 1 });
+        const loadedContacts = normalizeContactsResponse(response);
+
+        if (!mounted) return;
+
+        setContacts(loadedContacts);
+
+        if (loadedContacts.length === 1) {
+          const onlyContact = loadedContacts[0];
+
+          setSelectedContact(onlyContact);
+          setSelectedContactId(onlyContact.id);
+          setSelectedContactName(fullName(onlyContact));
+          setShowContactPicker(false);
+        }
+      } catch (error) {
+        console.log("Load contacts for event failed:", error);
+      } finally {
+        if (mounted) {
+          setLoadingContacts(false);
+        }
+      }
+    }
+
+    if (initialContactId) {
+      loadInitialContact(initialContactId);
+    } else {
+      loadContacts();
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialContactId, initialContactName]);
+
+  function selectContact(contact: Contact) {
+    setSelectedContact(contact);
+    setSelectedContactId(contact.id);
+    setSelectedContactName(fullName(contact));
+
+    setContactSearch("");
+    setShowContactPicker(false);
+
+    Keyboard.dismiss();
   }
 
-  loadContacts();
-
-  return () => {
-    mounted = false;
-  };
-}, [initialContactId]);
   function formatDate(dateValue: Date) {
     const year = dateValue.getFullYear();
     const month = String(dateValue.getMonth() + 1).padStart(2, "0");
@@ -247,33 +331,31 @@ useEffect(() => {
     });
   }
 
-  function onDateChange(_: DateTimePickerEvent, selectedDate?: Date) {
+  function closePickerOnAndroid(close: () => void) {
     if (Platform.OS === "android") {
-      setShowDatePicker(false);
+      close();
     }
+  }
 
+  function handleDateValueChange(_event: any, selectedDate?: Date) {
     if (!selectedDate) return;
 
     setDate(selectedDate);
     setDateString(formatDate(selectedDate));
+
+    closePickerOnAndroid(() => setShowDatePicker(false));
   }
 
-  function onStartTimeChange(_: DateTimePickerEvent, selectedTime?: Date) {
-    if (Platform.OS === "android") {
-      setShowStartTimePicker(false);
-    }
-
+  function handleStartTimeValueChange(_event: any, selectedTime?: Date) {
     if (!selectedTime) return;
 
     setStartTime(selectedTime);
     setStartTimeString(formatTime(selectedTime));
+
+    closePickerOnAndroid(() => setShowStartTimePicker(false));
   }
 
-  function onEndDateChange(_: DateTimePickerEvent, selectedDate?: Date) {
-    if (Platform.OS === "android") {
-      setShowEndDatePicker(false);
-    }
-
+  function handleEndDateValueChange(_event: any, selectedDate?: Date) {
     if (!selectedDate) return;
 
     setEndDate(selectedDate);
@@ -281,100 +363,106 @@ useEffect(() => {
 
     setEndTime(null);
     setEndTimeString("");
+
+    closePickerOnAndroid(() => setShowEndDatePicker(false));
   }
 
-  function onEndTimeChange(_: DateTimePickerEvent, selectedTime?: Date) {
-    if (Platform.OS === "android") {
-      setShowEndTimePicker(false);
-    }
-
+  function handleEndTimeValueChange(_event: any, selectedTime?: Date) {
     if (!selectedTime) return;
 
     setEndTime(selectedTime);
     setEndTimeString(formatTime(selectedTime));
+
+    closePickerOnAndroid(() => setShowEndTimePicker(false));
   }
 
-async function onSubmit() {
-  if (!selectedContactId) {
-    Alert.alert("No contact", "Choose a person for this event.");
-    return;
-  }
+  async function onSubmit() {
+    if (!selectedContactId) {
+      Alert.alert("No contact", "Choose a person for this event.");
+      return;
+    }
 
-  const cleanTitle = title.trim();
+    const cleanTitle = title.trim();
 
-  if (!cleanTitle) {
-    Alert.alert("Title required", "Please add a title.");
-    return;
-  }
+    if (!cleanTitle) {
+      Alert.alert("Title required", "Please add a title.");
+      return;
+    }
 
-  if (!dateString) {
-    Alert.alert("Date required", "Please pick a date for this event.");
-    return;
-  }
+    if (!dateString) {
+      Alert.alert("Date required", "Please pick a date for this event.");
+      return;
+    }
 
-  if (!isRecurring && hasEndDate && endDateString && endDateString < dateString) {
-    Alert.alert(
-      "Invalid end date",
-      "End date cannot be earlier than start date."
-    );
-    return;
-  }
+    if (
+      !isRecurring &&
+      hasEndDate &&
+      endDateString &&
+      endDateString < dateString
+    ) {
+      Alert.alert(
+        "Invalid end date",
+        "End date cannot be earlier than start date."
+      );
+      return;
+    }
 
-  if (
-    !isRecurring &&
-    hasEndDate &&
-    endDateString === dateString &&
-    startTimeString &&
-    endTimeString &&
-    endTimeString <= startTimeString
-  ) {
-    Alert.alert("Invalid end time", "End time must be after start time.");
-    return;
-  }
+    if (
+      !isRecurring &&
+      hasEndDate &&
+      endDateString === dateString &&
+      startTimeString &&
+      endTimeString &&
+      endTimeString <= startTimeString
+    ) {
+      Alert.alert("Invalid end time", "End time must be after start time.");
+      return;
+    }
 
-  setSaving(true);
+    setSaving(true);
 
-  try {
-    const createdEvent = await createEvent({
-      contact: selectedContactId,
-      title: cleanTitle,
-      type,
-      start_date: dateString,
-      start_time: startTimeString ? `${startTimeString}:00` : undefined,
-      end_date:
-        !isRecurring && hasEndDate && endDateString
-          ? endDateString
-          : undefined,
-      end_time:
-        !isRecurring && hasEndDate && endTimeString
-          ? `${endTimeString}:00`
-          : undefined,
-      is_recurring: isRecurring,
-    });
-
-    if (reminderPreset !== "none") {
-      await createEventReminder({
-        eventId: createdEvent.id,
-        preset: reminderPreset,
-        dateString,
-        startTimeString,
+    try {
+      const createdEvent = await createEvent({
+        contact: selectedContactId,
+        title: cleanTitle,
+        type,
+        start_date: dateString,
+        start_time: startTimeString ? `${startTimeString}:00` : undefined,
+        end_date:
+          !isRecurring && hasEndDate && endDateString
+            ? endDateString
+            : undefined,
+        end_time:
+          !isRecurring && hasEndDate && endTimeString
+            ? `${endTimeString}:00`
+            : undefined,
+        is_recurring: isRecurring,
       });
-    }
 
-    setCreatedEventTitle(cleanTitle);
-    setSuccessVisible(true);
-  } catch (error: any) {
-    const detail = error?.response?.data?.detail || error?.message;
+      if (reminderPreset !== "none") {
+        await createEventReminder({
+          eventId: createdEvent.id,
+          preset: reminderPreset,
+          dateString,
+          startTimeString,
+        });
+      }
 
-    if (detail) {
-      Alert.alert("Cannot add event", detail);
-    } else {
-      Alert.alert("Error", "Failed to create event.");
+      setCreatedEventTitle(cleanTitle);
+      setSuccessVisible(true);
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || error?.message;
+
+      if (detail) {
+        Alert.alert("Cannot add event", detail);
+      } else {
+        Alert.alert("Error", "Failed to create event.");
+      }
+    } finally {
+      setSaving(false);
     }
-  } finally {
-    setSaving(false);
   }
-}
+
   return (
     <KeyboardAvoidingView
       style={[styles.keyboardRoot, { backgroundColor: colors.background }]}
@@ -392,6 +480,7 @@ async function onSubmit() {
               colors={colors}
               contactName={contactName}
               selectedType={selectedTypeOption}
+              onBack={() => navigation.goBack()}
             />
 
             <View
@@ -410,21 +499,22 @@ async function onSubmit() {
                 colors={colors}
               />
 
-            <ContactSelector
-  colors={colors}
-  contactName={contactName}
-  contacts={contacts}
-  selectedContactId={selectedContactId}
-  loading={loadingContacts}
-  showPicker={showContactPicker}
-  locked={Boolean(initialContactId)}
-  onTogglePicker={() => setShowContactPicker((current) => !current)}
-  onSelect={(contact) => {
-    setSelectedContactId(contact.id);
-    setSelectedContactName(fullName(contact));
-    setShowContactPicker(false);
-  }}
-/>
+              <ContactSelector
+                colors={colors}
+                contactName={contactName}
+                selectedContact={selectedContact}
+                contacts={filteredContacts}
+                selectedContactId={selectedContactId}
+                loading={loadingContacts}
+                showPicker={showContactPicker}
+                locked={Boolean(initialContactId)}
+                searchValue={contactSearch}
+                onSearchChange={setContactSearch}
+                onTogglePicker={() =>
+                  setShowContactPicker((current) => !current)
+                }
+                onSelect={selectContact}
+              />
 
               <Divider colors={colors} />
 
@@ -502,7 +592,12 @@ async function onSubmit() {
                   value={dateString ? formatDateEU(dateString) : ""}
                   placeholder="Pick a date"
                   colors={colors}
-                  onPress={() => setShowDatePicker(true)}
+                  onPress={() => {
+                    setShowStartTimePicker(false);
+                    setShowEndDatePicker(false);
+                    setShowEndTimePicker(false);
+                    setShowDatePicker(true);
+                  }}
                 />
 
                 {showDatePicker ? (
@@ -510,7 +605,9 @@ async function onSubmit() {
                     value={date || new Date()}
                     mode="date"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={onDateChange}
+                    onValueChange={handleDateValueChange}
+                    onDismiss={() => setShowDatePicker(false)}
+                    onNeutralButtonPress={() => setShowDatePicker(false)}
                   />
                 ) : null}
               </FieldGroup>
@@ -525,7 +622,12 @@ async function onSubmit() {
                   value={startTimeString}
                   placeholder="No specific time"
                   colors={colors}
-                  onPress={() => setShowStartTimePicker(true)}
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    setShowEndDatePicker(false);
+                    setShowEndTimePicker(false);
+                    setShowStartTimePicker(true);
+                  }}
                 />
 
                 {showStartTimePicker ? (
@@ -533,7 +635,9 @@ async function onSubmit() {
                     value={startTime || new Date()}
                     mode="time"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={onStartTimeChange}
+                    onValueChange={handleStartTimeValueChange}
+                    onDismiss={() => setShowStartTimePicker(false)}
+                    onNeutralButtonPress={() => setShowStartTimePicker(false)}
                   />
                 ) : null}
               </FieldGroup>
@@ -620,7 +724,12 @@ async function onSubmit() {
                       value={endDateString ? formatDateEU(endDateString) : ""}
                       placeholder="No end date"
                       colors={colors}
-                      onPress={() => setShowEndDatePicker(true)}
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowStartTimePicker(false);
+                        setShowEndTimePicker(false);
+                        setShowEndDatePicker(true);
+                      }}
                     />
 
                     {showEndDatePicker ? (
@@ -628,7 +737,11 @@ async function onSubmit() {
                         value={endDate || date || new Date()}
                         mode="date"
                         display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onEndDateChange}
+                        onValueChange={handleEndDateValueChange}
+                        onDismiss={() => setShowEndDatePicker(false)}
+                        onNeutralButtonPress={() =>
+                          setShowEndDatePicker(false)
+                        }
                       />
                     ) : null}
                   </FieldGroup>
@@ -639,7 +752,12 @@ async function onSubmit() {
                       value={endTimeString}
                       placeholder="No end time"
                       colors={colors}
-                      onPress={() => setShowEndTimePicker(true)}
+                      onPress={() => {
+                        setShowDatePicker(false);
+                        setShowStartTimePicker(false);
+                        setShowEndDatePicker(false);
+                        setShowEndTimePicker(true);
+                      }}
                     />
 
                     {showEndTimePicker ? (
@@ -647,38 +765,44 @@ async function onSubmit() {
                         value={endTime || new Date()}
                         mode="time"
                         display={Platform.OS === "ios" ? "spinner" : "default"}
-                        onChange={onEndTimeChange}
+                        onValueChange={handleEndTimeValueChange}
+                        onDismiss={() => setShowEndTimePicker(false)}
+                        onNeutralButtonPress={() =>
+                          setShowEndTimePicker(false)
+                        }
                       />
                     ) : null}
                   </FieldGroup>
                 </View>
               ) : null}
+
+              <Divider colors={colors} />
+
+              <SectionTitle
+                icon="notifications-outline"
+                title="Reminder"
+                colors={colors}
+              />
+
+              <View style={styles.reminderGrid}>
+                {REMINDER_OPTIONS.map((option) => (
+                  <ReminderOptionCard
+                    key={option.value}
+                    option={option}
+                    selected={reminderPreset === option.value}
+                    colors={colors}
+                    onPress={() => setReminderPreset(option.value)}
+                  />
+                ))}
+              </View>
+
+              <BeforeMeetInfoCard
+                colors={colors}
+                enabled={type === 4 || type === 6}
+                contactName={contactName}
+              />
             </View>
-<Divider colors={colors} />
 
-<SectionTitle
-  icon="notifications-outline"
-  title="Reminder"
-  colors={colors}
-/>
-
-<View style={styles.reminderGrid}>
-  {REMINDER_OPTIONS.map((option) => (
-    <ReminderOptionCard
-      key={option.value}
-      option={option}
-      selected={reminderPreset === option.value}
-      colors={colors}
-      onPress={() => setReminderPreset(option.value)}
-    />
-  ))}
-</View>
-
-<BeforeMeetInfoCard
-  colors={colors}
-  enabled={type === 4 || type === 6}
-  contactName={contactName}
-/>
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={[
@@ -693,10 +817,7 @@ async function onSubmit() {
                 activeOpacity={0.85}
               >
                 <Text
-                  style={[
-                    styles.secondaryButtonText,
-                    { color: colors.text },
-                  ]}
+                  style={[styles.secondaryButtonText, { color: colors.text }]}
                 >
                   Cancel
                 </Text>
@@ -727,36 +848,42 @@ async function onSubmit() {
               </TouchableOpacity>
             </View>
           </ScrollView>
+
           <SuccessSheet
-  visible={successVisible}
-  colors={colors}
-  title="Event created"
-  eventTitle={createdEventTitle}
-  reminderLabel={getReminderLabel(reminderPreset)}
-  beforeMeetEnabled={type === 4 || type === 6}
-  onDone={() => {
-    setSuccessVisible(false);
-    navigation.goBack();
-  }}
-  onAddAnother={() => {
-    setSuccessVisible(false);
-    setTitle("");
-    setDate(null);
-    setDateString("");
-    setStartTime(null);
-    setStartTimeString("");
-    setEndDate(null);
-    setEndDateString("");
-    setEndTime(null);
-    setEndTimeString("");
-    setHasEndDate(false);
-  }}
-/>
+            visible={successVisible}
+            colors={colors}
+            title="Event created"
+            eventTitle={createdEventTitle}
+            reminderLabel={getReminderLabel(reminderPreset)}
+            beforeMeetEnabled={type === 4 || type === 6}
+            onDone={() => {
+              setSuccessVisible(false);
+              navigation.goBack();
+            }}
+            onAddAnother={() => {
+              setSuccessVisible(false);
+              setTitle("");
+              setDate(null);
+              setDateString("");
+              setStartTime(null);
+              setStartTimeString("");
+              setEndDate(null);
+              setEndDateString("");
+              setEndTime(null);
+              setEndTimeString("");
+              setHasEndDate(false);
+              setShowDatePicker(false);
+              setShowStartTimePicker(false);
+              setShowEndDatePicker(false);
+              setShowEndTimePicker(false);
+            }}
+          />
         </View>
       </Screen>
     </KeyboardAvoidingView>
   );
 }
+
 function ReminderOptionCard({
   option,
   selected,
@@ -1006,24 +1133,31 @@ function SuccessSheet({
     </Modal>
   );
 }
+
 function ContactSelector({
   colors,
   contactName,
+  selectedContact,
   contacts,
   selectedContactId,
   loading,
   showPicker,
   locked,
+  searchValue,
+  onSearchChange,
   onTogglePicker,
   onSelect,
 }: {
   colors: AddEventColors;
   contactName: string;
+  selectedContact: Contact | null;
   contacts: Contact[];
   selectedContactId?: AppId;
   loading: boolean;
   showPicker: boolean;
   locked: boolean;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
   onTogglePicker: () => void;
   onSelect: (contact: Contact) => void;
 }) {
@@ -1040,18 +1174,23 @@ function ContactSelector({
         onPress={locked ? undefined : onTogglePicker}
         activeOpacity={locked ? 1 : 0.85}
       >
-        <View
-          style={[
-            styles.contactIcon,
-            { backgroundColor: colors.softPrimary },
-          ]}
-        >
-          <Ionicons
-            name={selectedContactId ? "person" : "person-outline"}
-            size={16}
-            color={colors.primary}
+        {selectedContact?.photo ? (
+          <Image
+            source={{ uri: selectedContact.photo }}
+            style={styles.contactPillPhoto}
           />
-        </View>
+        ) : (
+          <View
+            style={[
+              styles.contactIcon,
+              { backgroundColor: colors.softPrimary },
+            ]}
+          >
+            <Text style={[styles.contactMiniInitials, { color: colors.primary }]}>
+              {selectedContactId ? getInitials(contactName) : "?"}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.contactTextWrap}>
           <Text style={[styles.contactPillLabel, { color: colors.text }]}>
@@ -1067,20 +1206,34 @@ function ContactSelector({
         </View>
 
         {!locked ? (
-          <Ionicons
-            name={showPicker ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={colors.primary}
-          />
+          <View
+            style={[
+              styles.changeContactButton,
+              { backgroundColor: colors.softPrimary },
+            ]}
+          >
+            <Text style={[styles.changeContactText, { color: colors.primary }]}>
+              {showPicker ? "Close" : selectedContactId ? "Change" : "Choose"}
+            </Text>
+          </View>
         ) : null}
       </TouchableOpacity>
 
       {!locked && showPicker ? (
         <View style={styles.contactPickerBox}>
+          <SearchBox
+            value={searchValue}
+            colors={colors}
+            onChangeText={onSearchChange}
+          />
+
           {loading ? (
             <View style={styles.contactPickerLoading}>
               <ActivityIndicator color={colors.primary} />
-              <Text style={[styles.contactPickerLoadingText, { color: colors.text }]}>
+
+              <Text
+                style={[styles.contactPickerLoadingText, { color: colors.text }]}
+              >
                 Loading people…
               </Text>
             </View>
@@ -1094,17 +1247,22 @@ function ContactSelector({
                 },
               ]}
             >
-              <Text style={[styles.contactPickerEmptyTitle, { color: colors.title }]}>
+              <Text
+                style={[styles.contactPickerEmptyTitle, { color: colors.title }]}
+              >
                 No people found
               </Text>
 
-              <Text style={[styles.contactPickerEmptyText, { color: colors.text }]}>
-                Create a person first, then add an event.
+              <Text
+                style={[styles.contactPickerEmptyText, { color: colors.text }]}
+              >
+                Try another search or create a person first.
               </Text>
             </View>
           ) : (
-            contacts.slice(0, 10).map((contact) => {
+            contacts.map((contact) => {
               const selected = selectedContactId === contact.id;
+              const name = fullName(contact) || "Unnamed";
 
               return (
                 <TouchableOpacity
@@ -1121,28 +1279,35 @@ function ContactSelector({
                   onPress={() => onSelect(contact)}
                   activeOpacity={0.85}
                 >
-                  <View
-                    style={[
-                      styles.contactMiniAvatar,
-                      { backgroundColor: colors.softPrimary },
-                    ]}
-                  >
-                    <Text
+                  {contact.photo ? (
+                    <Image
+                      source={{ uri: contact.photo }}
+                      style={styles.contactMiniPhoto}
+                    />
+                  ) : (
+                    <View
                       style={[
-                        styles.contactMiniInitials,
-                        { color: colors.primary },
+                        styles.contactMiniAvatar,
+                        { backgroundColor: colors.softPrimary },
                       ]}
                     >
-                      {getInitials(fullName(contact))}
-                    </Text>
-                  </View>
+                      <Text
+                        style={[
+                          styles.contactMiniInitials,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        {getInitials(name)}
+                      </Text>
+                    </View>
+                  )}
 
                   <View style={styles.contactPickerTextWrap}>
                     <Text
                       style={[styles.contactPickerName, { color: colors.title }]}
                       numberOfLines={1}
                     >
-                      {fullName(contact)}
+                      {name}
                     </Text>
 
                     <Text
@@ -1151,6 +1316,8 @@ function ContactSelector({
                     >
                       {contact.relationship_label ||
                         contact.group_detail?.name ||
+                        contact.phone ||
+                        contact.email ||
                         "Person"}
                     </Text>
                   </View>
@@ -1161,7 +1328,13 @@ function ContactSelector({
                       size={20}
                       color={colors.primary}
                     />
-                  ) : null}
+                  ) : (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={17}
+                      color={colors.muted}
+                    />
+                  )}
                 </TouchableOpacity>
               );
             })
@@ -1171,14 +1344,57 @@ function ContactSelector({
     </View>
   );
 }
+
+function SearchBox({
+  value,
+  colors,
+  onChangeText,
+}: {
+  value: string;
+  colors: AddEventColors;
+  onChangeText: (value: string) => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.contactSearchBox,
+        {
+          borderColor: colors.border,
+          backgroundColor: colors.softCard,
+        },
+      ]}
+    >
+      <Ionicons name="search-outline" size={18} color={colors.text} />
+
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="Search by name, phone, email, group..."
+        placeholderTextColor={colors.muted}
+        style={[styles.contactSearchInput, { color: colors.title }]}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      {value.length > 0 ? (
+        <TouchableOpacity onPress={() => onChangeText("")} activeOpacity={0.8}>
+          <Ionicons name="close-circle" size={18} color={colors.muted} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 function CompactHeader({
   colors,
   contactName,
   selectedType,
+  onBack,
 }: {
   colors: AddEventColors;
   contactName: string;
   selectedType: EventTypeOption;
+  onBack: () => void;
 }) {
   return (
     <LinearGradient
@@ -1189,6 +1405,22 @@ function CompactHeader({
     >
       <View style={styles.headerGlowOne} />
       <View style={styles.headerGlowTwo} />
+
+      <View style={styles.headerTopActions}>
+        <TouchableOpacity
+          style={styles.headerCircleButton}
+          onPress={onBack}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="chevron-back" size={23} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <View style={styles.headerPill}>
+          <Text style={styles.headerPillEmoji}>{selectedType.icon}</Text>
+
+          <Text style={styles.headerPillText}>New moment</Text>
+        </View>
+      </View>
 
       <View style={styles.headerTopRow}>
         <View style={styles.headerIconBubble}>
@@ -1254,9 +1486,7 @@ function FieldGroup({
   return (
     <View style={styles.fieldGroup}>
       <View style={styles.labelRow}>
-        <Text style={[styles.label, { color: colors.title }]}>
-          {label}
-        </Text>
+        <Text style={[styles.label, { color: colors.title }]}>{label}</Text>
 
         {required ? (
           <Text style={[styles.requiredTag, { color: colors.primary }]}>
@@ -1383,17 +1613,11 @@ function RepeatChip({
 }
 
 function Divider({ colors }: { colors: AddEventColors }) {
-  return (
-    <View
-      style={[
-        styles.divider,
-        { backgroundColor: colors.border },
-      ]}
-    />
-  );
+  return <View style={[styles.divider, { backgroundColor: colors.border }]} />;
 }
 
 /* helpers */
+
 function normalizeContactsResponse(response: any): Contact[] {
   if (Array.isArray(response)) return response;
 
@@ -1414,6 +1638,7 @@ function getInitials(name: string) {
 
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
+
 async function createEventReminder({
   eventId,
   preset,
@@ -1497,6 +1722,7 @@ function getReminderLabel(preset: ReminderPreset) {
       return "None";
   }
 }
+
 function makeAddEventColors(settings: any): AddEventColors {
   return {
     background: settings.backgroundColor,
@@ -1549,7 +1775,7 @@ const styles = StyleSheet.create({
   },
 
   compactHeader: {
-    minHeight: 122,
+    minHeight: 154,
     borderRadius: 28,
     padding: 16,
     marginBottom: 12,
@@ -1578,6 +1804,46 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 86,
     backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  headerTopActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  headerCircleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerPill: {
+    minHeight: 36,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  headerPillEmoji: {
+    fontSize: 13,
+  },
+
+  headerPillText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
   },
 
   headerTopRow: {
@@ -1671,6 +1937,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  contactPillPhoto: {
+    width: 36,
+    height: 36,
+    borderRadius: 15,
+  },
+
   contactIcon: {
     width: 36,
     height: 36,
@@ -1696,6 +1968,120 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "900",
     marginTop: 1,
+  },
+
+  changeContactButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  changeContactText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  contactPickerBox: {
+    gap: 8,
+    marginTop: 10,
+  },
+
+  contactSearchBox: {
+    minHeight: 50,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  contactSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "700",
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+  },
+
+  contactPickerLoading: {
+    minHeight: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  contactPickerLoadingText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  contactPickerEmpty: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+
+  contactPickerEmptyTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  contactPickerEmptyText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.72,
+    marginTop: 4,
+  },
+
+  contactPickerRow: {
+    minHeight: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  contactMiniPhoto: {
+    width: 36,
+    height: 36,
+    borderRadius: 15,
+  },
+
+  contactMiniAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  contactMiniInitials: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  contactPickerTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  contactPickerName: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  contactPickerMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    opacity: 0.72,
+    marginTop: 2,
   },
 
   divider: {
@@ -1843,6 +2229,79 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  reminderGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  reminderOption: {
+    width: "48%",
+    minHeight: 94,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 11,
+  },
+
+  reminderOptionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 9,
+  },
+
+  reminderOptionTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  reminderOptionSubtitle: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    opacity: 0.72,
+    marginTop: 2,
+  },
+
+  beforeMeetCard: {
+    minHeight: 76,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginTop: 14,
+  },
+
+  beforeMeetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  beforeMeetTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  beforeMeetTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  beforeMeetText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 3,
+  },
+
   actionsRow: {
     flexDirection: "row",
     gap: 10,
@@ -1879,254 +2338,107 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-  contactPickerBox: {
-  gap: 8,
-  marginTop: 10,
-},
 
-contactPickerLoading: {
-  minHeight: 64,
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-},
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(20, 14, 10, 0.42)",
+    justifyContent: "flex-end",
+  },
 
-contactPickerLoadingText: {
-  fontSize: 12,
-  fontWeight: "800",
-},
+  successSheet: {
+    marginHorizontal: 12,
+    marginBottom: Platform.OS === "ios" ? 28 : 26,
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: Platform.OS === "android" ? 24 : 18,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
 
-contactPickerEmpty: {
-  borderRadius: 18,
-  borderWidth: 1,
-  padding: 14,
-},
+  successIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
 
-contactPickerEmptyTitle: {
-  fontSize: 14,
-  fontWeight: "900",
-},
+  successTitle: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "900",
+    textAlign: "center",
+  },
 
-contactPickerEmptyText: {
-  fontSize: 12,
-  lineHeight: 17,
-  fontWeight: "700",
-  opacity: 0.72,
-  marginTop: 4,
-},
+  successMessage: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    textAlign: "center",
+    opacity: 0.76,
+    marginTop: 6,
+  },
 
-contactPickerRow: {
-  minHeight: 58,
-  borderRadius: 18,
-  borderWidth: 1,
-  paddingHorizontal: 10,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 10,
-},
+  successPreview: {
+    width: "100%",
+    minHeight: 52,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 12,
+  },
 
-contactMiniAvatar: {
-  width: 36,
-  height: 36,
-  borderRadius: 15,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  successPreviewText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
 
-contactMiniInitials: {
-  fontSize: 12,
-  fontWeight: "900",
-},
+  successActions: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+    marginBottom: Platform.OS === "android" ? 8 : 0,
+  },
 
-contactPickerTextWrap: {
-  flex: 1,
-  minWidth: 0,
-},
+  successSecondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-contactPickerName: {
-  fontSize: 14,
-  fontWeight: "900",
-},
+  successSecondaryText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
 
-contactPickerMeta: {
-  fontSize: 12,
-  lineHeight: 16,
-  fontWeight: "700",
-  opacity: 0.72,
-  marginTop: 2,
-},
-reminderGrid: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  gap: 8,
-},
+  successPrimaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-reminderOption: {
-  width: "48%",
-  minHeight: 94,
-  borderRadius: 20,
-  borderWidth: 1,
-  padding: 11,
-},
-
-reminderOptionIcon: {
-  width: 34,
-  height: 34,
-  borderRadius: 14,
-  alignItems: "center",
-  justifyContent: "center",
-  marginBottom: 9,
-},
-
-reminderOptionTitle: {
-  fontSize: 13,
-  fontWeight: "900",
-},
-
-reminderOptionSubtitle: {
-  fontSize: 11,
-  lineHeight: 15,
-  fontWeight: "700",
-  opacity: 0.72,
-  marginTop: 2,
-},
-
-beforeMeetCard: {
-  minHeight: 76,
-  borderRadius: 22,
-  borderWidth: 1,
-  padding: 13,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 11,
-  marginTop: 14,
-},
-
-beforeMeetIcon: {
-  width: 40,
-  height: 40,
-  borderRadius: 16,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-beforeMeetTextWrap: {
-  flex: 1,
-  minWidth: 0,
-},
-
-beforeMeetTitle: {
-  fontSize: 14,
-  fontWeight: "900",
-},
-
-beforeMeetText: {
-  fontSize: 12,
-  lineHeight: 17,
-  fontWeight: "700",
-  opacity: 0.76,
-  marginTop: 3,
-},
-
-successOverlay: {
-  flex: 1,
-  backgroundColor: "rgba(20, 14, 10, 0.42)",
-  justifyContent: "flex-end",
-},
-
-successSheet: {
-  marginHorizontal: 12,
-  marginBottom: Platform.OS === "ios" ? 28 : 18,
-  borderRadius: 30,
-  borderWidth: 1,
-  paddingHorizontal: 18,
-  paddingTop: 22,
-  paddingBottom: 18,
-  alignItems: "center",
-  shadowColor: "#000",
-  shadowOpacity: 0.18,
-  shadowRadius: 22,
-  shadowOffset: { width: 0, height: 12 },
-  elevation: 12,
-},
-
-successIcon: {
-  width: 62,
-  height: 62,
-  borderRadius: 24,
-  alignItems: "center",
-  justifyContent: "center",
-  marginBottom: 14,
-},
-
-successTitle: {
-  fontSize: 22,
-  lineHeight: 27,
-  fontWeight: "900",
-  textAlign: "center",
-},
-
-successMessage: {
-  fontSize: 13,
-  lineHeight: 19,
-  fontWeight: "700",
-  textAlign: "center",
-  opacity: 0.76,
-  marginTop: 6,
-},
-
-successPreview: {
-  width: "100%",
-  minHeight: 52,
-  borderRadius: 20,
-  borderWidth: 1,
-  paddingHorizontal: 13,
-  paddingVertical: 10,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 9,
-  marginTop: 12,
-},
-
-successPreviewText: {
-  flex: 1,
-  minWidth: 0,
-  fontSize: 13,
-  lineHeight: 18,
-  fontWeight: "800",
-},
-
-successActions: {
-  width: "100%",
-  flexDirection: "row",
-  gap: 10,
-  marginTop: 16,
-},
-
-successSecondaryButton: {
-  flex: 1,
-  minHeight: 48,
-  borderRadius: 18,
-  borderWidth: 1,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-successSecondaryText: {
-  fontSize: 14,
-  fontWeight: "900",
-},
-
-successPrimaryButton: {
-  flex: 1,
-  minHeight: 48,
-  borderRadius: 18,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-successPrimaryText: {
-  fontSize: 14,
-  fontWeight: "900",
-},
+  successPrimaryText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
 });

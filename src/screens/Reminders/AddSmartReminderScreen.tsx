@@ -28,6 +28,7 @@ import {
   createCustomDateSmartReminder,
   createRelativeSmartReminder,
 } from "../../reminders/smartReminderRepository";
+import { createContactMemory } from "../../memories/repository";
 
 type Props = {
   navigation: any;
@@ -219,7 +220,9 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   function previewText() {
     const person = selectedContactName();
     const time = formatTimeForUser(timeDate);
-
+    if (isAskNextMode) {
+      return `${person} · Saved in Things to remember`;
+    }
     if (timingMode === "custom_date") {
       return `${person} · ${formatDateForUser(customDate)} at ${time}`;
     }
@@ -251,18 +254,33 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
     setTimeDate(selectedTime);
   }
 
-  async function onSave() {
-    if (saving) return;
+async function onSave() {
+  if (saving) return;
 
-    if (!selectedContactId) {
-      Alert.alert("Smart reminder", "Please choose a person.");
-      return;
-    }
+  if (!selectedContactId) {
+    Alert.alert("Smart reminder", "Please choose a person.");
+    return;
+  }
 
-    const text = message.trim();
+  const text = message.trim();
 
-    if (!text) {
-      Alert.alert("Smart reminder", "Write what you want to remember.");
+  if (!text) {
+    Alert.alert("Smart reminder", "Write what you want to remember.");
+    return;
+  }
+
+  try {
+    setSaving(true);
+
+    if (isAskNextMode) {
+      await createContactMemory(selectedContactId as any, {
+        text,
+        memory_type: "ask_next_time",
+        date: null,
+        is_pinned: true,
+      } as any);
+
+      setSuccessVisible(true);
       return;
     }
 
@@ -271,36 +289,33 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
       return;
     }
 
-    try {
-      setSaving(true);
-
-      if (timingMode === "relative") {
-        await createRelativeSmartReminder({
-          contactId: selectedContactId,
-          text,
-          daysFromNow: selectedDays,
-          timeOfDay: toTimeOfDay(timeDate),
-        });
-      } else {
-        await createCustomDateSmartReminder({
-          contactId: selectedContactId,
-          text,
-          date: toYMD(customDate),
-          timeOfDay: toTimeOfDay(timeDate),
-        });
-      }
-
-      setSuccessVisible(true);
-    } catch (error: any) {
-      console.log("Create smart reminder failed", error);
-      Alert.alert(
-        "Smart reminder",
-        error?.message || "Could not create reminder."
-      );
-    } finally {
-      setSaving(false);
+    if (timingMode === "relative") {
+      await createRelativeSmartReminder({
+        contactId: selectedContactId,
+        text,
+        daysFromNow: selectedDays,
+        timeOfDay: toTimeOfDay(timeDate),
+      });
+    } else {
+      await createCustomDateSmartReminder({
+        contactId: selectedContactId,
+        text,
+        date: toYMD(customDate),
+        timeOfDay: toTimeOfDay(timeDate),
+      });
     }
+
+    setSuccessVisible(true);
+  } catch (error: any) {
+    console.log("Create smart reminder failed", error);
+    Alert.alert(
+      "Smart reminder",
+      error?.message || "Could not create reminder."
+    );
+  } finally {
+    setSaving(false);
   }
+}
 
   if (loading) {
     return (

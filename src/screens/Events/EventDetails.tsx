@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -346,20 +347,26 @@ async function saveReminder(data: ReminderFormData) {
               },
             ]}
           >
-            <ContactShortcutCard
-  colors={colors}
-  contactName={event.contact_name || "Contact"}
-  from={from}
-  onPress={openContactProfile}
-/>
+          <ContactShortcutCard
+              colors={colors}
+              contactName={event.contact_name || "Contact"}
+              contactPhoto={
+                (event as any).contact_photo ||
+                (event as any).contact_detail?.photo ||
+                (event as any).contact_detail?.photo_uri ||
+                null
+              }
+              from={from}
+              onPress={openContactProfile}
+            />
 
-{canShowBeforeMeet(event) ? (
-  <BeforeMeetCard
-    colors={colors}
-    event={event}
-    onPress={openBeforeMeetPrep}
-  />
-) : null}
+            {canShowBeforeMeet(event) ? (
+              <BeforeMeetCard
+                colors={colors}
+                event={event}
+                onPress={openBeforeMeetPrep}
+              />
+            ) : null}
             <SectionTitle
               icon="information-circle-outline"
               title="Event details"
@@ -584,11 +591,13 @@ async function saveReminder(data: ReminderFormData) {
 function ContactShortcutCard({
   colors,
   contactName,
+  contactPhoto,
   from,
   onPress,
 }: {
   colors: EventDetailsColors;
   contactName: string;
+  contactPhoto?: string | null;
   from?: string;
   onPress: () => void;
 }) {
@@ -607,14 +616,28 @@ function ContactShortcutCard({
       onPress={onPress}
       activeOpacity={0.86}
     >
-      <View
-        style={[
-          styles.contactShortcutIcon,
-          { backgroundColor: colors.softPrimary },
-        ]}
-      >
-        <Ionicons name="person-outline" size={19} color={colors.primary} />
-      </View>
+      {contactPhoto ? (
+        <Image
+          source={{ uri: contactPhoto }}
+          style={styles.contactShortcutPhoto}
+        />
+      ) : (
+        <View
+          style={[
+            styles.contactShortcutIcon,
+            { backgroundColor: colors.softPrimary },
+          ]}
+        >
+          <Text
+            style={[
+              styles.contactShortcutInitials,
+              { color: colors.primary },
+            ]}
+          >
+            {getInitials(contactName)}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.contactShortcutTextWrap}>
         <Text style={[styles.contactShortcutLabel, { color: colors.text }]}>
@@ -623,7 +646,7 @@ function ContactShortcutCard({
 
         <Text
           style={[styles.contactShortcutName, { color: colors.title }]}
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {contactName}
         </Text>
@@ -638,7 +661,10 @@ function ContactShortcutCard({
           },
         ]}
       >
-        <Text style={[styles.contactShortcutButtonText, { color: colors.primary }]}>
+        <Text
+          style={[styles.contactShortcutButtonText, { color: colors.primary }]}
+          numberOfLines={2}
+        >
           {actionLabel}
         </Text>
       </View>
@@ -1101,11 +1127,11 @@ function CompactEventHeader({
         <View style={styles.headerTextWrap}>
           <Text style={styles.headerEyebrow}>EVENT DETAILS</Text>
 
-          <Text style={styles.headerTitle} numberOfLines={1}>
+         <Text style={styles.headerTitle} numberOfLines={3}>
             {event.title || "Untitled event"}
           </Text>
 
-          <Text style={styles.headerSubtitle} numberOfLines={1}>
+          <Text style={styles.headerSubtitle} numberOfLines={2}>
             For {event.contact_name || "Contact"}
           </Text>
         </View>
@@ -1180,15 +1206,14 @@ function DetailRow({
         </Text>
       </View>
 
-      <Text
-        style={[
-          styles.detailValue,
-          { color: valueColor || colors.title },
-        ]}
-        numberOfLines={1}
-      >
-        {value}
-      </Text>
+     <Text
+          style={[
+            styles.detailValue,
+            { color: valueColor || colors.title },
+          ]}
+        >
+          {value}
+        </Text>
     </View>
   );
 }
@@ -1379,7 +1404,17 @@ function getEventMeta(type: number) {
     label: meta?.label ?? "Event",
   };
 }
+function getInitials(name?: string | null) {
+  const parts = (name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
 function getCountdownText(daysUntil?: number | null) {
   if (daysUntil === null || daysUntil === undefined) return null;
   if (daysUntil < 0 || daysUntil >= 30) return null;
@@ -1461,7 +1496,97 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+contactShortcutCard: {
+  minHeight: 82,
+  borderRadius: 24,
+  borderWidth: 1,
+  padding: 13,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 11,
+  shadowOpacity: 0.05,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 2,
+},
 
+contactShortcutIcon: {
+  width: 48,
+  height: 48,
+  borderRadius: 19,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+contactShortcutTextWrap: {
+  flex: 1,
+  minWidth: 0,
+},
+
+contactShortcutName: {
+  fontSize: 15,
+  lineHeight: 20,
+  fontWeight: "900",
+  marginTop: 2,
+},
+
+contactShortcutButton: {
+  maxWidth: 92,
+  minHeight: 34,
+  borderRadius: 999,
+  borderWidth: 1,
+  paddingHorizontal: 10,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+contactShortcutButtonText: {
+  fontSize: 11,
+  lineHeight: 14,
+  fontWeight: "900",
+  textAlign: "center",
+},
+
+headerTitle: {
+  color: "#FFFFFF",
+  fontSize: 26,
+  lineHeight: 31,
+  fontWeight: "900",
+  marginTop: 3,
+},
+
+headerSubtitle: {
+  color: "rgba(255,255,255,0.78)",
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "700",
+  marginTop: 2,
+},
+
+detailRow: {
+  minHeight: 48,
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 12,
+  paddingVertical: 6,
+},
+
+detailLeft: {
+  width: 125,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 9,
+},
+
+detailValue: {
+  flex: 1,
+  minWidth: 0,
+  textAlign: "right",
+  fontSize: 14,
+  lineHeight: 19,
+  fontWeight: "900",
+},
   page: {
     paddingHorizontal: 14,
     paddingTop: 18,
@@ -1580,21 +1705,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 26,
-    lineHeight: 31,
-    fontWeight: "900",
-    marginTop: 3,
-  },
-
-  headerSubtitle: {
-    color: "rgba(255,255,255,0.78)",
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
-    marginTop: 2,
-  },
 
   countdownPill: {
     alignSelf: "flex-start",
@@ -1657,19 +1767,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
 
-  detailRow: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  detailLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-  },
 
   detailIcon: {
     width: 32,
@@ -1685,13 +1782,6 @@ const styles = StyleSheet.create({
     opacity: 0.76,
   },
 
-  detailValue: {
-    flex: 1,
-    minWidth: 0,
-    textAlign: "right",
-    fontSize: 14,
-    fontWeight: "900",
-  },
 
   scheduleBox: {
     marginTop: 10,
@@ -1863,32 +1953,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-  contactShortcutCard: {
-  minHeight: 78,
-  borderRadius: 24,
-  borderWidth: 1,
-  padding: 13,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 11,
-  shadowOpacity: 0.05,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 2,
-},
 
-contactShortcutIcon: {
-  width: 44,
-  height: 44,
-  borderRadius: 18,
-  alignItems: "center",
-  justifyContent: "center",
-},
 
-contactShortcutTextWrap: {
-  flex: 1,
-  minWidth: 0,
-},
 
 contactShortcutLabel: {
   fontSize: 12,
@@ -1896,25 +1962,6 @@ contactShortcutLabel: {
   opacity: 0.72,
 },
 
-contactShortcutName: {
-  fontSize: 15,
-  fontWeight: "900",
-  marginTop: 2,
-},
-
-contactShortcutButton: {
-  minHeight: 34,
-  borderRadius: 999,
-  borderWidth: 1,
-  paddingHorizontal: 10,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-contactShortcutButtonText: {
-  fontSize: 11,
-  fontWeight: "900",
-},
 
 beforeMeetCard: {
   minHeight: 86,
@@ -1950,6 +1997,16 @@ beforeMeetText: {
   fontWeight: "700",
   opacity: 0.76,
   marginTop: 3,
+},
+  contactShortcutPhoto: {
+  width: 48,
+  height: 48,
+  borderRadius: 19,
+},
+
+contactShortcutInitials: {
+  fontSize: 13,
+  fontWeight: "900",
 },
 });
 
@@ -2094,5 +2151,5 @@ const modalStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
-  
+
 });

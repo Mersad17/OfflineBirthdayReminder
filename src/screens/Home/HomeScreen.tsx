@@ -3,10 +3,12 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
-  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -30,6 +32,7 @@ import { fetchHomeSummary } from "../../events/repository";
 import BeforeMeetSearchCard from "../BeforeMeet/BeforeMeetSearchCard";
 import { useAccess } from "../../access/AccessContext";
 import { getRemainingContacts } from "../../access/plans";
+
 type Props = {
   navigation: any;
 };
@@ -77,19 +80,24 @@ type HomeColors = {
 
 const HOME_TODAY_LIMIT = 5;
 const HOME_UPCOMING_LIMIT = 5;
+const HOME_STALE_AFTER_MS = 30_000;
 
 export default function HomeScreen({ navigation }: Props) {
   const { settings } = useAppearance();
+  const { access } = useAccess();
   const { t } = useTranslation("home");
 
   const colors = useMemo(() => makeHomeColors(settings), [settings]);
-const { access } = useAccess();
+
   const [todayItems, setTodayItems] = useState<HomeItem[]>([]);
   const [upcoming, setUpcoming] = useState<HomeItem[]>([]);
   const [typeInsights, setTypeInsights] = useState<TypeInsight[]>([]);
   const [upcomingWeekCount, setUpcomingWeekCount] = useState(0);
   const [totalContacts, setTotalContacts] = useState(0);
+
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [showAllToday, setShowAllToday] = useState(false);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
@@ -97,6 +105,11 @@ const { access } = useAccess();
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<
     EventTypeValue | "all"
   >("all");
+
+  const loadingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const hasLoadedOnceRef = useRef(false);
+  const lastLoadedAtRef = useRef<number | null>(null);
 
   const mapDtoToHomeItem = useCallback(
     (dto: HomeEventDTO): HomeItem => {
@@ -116,127 +129,116 @@ const { access } = useAccess();
     },
     [t]
   );
-function AccessStatusCard({
-  access,
-  totalContacts,
-  colors,
-  onPress,
-}: {
-  access: any;
-  totalContacts: number;
-  colors: HomeColors;
-  onPress: () => void;
-}) {
-  const remaining = getRemainingContacts(access, totalContacts);
 
-  const limitText =
-    access.maxContacts === "unlimited"
-      ? "Unlimited people unlocked"
-      : `${totalContacts}/${access.maxContacts} people`;
+  const loadHome = useCallback(
+    async ({
+      showFullLoading = false,
+    }: {
+      showFullLoading?: boolean;
+    } = {}) => {
+      if (loadingRef.current) return;
 
-  const subtitle = access.isBeta
-    ? "Full access during private beta."
-    : remaining === "unlimited"
-      ? "You can add unlimited people."
-      : `${remaining} people remaining.`;
+      const requestId = ++requestIdRef.current;
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.accessCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          shadowColor: colors.shadow,
-        },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.88}
-    >
-      <View style={[styles.accessIcon, { backgroundColor: colors.softPrimary }]}>
-        <Ionicons
-          name={access.isBeta ? "flask-outline" : "shield-checkmark-outline"}
-          size={18}
-          color={colors.primary}
-        />
-      </View>
+      loadingRef.current = true;
 
-      <View style={styles.accessTextWrap}>
-        <Text style={[styles.accessTitle, { color: colors.title }]}>
-          {access.label}
-        </Text>
+      if (showFullLoading) {
+        setLoading(true);
+      }
 
-        <Text style={[styles.accessSubtitle, { color: colors.text }]}>
-          {limitText} · {subtitle}
-        </Text>
-      </View>
+      try {
+        const summary: HomeSummaryDTO = await fetchHomeSummary();
 
-      <Ionicons name="chevron-forward" size={17} color={colors.text} />
-    </TouchableOpacity>
+        if (requestId !== requestIdRef.current) return;
+
+        const mappedToday = summary.today.map(mapDtoToHomeItem);
+
+        const mappedUpcoming = summary.upcoming
+          .map(mapDtoToHomeItem)
+          .filter((item) => !item.isToday && item.daysUntil > 0)
+          .sort((a, b) => a.daysUntil - b.daysUntil);
+
+        setTodayItems(mappedToday);
+        setUpcoming(mappedUpcoming);
+
+        const typeCountMap: Record<EventTypeValue, number> = {
+          1: 0,
+          2: 0,
+          3: 0,
+          4: 0,
+          5: 0,
+          6: 0,
+        };
+
+        mappedUpcoming.forEach((item) => {
+          typeCountMap[item.type] = (typeCountMap[item.type] ?? 0) + 1;
+        });
+
+        const insights: TypeInsight[] = (Object.entries(typeCountMap) as [
+          string,
+          number
+        ][])
+          .filter(([, count]) => count > 0)
+          .map(([type, count]) => ({
+            type: Number(type) as EventTypeValue,
+            count,
+          }));
+
+        setTypeInsights(insights);
+        setUpcomingWeekCount(summary.meta.upcoming_week_count ?? 0);
+        setTotalContacts(summary.meta.total_contacts ?? 0);
+
+        lastLoadedAtRef.current = Date.now();
+      } catch (error) {
+        if (requestId === requestIdRef.current) {
+          console.log("Home load error", error);
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          loadingRef.current = false;
+          hasLoadedOnceRef.current = true;
+          setHasLoadedOnce(true);
+          setLoading(false);
+        }
+      }
+    },
+    [mapDtoToHomeItem]
   );
-}
-  const loadHome = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const summary: HomeSummaryDTO = await fetchHomeSummary();
-
-      const mappedToday = summary.today.map(mapDtoToHomeItem);
-
-      const mappedUpcoming = summary.upcoming
-        .map(mapDtoToHomeItem)
-        .filter((item) => !item.isToday && item.daysUntil > 0)
-        .sort((a, b) => a.daysUntil - b.daysUntil);
-
-      setTodayItems(mappedToday);
-      setUpcoming(mappedUpcoming);
-
-      const typeCountMap: Record<EventTypeValue, number> = {
-        1: 0,
-        2: 0,
-        3: 0,
-        4: 0,
-        5: 0,
-        6: 0,
-      };
-
-      mappedUpcoming.forEach((item) => {
-        typeCountMap[item.type] = (typeCountMap[item.type] ?? 0) + 1;
-      });
-
-      const insights: TypeInsight[] = (Object.entries(typeCountMap) as [
-        string,
-        number
-      ][])
-        .filter(([, count]) => count > 0)
-        .map(([type, count]) => ({
-          type: Number(type) as EventTypeValue,
-          count,
-        }));
-
-      setTypeInsights(insights);
-      setUpcomingWeekCount(summary.meta.upcoming_week_count ?? 0);
-      setTotalContacts(summary.meta.total_contacts ?? 0);
-    } catch (error) {
-      console.log("Home load error", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [mapDtoToHomeItem]);
-
-  useEffect(() => {
-    loadHome();
-  }, [loadHome]);
 
   useFocusEffect(
     useCallback(() => {
-      loadHome();
+      const now = Date.now();
+
+      if (!hasLoadedOnceRef.current) {
+        loadHome({ showFullLoading: true });
+        return;
+      }
+
+      const isStale =
+        !lastLoadedAtRef.current ||
+        now - lastLoadedAtRef.current > HOME_STALE_AFTER_MS;
+
+      if (isStale) {
+        loadHome({ showFullLoading: false });
+      }
     }, [loadHome])
   );
 
   useEffect(() => {
     setShowAllUpcoming(false);
   }, [selectedTypeFilter]);
+
+  async function onRefresh() {
+    if (refreshing) return;
+
+    setRefreshing(true);
+
+    try {
+      await loadHome({ showFullLoading: false });
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const hasEvents = todayItems.length > 0 || upcoming.length > 0;
 
@@ -267,10 +269,6 @@ function AccessStatusCard({
     });
   }
 
-  function openAddContact() {
-    navigation.navigate("AddContact");
-  }
-
   function renderItemRow(item: HomeItem) {
     return (
       <HomeEventRow
@@ -291,10 +289,31 @@ function AccessStatusCard({
       : t("hero.nothingThisWeek")
     : t("hero.addEvents");
 
+  const showSkeleton = loading && !hasLoadedOnce && !refreshing;
+
+  if (showSkeleton) {
+    return (
+      <Screen>
+        <HomeSkeleton colors={colors} />
+      </Screen>
+    );
+  }
+
   return (
-    <Screen scroll keyboardShouldPersistTaps="always">
+    <Screen>
       <View style={[styles.page, { backgroundColor: colors.background }]}>
-        <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          contentContainerStyle={styles.container}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        >
           <View style={styles.appBar}>
             <View style={styles.appTitleRow}>
               <View
@@ -343,12 +362,7 @@ function AccessStatusCard({
           </View>
 
           <LinearGradient
-            colors={
-              [
-                colors.primary,
-                colors.button,
-              ] as [string, string]
-            }
+            colors={[colors.primary, colors.button] as [string, string]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
@@ -357,22 +371,18 @@ function AccessStatusCard({
             <View style={styles.heroGlowTwo} />
 
             <View style={styles.heroContent}>
-            
+              <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
+                {t("hero.hello")}
+              </Text>
 
-             <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
-              {t("hero.hello")}
-            </Text>
+              <Text
+                style={[styles.heroSubtitle, { color: colors.buttonText }]}
+                numberOfLines={3}
+              >
+                {heroText}
+              </Text>
 
-            <Text
-              style={[styles.heroSubtitle, { color: colors.buttonText }]}
-              numberOfLines={3}
-            >
-              {heroText}
-            </Text>
-
-            <BeforeMeetSearchCard colors={colors} navigation={navigation} />
-
-
+              <BeforeMeetSearchCard colors={colors} navigation={navigation} />
             </View>
           </LinearGradient>
 
@@ -478,11 +488,12 @@ function AccessStatusCard({
               />
             )}
           </View>
-<AccessStatusCard
+
+          <AccessStatusCard
   access={access}
   totalContacts={totalContacts}
   colors={colors}
-  onPress={() => navigation.navigate("Settings", { screen: "PlanAccess" })}
+  onPress={() => navigation.navigate("PlanAccess")}
 />
           <View style={styles.section}>
             <SectionHeader
@@ -491,22 +502,7 @@ function AccessStatusCard({
               colors={colors}
             />
 
-            {loading ? (
-              <View
-                style={[
-                  styles.loadingCard,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <ActivityIndicator color={colors.primary} />
-                <Text style={[styles.loadingCardText, { color: colors.text }]}>
-                  {t("upcoming.loading")}
-                </Text>
-              </View>
-            ) : upcomingSections.length === 0 ? (
+            {upcomingSections.length === 0 ? (
               <EmptyInlineCard
                 icon="calendar-clear-outline"
                 title={t("upcoming.emptyFilter")}
@@ -674,9 +670,217 @@ function AccessStatusCard({
               </View>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Screen>
+  );
+}
+
+/* skeleton */
+
+function HomeSkeleton({ colors }: { colors: HomeColors }) {
+  return (
+    <View style={[styles.page, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
+        <View style={styles.skeletonAppBar}>
+          <View style={styles.skeletonAppLeft}>
+            <SkeletonBlock colors={colors} style={styles.skeletonAppIcon} />
+
+            <View style={styles.skeletonAppText}>
+              <SkeletonBlock colors={colors} style={styles.skeletonAppTitle} />
+              <SkeletonBlock colors={colors} style={styles.skeletonAppSubtitle} />
+            </View>
+          </View>
+
+          <SkeletonBlock colors={colors} style={styles.skeletonUserChip} />
+        </View>
+
+        <View style={styles.skeletonHeroCard}>
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroTitle} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroLine} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroLineSmall} />
+          <SkeletonBlock colors={colors} style={styles.skeletonBeforeMeet} />
+        </View>
+
+        <View style={styles.statsRow}>
+          <SkeletonStatCard colors={colors} />
+          <SkeletonStatCard colors={colors} />
+        </View>
+
+        <SkeletonSection colors={colors} />
+        <SkeletonAccessCard colors={colors} />
+        <SkeletonSection colors={colors} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function SkeletonStatCard({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonStatCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonSmallCircle} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatLabel} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatValue} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatHint} />
+    </View>
+  );
+}
+
+function SkeletonSection({ colors }: { colors: HomeColors }) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.skeletonSectionHeader}>
+        <SkeletonBlock colors={colors} style={styles.skeletonSectionIcon} />
+        <SkeletonBlock colors={colors} style={styles.skeletonSectionTitle} />
+      </View>
+
+      <SkeletonEventRow colors={colors} />
+      <SkeletonEventRow colors={colors} />
+    </View>
+  );
+}
+
+function SkeletonEventRow({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonEventCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonTimelineDot} />
+
+      <View style={styles.skeletonEventText}>
+        <SkeletonBlock colors={colors} style={styles.skeletonEventTitle} />
+        <SkeletonBlock colors={colors} style={styles.skeletonEventSubtitle} />
+        <SkeletonBlock colors={colors} style={styles.skeletonEventMeta} />
+      </View>
+
+      <SkeletonBlock colors={colors} style={styles.skeletonDatePill} />
+    </View>
+  );
+}
+
+function SkeletonAccessCard({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonAccessCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonAccessIcon} />
+
+      <View style={styles.skeletonAccessText}>
+        <SkeletonBlock colors={colors} style={styles.skeletonAccessTitle} />
+        <SkeletonBlock colors={colors} style={styles.skeletonAccessSubtitle} />
+      </View>
+
+      <SkeletonBlock colors={colors} style={styles.skeletonAccessChevron} />
+    </View>
+  );
+}
+
+function SkeletonBlock({
+  colors,
+  style,
+}: {
+  colors: HomeColors;
+  style?: any;
+}) {
+  return (
+    <View
+      style={[
+        styles.skeletonBlock,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/* components */
+
+function AccessStatusCard({
+  access,
+  totalContacts,
+  colors,
+  onPress,
+}: {
+  access: any;
+  totalContacts: number;
+  colors: HomeColors;
+  onPress: () => void;
+}) {
+  const remaining = getRemainingContacts(access, totalContacts);
+
+  const limitText =
+    access.maxContacts === "unlimited"
+      ? "Unlimited people unlocked"
+      : `${totalContacts}/${access.maxContacts} people`;
+
+  const subtitle = access.isBeta
+    ? "Full access during private beta."
+    : remaining === "unlimited"
+    ? "You can add unlimited people."
+    : `${remaining} people remaining.`;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.accessCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      <View style={[styles.accessIcon, { backgroundColor: colors.softPrimary }]}>
+        <Ionicons
+          name={access.isBeta ? "flask-outline" : "shield-checkmark-outline"}
+          size={18}
+          color={colors.primary}
+        />
+      </View>
+
+      <View style={styles.accessTextWrap}>
+        <Text style={[styles.accessTitle, { color: colors.title }]}>
+          {access.label}
+        </Text>
+
+        <Text style={[styles.accessSubtitle, { color: colors.text }]}>
+          {limitText} · {subtitle}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={17} color={colors.text} />
+    </TouchableOpacity>
   );
 }
 
@@ -719,19 +923,11 @@ function HomeEventRow({
           ]}
         >
           <View
-            style={[
-              styles.timelineDotInner,
-              { backgroundColor: accentColor },
-            ]}
+            style={[styles.timelineDotInner, { backgroundColor: accentColor }]}
           />
         </View>
 
-        <View
-          style={[
-            styles.timelineLine,
-            { backgroundColor: colors.border },
-          ]}
-        />
+        <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
       </View>
 
       <View style={styles.eventContent}>
@@ -766,12 +962,7 @@ function HomeEventRow({
           </View>
 
           <View style={styles.eventRight}>
-            <View
-              style={[
-                styles.datePill,
-                { backgroundColor: colors.softCard },
-              ]}
-            >
+            <View style={[styles.datePill, { backgroundColor: colors.softCard }]}>
               <Text style={[styles.datePillText, { color: colors.text }]}>
                 {item.dateLabel}
               </Text>
@@ -853,26 +1044,15 @@ function StatCard({
         },
       ]}
     >
-      <View
-        style={[
-          styles.statIconBubble,
-          { backgroundColor: colors.softPrimary },
-        ]}
-      >
+      <View style={[styles.statIconBubble, { backgroundColor: colors.softPrimary }]}>
         <Ionicons name={icon} size={16} color={colors.primary} />
       </View>
 
-      <Text style={[styles.statLabel, { color: colors.text }]}>
-        {label}
-      </Text>
+      <Text style={[styles.statLabel, { color: colors.text }]}>{label}</Text>
 
-      <Text style={[styles.statValue, { color: colors.title }]}>
-        {value}
-      </Text>
+      <Text style={[styles.statValue, { color: colors.title }]}>{value}</Text>
 
-      <Text style={[styles.statHint, { color: colors.text }]}>
-        {hint}
-      </Text>
+      <Text style={[styles.statHint, { color: colors.text }]}>{hint}</Text>
     </View>
   );
 }
@@ -925,12 +1105,7 @@ function SectionHeader({
   return (
     <View style={styles.sectionHeaderRow}>
       <View style={styles.sectionTitleLeft}>
-        <View
-          style={[
-            styles.sectionIconBubble,
-            { backgroundColor: colors.softPrimary },
-          ]}
-        >
+        <View style={[styles.sectionIconBubble, { backgroundColor: colors.softPrimary }]}>
           <Ionicons name={icon} size={15} color={colors.primary} />
         </View>
 
@@ -963,12 +1138,7 @@ function EmptyInlineCard({
         },
       ]}
     >
-      <View
-        style={[
-          styles.emptyIcon,
-          { backgroundColor: colors.softPrimary },
-        ]}
-      >
+      <View style={[styles.emptyIcon, { backgroundColor: colors.softPrimary }]}>
         <Ionicons name={icon} size={18} color={colors.primary} />
       </View>
 
@@ -977,9 +1147,7 @@ function EmptyInlineCard({
           {title}
         </Text>
 
-        <Text style={[styles.emptyText, { color: colors.text }]}>
-          {text}
-        </Text>
+        <Text style={[styles.emptyText, { color: colors.text }]}>{text}</Text>
       </View>
     </View>
   );
@@ -1057,18 +1225,18 @@ function ShowMoreButton({
 
 function makeHomeColors(settings: any): HomeColors {
   return {
-    background: settings.backgroundColor,
-    card: settings.cardColor,
-    title: settings.titleColor,
-    text: settings.textColor,
-    primary: settings.primaryColor,
-    button: settings.buttonColor || settings.primaryColor,
-    buttonText: settings.buttonTextColor,
-    border: withOpacity(settings.textColor, "18"),
-    muted: withOpacity(settings.textColor, "88"),
-    softCard: withOpacity(settings.textColor, "08"),
-    softPrimary: withOpacity(settings.primaryColor, "16"),
-    softButtonText: withOpacity(settings.buttonTextColor, "18"),
+    background: settings.backgroundColor ?? "#F8F4FF",
+    card: settings.cardColor ?? "#FFFFFF",
+    title: settings.titleColor ?? "#10162F",
+    text: settings.textColor ?? "#5F6680",
+    primary: settings.primaryColor ?? "#6651E5",
+    button: settings.buttonColor || settings.primaryColor || "#6651E5",
+    buttonText: settings.buttonTextColor ?? "#FFFFFF",
+    border: withOpacity(settings.textColor ?? "#10162F", "18"),
+    muted: withOpacity(settings.textColor ?? "#10162F", "88"),
+    softCard: withOpacity(settings.textColor ?? "#10162F", "08"),
+    softPrimary: withOpacity(settings.primaryColor ?? "#6651E5", "16"),
+    softButtonText: withOpacity(settings.buttonTextColor ?? "#FFFFFF", "18"),
     danger: "#EE6A5E",
     warning: "#EBA55B",
     success: "#7DA56D",
@@ -1143,10 +1311,7 @@ function formatShortCountdown(daysUntil: number, t: any) {
   return t("countdown.weeks", { count: weeks });
 }
 
-function buildUpcomingSections(
-  items: HomeItem[],
-  t: any
-): UpcomingSection[] {
+function buildUpcomingSections(items: HomeItem[], t: any): UpcomingSection[] {
   const week: HomeItem[] = [];
   const month: HomeItem[] = [];
 
@@ -1210,7 +1375,6 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    flex: 1,
     paddingHorizontal: 14,
     paddingTop: 18,
     paddingBottom: 34,
@@ -1309,18 +1473,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  heroIconBubble: {
-    width: 50,
-    height: 50,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 13,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-
   heroGreeting: {
     fontSize: 29,
     lineHeight: 34,
@@ -1335,47 +1487,6 @@ const styles = StyleSheet.create({
     opacity: 0.82,
     marginTop: 7,
     maxWidth: 310,
-  },
-
-  heroFooter: {
-    marginTop: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  primaryButton: {
-    minHeight: 42,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    borderWidth: 1,
-  },
-
-  primaryButtonText: {
-    fontSize: 13,
-    fontWeight: "900",
-  },
-
-  secondaryHeroRow: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 5,
-  },
-
-  secondaryHeroText: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: "800",
-    opacity: 0.78,
   },
 
   statsRow: {
@@ -1726,21 +1837,6 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
 
-  loadingCard: {
-    minHeight: 72,
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  loadingCardText: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-
   emptyCard: {
     minHeight: 78,
     borderRadius: 24,
@@ -1889,46 +1985,287 @@ const styles = StyleSheet.create({
     opacity: 0.76,
     marginTop: 5,
   },
-accessCard: {
-  minHeight: 64,
-  borderRadius: 22,
-  borderWidth: 1,
-  paddingHorizontal: 13,
-  paddingVertical: 12,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 11,
-  marginTop: 12,
-  shadowOpacity: 0.05,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 7 },
-  elevation: 2,
-},
 
-accessIcon: {
-  width: 40,
-  height: 40,
-  borderRadius: 16,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  accessCard: {
+    minHeight: 64,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginTop: 12,
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 2,
+  },
 
-accessTextWrap: {
-  flex: 1,
-  minWidth: 0,
-},
+  accessIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-accessTitle: {
-  fontSize: 14,
-  lineHeight: 18,
-  fontWeight: "900",
-},
+  accessTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
 
-accessSubtitle: {
-  fontSize: 12,
-  lineHeight: 17,
-  fontWeight: "700",
-  opacity: 0.76,
-  marginTop: 2,
-},
+  accessTitle: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+
+  accessSubtitle: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 2,
+  },
+
+  skeletonBlock: {
+    borderWidth: 1,
+    opacity: 0.86,
+  },
+
+  skeletonAppBar: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+
+  skeletonAppLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  skeletonAppIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 16,
+  },
+
+  skeletonAppText: {
+    flex: 1,
+    gap: 6,
+  },
+
+  skeletonAppTitle: {
+    width: 130,
+    height: 17,
+    borderRadius: 9,
+  },
+
+  skeletonAppSubtitle: {
+    width: 190,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonUserChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+
+  skeletonHeroCard: {
+    minHeight: 206,
+    borderRadius: 32,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: "rgba(0,0,0,0.04)",
+    overflow: "hidden",
+  },
+
+  skeletonHeroTitle: {
+    width: 165,
+    height: 32,
+    borderRadius: 14,
+    marginTop: 6,
+  },
+
+  skeletonHeroLine: {
+    width: "82%",
+    height: 14,
+    borderRadius: 7,
+    marginTop: 14,
+  },
+
+  skeletonHeroLineSmall: {
+    width: "58%",
+    height: 14,
+    borderRadius: 7,
+    marginTop: 8,
+  },
+
+  skeletonBeforeMeet: {
+    height: 78,
+    borderRadius: 24,
+    marginTop: 22,
+  },
+
+  skeletonStatCard: {
+    flex: 1,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+
+  skeletonSmallCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+
+  skeletonStatLabel: {
+    width: 70,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  skeletonStatValue: {
+    width: 42,
+    height: 24,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+
+  skeletonStatHint: {
+    width: "78%",
+    height: 11,
+    borderRadius: 6,
+    marginTop: 7,
+  },
+
+  skeletonSectionHeader: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 9,
+  },
+
+  skeletonSectionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 13,
+  },
+
+  skeletonSectionTitle: {
+    width: 150,
+    height: 18,
+    borderRadius: 9,
+  },
+
+  skeletonEventCard: {
+    minHeight: 86,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 9,
+    padding: 12,
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+
+  skeletonTimelineDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 12,
+  },
+
+  skeletonEventText: {
+    flex: 1,
+    gap: 8,
+  },
+
+  skeletonEventTitle: {
+    width: "76%",
+    height: 15,
+    borderRadius: 8,
+  },
+
+  skeletonEventSubtitle: {
+    width: "52%",
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonEventMeta: {
+    width: "62%",
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonDatePill: {
+    width: 54,
+    height: 24,
+    borderRadius: 999,
+    marginLeft: 10,
+  },
+
+  skeletonAccessCard: {
+    minHeight: 64,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginTop: 12,
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 2,
+  },
+
+  skeletonAccessIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+  },
+
+  skeletonAccessText: {
+    flex: 1,
+    gap: 7,
+  },
+
+  skeletonAccessTitle: {
+    width: "50%",
+    height: 14,
+    borderRadius: 7,
+  },
+
+  skeletonAccessSubtitle: {
+    width: "74%",
+    height: 12,
+    borderRadius: 6,
+  },
+
+  skeletonAccessChevron: {
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+  },
 });
