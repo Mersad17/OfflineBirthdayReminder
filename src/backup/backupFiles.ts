@@ -7,19 +7,63 @@ import { Platform } from "react-native";
 
 import {
   ENCRYPTED_BACKUP_FORMAT,
+  FULL_BACKUP_INCLUDE,
   PLAIN_BACKUP_FORMAT,
   BackupExportOptions,
-  BackupMode,
-  EncryptedBackupV1,
-  PlainBackupV1,
+  BackupImportOptions,
+  BackupImportPlan,
+  BackupImportResult,
+  BackupPreview,
+  LegacyBackupMode,
+  PlainBackupV2,
 } from "./types";
 import {
+  buildBackupPreview,
+  buildImportPlan,
   buildPlainBackup,
   importPlainBackupToDatabase,
+  validatePlainBackup,
 } from "./backupRepository";
 import { decryptBackupJson, encryptBackupJson } from "./backupCrypto";
 import { rescheduleActiveImportedReminders } from "./rescheduleImportedReminders";
 import { BackupProgressCallback, clampPercent } from "./progress";
+
+type ExportBackupFileOptions = {
+  passwordProtected: boolean;
+  password?: string;
+} & Partial<Omit<BackupExportOptions, "passwordProtected" | "password">>;
+
+export type ExportedBackupFile = {
+  uri: string;
+  filename: string;
+  sizeBytes: number;
+  passwordProtected: boolean;
+  preview: BackupPreview;
+};
+
+export type PickedBackupForPreview = {
+  uri: string;
+  filename: string;
+  sizeBytes: number;
+  encrypted: boolean;
+  plainBackup: PlainBackupV2;
+  preview: BackupPreview;
+};
+
+export type PickBackupPreviewResult =
+  | {
+      canceled: true;
+      picked: null;
+    }
+  | {
+      canceled: false;
+      picked: PickedBackupForPreview;
+    };
+
+export type ImportPickedBackupResult = {
+  imported: BackupImportResult;
+  rescheduled: Awaited<ReturnType<typeof rescheduleActiveImportedReminders>>;
+};
 
 function safeDateForFilename() {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -44,6 +88,44 @@ function report(
 
 function waitForUi() {
   return new Promise((resolve) => setTimeout(resolve, 30));
+}
+
+function getTextSizeBytes(text: string) {
+  try {
+    return new TextEncoder().encode(text).length;
+  } catch {
+    return text.length;
+  }
+}
+
+function getFilenameFromUri(uri: string) {
+  const clean = uri.split("?")[0];
+  const parts = clean.split("/");
+
+  return parts[parts.length - 1] || `birthdayly-backup-${safeDateForFilename()}`;
+}
+
+function normalizeExportOptions(
+  options: ExportBackupFileOptions
+): BackupExportOptions {
+  return {
+    passwordProtected: options.passwordProtected,
+    password: options.password,
+    scope: options.scope ?? "full",
+    selectedContactIds: options.selectedContactIds,
+    include: options.include ?? FULL_BACKUP_INCLUDE,
+  };
+}
+
+function normalizeLegacyImportOptions(args: {
+  mode: LegacyBackupMode;
+  password?: string;
+}): BackupImportOptions {
+  return {
+    strategy: args.mode === "replace" ? "replace_all" : "safe_merge",
+    include: FULL_BACKUP_INCLUDE,
+    password: args.password,
+  };
 }
 
 async function ensureBackupsDirectory() {
@@ -74,6 +156,21 @@ async function writeBackupFile(args: {
 
   return file;
 }
+
+async function readTextFromUri(uri: string) {
+  try {
+    const file = new File(uri);
+    return await file.text();
+  } catch {
+    return FileSystemLegacy.readAsStringAsync(uri, {
+      encoding: FileSystemLegacy.EncodingType.UTF8,
+    });
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Share / save                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export async function shareBackupFile(uri: string) {
   const canShare = await Sharing.isAvailableAsync();
@@ -140,10 +237,6 @@ export async function saveBackupToDevice(
     };
   }
 
-  /**
-   * iOS does not allow silent public Downloads-style saving.
-   * The user saves through Files from the share sheet.
-   */
   report(onProgress, 60, "Opening Save to Files sheet...");
 
   await shareBackupFile(args.sourceUri);
@@ -156,17 +249,23 @@ export async function saveBackupToDevice(
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Export                                                                       */
+/* -------------------------------------------------------------------------- */
+
 export async function exportBackupFile(
-  options: BackupExportOptions,
+  options: ExportBackupFileOptions,
   onProgress?: BackupProgressCallback
-) {
+): Promise<ExportedBackupFile> {
+  const safeOptions = normalizeExportOptions(options);
+
   report(onProgress, 3, "Starting backup...");
   await waitForUi();
 
   report(onProgress, 10, "Reading local database...");
   await waitForUi();
 
-  const plainBackup = await buildPlainBackup((progress) => {
+  const plainBackup = await buildPlainBackup(safeOptions, (progress) => {
     report(
       onProgress,
       10 + progress.percent * 0.55,
@@ -175,18 +274,18 @@ export async function exportBackupFile(
     );
   });
 
-  plainBackup.app.appVersion =
+  plainBackup.manifest.app.appVersion =
     Constants.expoConfig?.version ??
     Constants.nativeApplicationVersion ??
     "unknown";
 
-  plainBackup.app.platform = Platform.OS;
+  plainBackup.manifest.app.platform = Platform.OS;
 
   report(
     onProgress,
     68,
     "Preparing backup JSON...",
-    `${plainBackup.data.contacts.length} contacts, ${plainBackup.data.contactEvents.length} events`
+    `${plainBackup.manifest.counts.contacts} contacts, ${plainBackup.manifest.counts.contactEvents} events`
   );
 
   await waitForUi();
@@ -194,16 +293,23 @@ export async function exportBackupFile(
   const plainJson = JSON.stringify(plainBackup, null, 2);
   const date = safeDateForFilename();
 
+  const suffix =
+    safeOptions.scope === "selected_contacts"
+      ? "selected"
+      : safeOptions.scope === "settings_only"
+      ? "settings"
+      : "full";
+
   let filename: string;
   let content: string;
 
-  if (options.passwordProtected) {
+  if (safeOptions.passwordProtected) {
     report(onProgress, 78, "Encrypting backup...");
     await waitForUi();
 
     const encrypted = await encryptBackupJson(
       plainJson,
-      options.password,
+      safeOptions.password,
       (cryptoProgress) => {
         report(
           onProgress,
@@ -214,10 +320,10 @@ export async function exportBackupFile(
       }
     );
 
-    filename = `birthdayly-backup-${date}.birthdaylybackup`;
+    filename = `birthdayly-backup-${suffix}-${date}.birthdaylybackup`;
     content = JSON.stringify(encrypted, null, 2);
   } else {
-    filename = `birthdayly-backup-${date}.json`;
+    filename = `birthdayly-backup-${suffix}-${date}.json`;
     content = plainJson;
   }
 
@@ -229,21 +335,31 @@ export async function exportBackupFile(
     content,
   });
 
+  const preview = buildBackupPreview(plainBackup, filename);
+
   report(onProgress, 100, "Backup file ready.", file.uri);
 
   return {
     uri: file.uri,
     filename,
-    sizeBytes: content.length,
-    passwordProtected: options.passwordProtected,
+    sizeBytes: getTextSizeBytes(content),
+    passwordProtected: safeOptions.passwordProtected,
+    preview: {
+      ...preview,
+      encrypted: safeOptions.passwordProtected,
+    },
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Pick / decrypt / preview                                                     */
+/* -------------------------------------------------------------------------- */
 
 async function readPickedJsonFile(onProgress?: BackupProgressCallback) {
   report(onProgress, 3, "Opening file picker...");
 
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["application/json", "*/*"],
+    type: ["application/json", "application/octet-stream", "*/*"],
     copyToCacheDirectory: true,
     multiple: false,
   });
@@ -252,6 +368,10 @@ async function readPickedJsonFile(onProgress?: BackupProgressCallback) {
     return {
       canceled: true as const,
       parsed: null,
+      rawText: "",
+      filename: "",
+      uri: "",
+      sizeBytes: 0,
     };
   }
 
@@ -261,53 +381,50 @@ async function readPickedJsonFile(onProgress?: BackupProgressCallback) {
     throw new Error("No file selected.");
   }
 
-  report(onProgress, 15, "Reading backup file...", asset.name);
+  const filename = asset.name || getFilenameFromUri(asset.uri);
 
-  const file = new File(asset.uri);
-  const text = await file.text();
+  report(onProgress, 15, "Reading backup file...", filename);
+
+  const rawText = await readTextFromUri(asset.uri);
 
   try {
     report(onProgress, 25, "Parsing backup file...");
 
     return {
       canceled: false as const,
-      parsed: JSON.parse(text),
+      parsed: JSON.parse(rawText),
+      rawText,
+      filename,
+      uri: asset.uri,
+      sizeBytes: asset.size ?? getTextSizeBytes(rawText),
     };
   } catch {
     throw new Error("The selected file is not valid JSON.");
   }
 }
 
-export async function pickAndImportBackupFile(
-  args: {
-    mode: BackupMode;
-    password?: string;
-  },
-  onProgress?: BackupProgressCallback
-) {
-  const picked = await readPickedJsonFile(onProgress);
+async function parsePickedBackupToPlainBackup(args: {
+  parsed: any;
+  password?: string;
+  filename?: string;
+  onProgress?: BackupProgressCallback;
+}) {
+  const parsed = args.parsed;
+  const encrypted = parsed?.format === ENCRYPTED_BACKUP_FORMAT;
 
-  if (picked.canceled) {
-    return {
-      canceled: true as const,
-      imported: null,
-      rescheduled: undefined,
-    };
-  }
+  if (encrypted) {
+    if (!args.password) {
+      throw new Error("This backup is encrypted. Enter the backup password.");
+    }
 
-  const parsed = picked.parsed as any;
-
-  let plainBackup: PlainBackupV1;
-
-  if (parsed.format === ENCRYPTED_BACKUP_FORMAT) {
-    report(onProgress, 35, "Decrypting backup...");
+    report(args.onProgress, 35, "Decrypting backup...");
 
     const decryptedJson = await decryptBackupJson(
-      parsed as EncryptedBackupV1,
+      parsed,
       args.password,
       (decryptProgress) => {
         report(
-          onProgress,
+          args.onProgress,
           35 + decryptProgress.percent * 0.15,
           decryptProgress.message,
           decryptProgress.detail
@@ -315,23 +432,123 @@ export async function pickAndImportBackupFile(
       }
     );
 
-    plainBackup = JSON.parse(decryptedJson);
-  } else if (parsed.format === PLAIN_BACKUP_FORMAT) {
-    report(onProgress, 45, "Plain backup detected.");
-    plainBackup = parsed as PlainBackupV1;
-  } else {
-    throw new Error("Unknown backup format.");
+    try {
+      report(args.onProgress, 52, "Reading decrypted backup...");
+
+      const decryptedParsed = JSON.parse(decryptedJson);
+      const plainBackup = validatePlainBackup(decryptedParsed);
+      const preview = buildBackupPreview(plainBackup, args.filename);
+
+      return {
+        encrypted: true,
+        plainBackup,
+        preview: {
+          ...preview,
+          encrypted: true,
+        },
+      };
+    } catch {
+      throw new Error("The decrypted backup data is not valid.");
+    }
   }
 
-  report(onProgress, 55, "Importing data into SQLite...");
+  if (parsed?.format === PLAIN_BACKUP_FORMAT) {
+    report(args.onProgress, 45, "Plain backup detected.");
+
+    const plainBackup = validatePlainBackup(parsed);
+    const preview = buildBackupPreview(plainBackup, args.filename);
+
+    return {
+      encrypted: false,
+      plainBackup,
+      preview: {
+        ...preview,
+        encrypted: false,
+      },
+    };
+  }
+
+  throw new Error("Unknown backup format.");
+}
+
+export async function pickBackupFileForPreview(
+  args: {
+    password?: string;
+  } = {},
+  onProgress?: BackupProgressCallback
+): Promise<PickBackupPreviewResult> {
+  const picked = await readPickedJsonFile(onProgress);
+
+  if (picked.canceled) {
+    return {
+      canceled: true,
+      picked: null,
+    };
+  }
+
+  const parsed = await parsePickedBackupToPlainBackup({
+    parsed: picked.parsed,
+    password: args.password,
+    filename: picked.filename,
+    onProgress,
+  });
+
+  report(onProgress, 100, "Backup preview ready.");
+
+  return {
+    canceled: false,
+    picked: {
+      uri: picked.uri,
+      filename: picked.filename,
+      sizeBytes: picked.sizeBytes,
+      encrypted: parsed.encrypted,
+      plainBackup: parsed.plainBackup,
+      preview: parsed.preview,
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Plan + import                                                                */
+/* -------------------------------------------------------------------------- */
+
+export async function buildImportPlanForPickedBackup(
+  args: {
+    pickedBackup: PickedBackupForPreview;
+    options: BackupImportOptions;
+  },
+  onProgress?: BackupProgressCallback
+): Promise<BackupImportPlan> {
+  report(onProgress, 5, "Building import plan...");
+
+  const plan = await buildImportPlan(args.pickedBackup.plainBackup, args.options);
+
+  report(
+    onProgress,
+    100,
+    "Import plan ready.",
+    `${plan.conflicts.length} contacts checked`
+  );
+
+  return plan;
+}
+
+export async function importPickedBackupFile(
+  args: {
+    pickedBackup: PickedBackupForPreview;
+    options: BackupImportOptions | BackupImportPlan;
+  },
+  onProgress?: BackupProgressCallback
+): Promise<ImportPickedBackupResult> {
+  report(onProgress, 5, "Preparing import...");
 
   const imported = await importPlainBackupToDatabase(
-    plainBackup,
-    args.mode,
+    args.pickedBackup.plainBackup,
+    args.options,
     (importProgress) => {
       report(
         onProgress,
-        55 + importProgress.percent * 0.3,
+        10 + importProgress.percent * 0.78,
         importProgress.message,
         importProgress.detail
       );
@@ -345,8 +562,70 @@ export async function pickAndImportBackupFile(
   report(onProgress, 100, "Import complete.");
 
   return {
-    canceled: false as const,
     imported,
     rescheduled,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Backward compatibility for current BackupScreen                              */
+/* -------------------------------------------------------------------------- */
+
+function toLegacyImportResult(result: BackupImportResult) {
+  return {
+    imported: {
+      contactGroups: result.imported.contactGroups,
+      contactTags: result.imported.contactTags,
+      contacts: result.imported.contacts,
+      contactTagLinks: result.imported.contactTagLinks,
+      contactMemories: result.imported.contactMemories,
+      contactEvents: result.imported.contactEvents,
+      reminders: result.imported.reminders,
+      interactions: result.imported.interactions,
+      contactPhotos:
+        result.imported.contactPhotos + result.imported.albumPhotos,
+    },
+    restoredPhotos: result.restoredPhotos,
+    conflicts: result.conflicts,
+  };
+}
+
+export async function pickAndImportBackupFile(
+  args: {
+    mode: LegacyBackupMode;
+    password?: string;
+  },
+  onProgress?: BackupProgressCallback
+) {
+  const picked = await pickBackupFileForPreview(
+    {
+      password: args.password,
+    },
+    onProgress
+  );
+
+  if (picked.canceled) {
+    return {
+      canceled: true as const,
+      imported: null,
+      rescheduled: undefined,
+    };
+  }
+
+  const options = normalizeLegacyImportOptions(args);
+
+  const result = await importPickedBackupFile(
+    {
+      pickedBackup: picked.picked,
+      options,
+    },
+    onProgress
+  );
+
+  return {
+    canceled: false as const,
+    imported: toLegacyImportResult(result.imported),
+    rescheduled: result.rescheduled,
+    preview: picked.picked.preview,
   };
 }
