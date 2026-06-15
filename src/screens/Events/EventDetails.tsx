@@ -1,12 +1,13 @@
 // src/screens/Events/EventDetails.tsx
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,9 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useIsFocused } from "@react-navigation/native";
@@ -29,7 +28,12 @@ import {
   updateReminder,
   deleteReminder,
 } from "../../reminders/repository";
-import { EVENT_TYPE_META, EventDTO, EventTypeValue } from "../../events/types";
+import {
+  EVENT_TYPE_META,
+  EventDTO,
+  EventTypeValue,
+  REMINDER_STATUS,
+} from "../../events/types";
 import { formatDateTime } from "../../reminders/utils";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
@@ -42,7 +46,10 @@ type Props = NativeStackScreenProps<EventsStackParamList, "EventDetails">;
 type ReminderFormData = {
   days_before: number | null;
   absolute_datetime: string | null;
+  send_at?: string | null;
   time_of_day?: string | null;
+  status?: number;
+  is_active?: boolean;
 };
 
 type EventDetailsColors = {
@@ -92,6 +99,8 @@ export default function EventDetails({ route, navigation }: Props) {
   const colors = useMemo(() => makeEventDetailsColors(settings), [settings]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+const requestIdRef = useRef(0);
   const [event, setEvent] = useState<EventDTO | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingReminder, setEditingReminder] = useState<any | null>(null);
@@ -104,30 +113,46 @@ export default function EventDetails({ route, navigation }: Props) {
     });
   }, [navigation]);
 
-  async function load() {
-    setLoading(true);
+async function load(options?: { showFullLoading?: boolean }) {
+  const requestId = ++requestIdRef.current;
 
-    try {
-      const data = await fetchEventById(eventId);
-      setEvent(data);
-    } catch (error) {
-      console.log("Failed to load event:", error);
-      Alert.alert("Error", "Failed to load event.");
-    } finally {
-      setLoading(false);
-    }
+  if (options?.showFullLoading) {
+    setLoading(true);
   }
 
-  useEffect(() => {
-    load();
-  }, [eventId]);
+  try {
+    const data = await fetchEventById(eventId);
 
-  useEffect(() => {
-    if (isFocused) {
-      load();
-    }
-  }, [isFocused]);
+    if (requestId !== requestIdRef.current) return;
 
+    setEvent(data);
+  } catch (error) {
+    if (requestId !== requestIdRef.current) return;
+
+    console.log("Failed to load event:", error);
+    Alert.alert("Error", "Failed to load event.");
+  } finally {
+    if (requestId !== requestIdRef.current) return;
+
+    setLoading(false);
+  }
+}
+useEffect(() => {
+  if (!isFocused) return;
+
+  load({
+    showFullLoading: !event,
+  });
+}, [isFocused, eventId]);
+async function onRefresh() {
+  setRefreshing(true);
+
+  try {
+    await load({ showFullLoading: false });
+  } finally {
+    setRefreshing(false);
+  }
+}
   function openEdit() {
     if (!event) return;
 
@@ -195,27 +220,71 @@ export default function EventDetails({ route, navigation }: Props) {
       },
     ]);
   }
+function openContactProfile() {
+  if (!event) return;
 
-  async function saveReminder(data: ReminderFormData) {
-    if (!event) return;
+  const targetContactId = contactId || (event as any).contact;
 
-    try {
-      if (editingReminder) {
-        await updateReminder(editingReminder.id, data);
-      } else {
-        await createReminder(event.id, data);
-      }
-
-      const updated = await fetchEventById(eventId);
-      setEvent(updated);
-    } catch (error) {
-      console.log("Save reminder failed:", error);
-      Alert.alert("Error", "Could not save reminder.");
-    } finally {
-      setShowModal(false);
-      setEditingReminder(null);
-    }
+  if (!targetContactId) {
+    Alert.alert("Contact", "No contact is connected to this event.");
+    return;
   }
+
+  if (from === "contact") {
+    navigation.goBack();
+    return;
+  }
+
+  const rootNavigation = (navigation as any).getParent?.();
+
+  rootNavigation?.navigate?.("Contacts", {
+    screen: "ContactDetail",
+    params: {
+      contactId: targetContactId,
+      contactName: event.contact_name,
+    },
+  });
+}
+
+function openBeforeMeetPrep() {
+  if (!event) return;
+
+  Alert.alert(
+    "Before Meet",
+    `Before meeting ${event.contact_name || "this person"}, review their memories, ask-next-time notes, reminders, and recent interactions.`
+  );
+}
+async function saveReminder(data: ReminderFormData) {
+  if (!event) return;
+
+  try {
+    const payload = {
+      ...data,
+      event: event.id,
+      status: data.status ?? REMINDER_STATUS.PENDING,
+      is_active: data.is_active ?? true,
+    } as any;
+
+    if (editingReminder) {
+      await updateReminder(editingReminder.id, payload);
+    } else {
+      await createReminder(event.id, payload);
+    }
+
+    const updated = await fetchEventById(eventId);
+    setEvent(updated);
+
+    setShowModal(false);
+    setEditingReminder(null);
+  } catch (error: any) {
+    console.log("Save reminder failed:", error);
+
+    Alert.alert(
+      "Reminder",
+      error?.message || "Could not save reminder. Check the event date and reminder time."
+    );
+  }
+}
 
   if (loading || !event) {
     return (
@@ -248,9 +317,16 @@ export default function EventDetails({ route, navigation }: Props) {
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         <ScrollView
-          contentContainerStyle={styles.page}
-          showsVerticalScrollIndicator={false}
-        >
+    contentContainerStyle={styles.page}
+    showsVerticalScrollIndicator={false}
+    refreshControl={
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        tintColor={colors.primary}
+      />
+    }
+  >
           <CompactEventHeader
             colors={colors}
             event={event}
@@ -270,6 +346,20 @@ export default function EventDetails({ route, navigation }: Props) {
               },
             ]}
           >
+            <ContactShortcutCard
+  colors={colors}
+  contactName={event.contact_name || "Contact"}
+  from={from}
+  onPress={openContactProfile}
+/>
+
+{canShowBeforeMeet(event) ? (
+  <BeforeMeetCard
+    colors={colors}
+    event={event}
+    onPress={openBeforeMeetPrep}
+  />
+) : null}
             <SectionTitle
               icon="information-circle-outline"
               title="Event details"
@@ -491,7 +581,117 @@ export default function EventDetails({ route, navigation }: Props) {
     </Screen>
   );
 }
+function ContactShortcutCard({
+  colors,
+  contactName,
+  from,
+  onPress,
+}: {
+  colors: EventDetailsColors;
+  contactName: string;
+  from?: string;
+  onPress: () => void;
+}) {
+  const actionLabel = from === "contact" ? "Back to profile" : "Open profile";
 
+  return (
+    <TouchableOpacity
+      style={[
+        styles.contactShortcutCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.86}
+    >
+      <View
+        style={[
+          styles.contactShortcutIcon,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name="person-outline" size={19} color={colors.primary} />
+      </View>
+
+      <View style={styles.contactShortcutTextWrap}>
+        <Text style={[styles.contactShortcutLabel, { color: colors.text }]}>
+          Connected person
+        </Text>
+
+        <Text
+          style={[styles.contactShortcutName, { color: colors.title }]}
+          numberOfLines={1}
+        >
+          {contactName}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.contactShortcutButton,
+          {
+            backgroundColor: colors.softCard,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.contactShortcutButtonText, { color: colors.primary }]}>
+          {actionLabel}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function BeforeMeetCard({
+  colors,
+  event,
+  onPress,
+}: {
+  colors: EventDetailsColors;
+  event: EventDTO;
+  onPress: () => void;
+}) {
+  const status = getBeforeMeetStatus(event);
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.beforeMeetCard,
+        {
+          backgroundColor: colors.softPrimary,
+          borderColor: withOpacity(colors.primary, "28"),
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.86}
+    >
+      <View
+        style={[
+          styles.beforeMeetIcon,
+          { backgroundColor: withOpacity(colors.primary, "20") },
+        ]}
+      >
+        <Ionicons name="flash-outline" size={20} color={colors.primary} />
+      </View>
+
+      <View style={styles.beforeMeetTextWrap}>
+        <Text style={[styles.beforeMeetTitle, { color: colors.title }]}>
+          Before Meet prep
+        </Text>
+
+        <Text style={[styles.beforeMeetText, { color: colors.text }]}>
+          {status}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+    </TouchableOpacity>
+  );
+}
 function ReminderModal({
   visible,
   onClose,
@@ -535,69 +735,74 @@ function ReminderModal({
     setShowAbsoluteTimePicker(false);
   }, [visible, initial]);
 
-  function handleSave() {
-    if (mode === "relative") {
-      if (daysBefore === null || Number.isNaN(daysBefore) || daysBefore < 0) {
-        Alert.alert("Validation", "Enter how many days before.");
-        return;
-      }
-
-      onSave({
-        days_before: daysBefore,
-        absolute_datetime: null,
-        time_of_day: formatHHMM(relativeTime),
-      });
-
+function handleSave() {
+  if (mode === "relative") {
+    if (daysBefore === null || Number.isNaN(daysBefore) || daysBefore < 0) {
+      Alert.alert("Validation", "Enter how many days before.");
       return;
     }
 
     onSave({
-      days_before: null,
-      absolute_datetime: absoluteDate.toISOString(),
-      time_of_day: null,
+      days_before: daysBefore,
+      absolute_datetime: null,
+      send_at: null,
+      time_of_day: formatHHMM(relativeTime),
+      status: REMINDER_STATUS.PENDING,
+      is_active: true,
     });
+
+    return;
   }
 
-  function onAbsoluteDateChange(_: DateTimePickerEvent, selected?: Date) {
-    if (Platform.OS === "android") {
-      setShowAbsoluteDatePicker(false);
-    }
+  onSave({
+    days_before: null,
+    absolute_datetime: absoluteDate.toISOString(),
+    send_at: absoluteDate.toISOString(),
+    time_of_day: null,
+    status: REMINDER_STATUS.PENDING,
+    is_active: true,
+  });
+}
 
-    if (!selected) return;
-
-    const next = new Date(absoluteDate);
-    next.setFullYear(selected.getFullYear());
-    next.setMonth(selected.getMonth());
-    next.setDate(selected.getDate());
-
-    setAbsoluteDate(next);
+function closePickerOnAndroid(close: () => void) {
+  if (Platform.OS === "android") {
+    close();
   }
+}
 
-  function onAbsoluteTimeChange(_: DateTimePickerEvent, selected?: Date) {
-    if (Platform.OS === "android") {
-      setShowAbsoluteTimePicker(false);
-    }
+function handleAbsoluteDateValueChange(_event: any, selected?: Date) {
+  if (!selected) return;
 
-    if (!selected) return;
+  const next = new Date(absoluteDate);
 
-    const next = new Date(absoluteDate);
-    next.setHours(selected.getHours());
-    next.setMinutes(selected.getMinutes());
-    next.setSeconds(0);
-    next.setMilliseconds(0);
+  next.setFullYear(selected.getFullYear());
+  next.setMonth(selected.getMonth());
+  next.setDate(selected.getDate());
 
-    setAbsoluteDate(next);
-  }
+  setAbsoluteDate(next);
+  closePickerOnAndroid(() => setShowAbsoluteDatePicker(false));
+}
 
-  function onRelativeTimeChange(_: DateTimePickerEvent, selected?: Date) {
-    if (Platform.OS === "android") {
-      setShowRelativeTimePicker(false);
-    }
+function handleAbsoluteTimeValueChange(_event: any, selected?: Date) {
+  if (!selected) return;
 
-    if (selected) {
-      setRelativeTime(selected);
-    }
-  }
+  const next = new Date(absoluteDate);
+
+  next.setHours(selected.getHours());
+  next.setMinutes(selected.getMinutes());
+  next.setSeconds(0);
+  next.setMilliseconds(0);
+
+  setAbsoluteDate(next);
+  closePickerOnAndroid(() => setShowAbsoluteTimePicker(false));
+}
+
+function handleRelativeTimeValueChange(_event: any, selected?: Date) {
+  if (!selected) return;
+
+  setRelativeTime(selected);
+  closePickerOnAndroid(() => setShowRelativeTimePicker(false));
+}
 
   return (
     <Modal
@@ -710,11 +915,13 @@ function ReminderModal({
 
               {showRelativeTimePicker ? (
                 <DateTimePicker
-                  value={relativeTime}
-                  mode="time"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onRelativeTimeChange}
-                />
+          value={relativeTime}
+          mode="time"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onValueChange={handleRelativeTimeValueChange}
+          onDismiss={() => setShowRelativeTimePicker(false)}
+          onNeutralButtonPress={() => setShowRelativeTimePicker(false)}
+        />
               ) : null}
             </>
           ) : (
@@ -749,12 +956,14 @@ function ReminderModal({
               </TouchableOpacity>
 
               {showAbsoluteDatePicker ? (
-                <DateTimePicker
-                  value={absoluteDate}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onAbsoluteDateChange}
-                />
+              <DateTimePicker
+                value={absoluteDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onValueChange={handleAbsoluteDateValueChange}
+                onDismiss={() => setShowAbsoluteDatePicker(false)}
+                onNeutralButtonPress={() => setShowAbsoluteDatePicker(false)}
+              />
               ) : null}
 
               <FieldLabel label="Exact time" colors={colors} />
@@ -788,11 +997,13 @@ function ReminderModal({
 
               {showAbsoluteTimePicker ? (
                 <DateTimePicker
-                  value={absoluteDate}
-                  mode="time"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  onChange={onAbsoluteTimeChange}
-                />
+            value={absoluteDate}
+            mode="time"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onValueChange={handleAbsoluteTimeValueChange}
+            onDismiss={() => setShowAbsoluteTimePicker(false)}
+            onNeutralButtonPress={() => setShowAbsoluteTimePicker(false)}
+          />
               ) : null}
             </>
           )}
@@ -1131,7 +1342,35 @@ function ThemedInput({
 }
 
 /* helpers */
+function canShowBeforeMeet(event: EventDTO) {
+  return event.type === 4 || event.type === 6;
+}
 
+function getBeforeMeetStatus(event: EventDTO) {
+  const days = event.days_until;
+
+  if (days === null || days === undefined) {
+    return "Review memories, notes, and questions before this event.";
+  }
+
+  if (days < 0) {
+    return "This event has passed, but you can still review the prep.";
+  }
+
+  if (days === 0) {
+    return "Today — review what to remember before meeting.";
+  }
+
+  if (days === 1) {
+    return "Tomorrow — prepare with memories and ask-next-time notes.";
+  }
+
+  if (days <= 7) {
+    return `In ${days} days — prep card is ready.`;
+  }
+
+  return "Prep will be useful closer to the event.";
+}
 function getEventMeta(type: number) {
   const meta = EVENT_TYPE_META[type as EventTypeValue];
 
@@ -1624,6 +1863,94 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
+  contactShortcutCard: {
+  minHeight: 78,
+  borderRadius: 24,
+  borderWidth: 1,
+  padding: 13,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 11,
+  shadowOpacity: 0.05,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 2,
+},
+
+contactShortcutIcon: {
+  width: 44,
+  height: 44,
+  borderRadius: 18,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+contactShortcutTextWrap: {
+  flex: 1,
+  minWidth: 0,
+},
+
+contactShortcutLabel: {
+  fontSize: 12,
+  fontWeight: "800",
+  opacity: 0.72,
+},
+
+contactShortcutName: {
+  fontSize: 15,
+  fontWeight: "900",
+  marginTop: 2,
+},
+
+contactShortcutButton: {
+  minHeight: 34,
+  borderRadius: 999,
+  borderWidth: 1,
+  paddingHorizontal: 10,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+contactShortcutButtonText: {
+  fontSize: 11,
+  fontWeight: "900",
+},
+
+beforeMeetCard: {
+  minHeight: 86,
+  borderRadius: 24,
+  borderWidth: 1,
+  padding: 13,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 11,
+},
+
+beforeMeetIcon: {
+  width: 44,
+  height: 44,
+  borderRadius: 18,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+beforeMeetTextWrap: {
+  flex: 1,
+  minWidth: 0,
+},
+
+beforeMeetTitle: {
+  fontSize: 15,
+  fontWeight: "900",
+},
+
+beforeMeetText: {
+  fontSize: 12,
+  lineHeight: 17,
+  fontWeight: "700",
+  opacity: 0.76,
+  marginTop: 3,
+},
 });
 
 const modalStyles = StyleSheet.create({
@@ -1767,4 +2094,5 @@ const modalStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
+  
 });

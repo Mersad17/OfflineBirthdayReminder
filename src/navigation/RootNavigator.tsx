@@ -5,10 +5,13 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import AppTabs from "./AppTabs";
 import AddContactScreen from "../screens/Contacts/AddContactScreen";
+import AddEventScreen from "../screens/Events/AddEventScreen";
 import AddSmartReminderScreen from "../screens/Reminders/AddSmartReminderScreen";
+
 import { AppearanceProvider } from "../appearance/AppearanceContext";
 import { useNavigationAppearance } from "../appearance/useNavigationAppearance";
 import { AppId } from "../contacts/types";
+import { AccessProvider } from "../access/AccessContext";
 
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -20,6 +23,17 @@ export type RootStackParamList = {
         contactId?: AppId;
         contactName?: string;
         note?: string;
+        mode?: "reminder" | "ask_next_time";
+        title?: string;
+      }
+    | undefined;
+
+  GlobalAddEvent:
+    | {
+        contactId?: AppId;
+        contactName?: string;
+        initialType?: 1 | 2 | 3 | 4 | 5 | 6;
+        initialTitle?: string;
       }
     | undefined;
 };
@@ -29,7 +43,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   return (
     <AppearanceProvider>
-      <NavigationWithAppearance />
+      <AccessProvider>
+        <NavigationWithAppearance />
+      </AccessProvider>
     </AppearanceProvider>
   );
 }
@@ -57,9 +73,18 @@ function NavigationWithAppearance() {
 
         <Stack.Screen
           name="GlobalAddReminder"
-          component={AddSmartReminderScreen}
+          component={AddSmartReminderScreen as any}
           options={{
-            title: "Smart Reminder",
+            headerShown: false,
+            presentation: "modal",
+          }}
+        />
+
+        <Stack.Screen
+          name="GlobalAddEvent"
+          component={AddEventScreen as any}
+          options={{
+            headerShown: false,
             presentation: "modal",
           }}
         />

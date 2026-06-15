@@ -6,7 +6,7 @@ import ContactsScreen from "../screens/Contacts/ContactsScreen";
 import AddContactScreen from "../screens/Contacts/AddContactScreen";
 import ContactDetailScreen from "../screens/Contacts/ContactDetailScreen";
 import EventDetails from "../screens/Events/EventDetails";
-import AddEventScreen from "../screens/Contacts/AddEventScreen";
+import AddEventScreen from "../screens/Events/AddEventScreen";
 import EditEventScreen from "../screens/Events/EditEventScreen";
 import EditContactScreen from "../screens/Contacts/EditContactScreen";
 import LogInteractionScreen from "../screens/Interactions/LogInteractionScreen";

@@ -4,7 +4,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,9 +18,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
@@ -36,6 +36,8 @@ type Props = {
       contactId?: AppId;
       contactName?: string;
       note?: string;
+      mode?: "reminder" | "ask_next_time";
+      title?: string;
     };
   };
 };
@@ -75,10 +77,28 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   const initialContactId = route.params?.contactId;
   const initialContactName = route.params?.contactName;
   const initialNote = route.params?.note;
+  const initialMode =
+    route.params?.mode === "ask_next_time" ? "ask_next_time" : "reminder";
+
+  const screenTitle =
+    route.params?.title ||
+    (initialMode === "ask_next_time" ? "Ask next time" : "Smart reminder");
+
+  const isAskNextMode = initialMode === "ask_next_time";
 
   const [contacts, setContacts] = React.useState<Contact[]>([]);
-  const [selectedContact, setSelectedContact] = React.useState<Contact | null>(
-    null
+  const [selectedContact, setSelectedContact] =
+    React.useState<Contact | null>(null);
+
+  const [selectedContactId, setSelectedContactId] = React.useState<
+    AppId | undefined
+  >(initialContactId);
+
+  const [selectedContactNameText, setSelectedContactNameText] =
+    React.useState(initialContactName ?? "");
+
+  const [showContactPicker, setShowContactPicker] = React.useState(
+    !initialContactId
   );
 
   const [contactSearch, setContactSearch] = React.useState("");
@@ -95,6 +115,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
 
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [successVisible, setSuccessVisible] = React.useState(false);
 
   React.useEffect(() => {
     navigation.setOptions?.({
@@ -141,10 +162,23 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
       setLoading(true);
 
       if (initialContactId) {
-        const contact = await fetchContactById(initialContactId);
+        setSelectedContactId(initialContactId);
 
-        setSelectedContact(contact);
-        setContacts([contact]);
+        if (initialContactName) {
+          setSelectedContactNameText(initialContactName);
+        }
+
+        try {
+          const contact = await fetchContactById(initialContactId);
+
+          setSelectedContact(contact);
+          setSelectedContactNameText(
+            fullName(contact) || initialContactName || ""
+          );
+          setContacts([contact]);
+        } catch (error) {
+          console.log("Load selected contact failed", error);
+        }
 
         return;
       }
@@ -153,10 +187,6 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
       const loadedContacts = normalizeContactsResponse(response);
 
       setContacts(loadedContacts);
-
-      if (loadedContacts[0]) {
-        setSelectedContact(loadedContacts[0]);
-      }
     } catch (error) {
       console.log("Load smart reminder data failed", error);
       Alert.alert("Smart reminder", "Could not load contacts.");
@@ -166,7 +196,24 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   }
 
   function selectedContactName() {
-    return fullName(selectedContact) || initialContactName || "Select contact";
+    return (
+      fullName(selectedContact) ||
+      selectedContactNameText ||
+      initialContactName ||
+      "Choose contact"
+    );
+  }
+
+  function selectContact(contact: Contact) {
+    const name = fullName(contact);
+
+    setSelectedContact(contact);
+    setSelectedContactId(contact.id);
+    setSelectedContactNameText(name);
+
+    setContactSearch("");
+    setShowContactPicker(false);
+    Keyboard.dismiss();
   }
 
   function previewText() {
@@ -184,22 +231,22 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
     return `${person} · In ${selectedDays} days at ${time}`;
   }
 
-  function onDateChange(event: DateTimePickerEvent, selectedDate?: Date) {
+  function handleDateValueChange(_event: any, selectedDate?: Date) {
     if (Platform.OS === "android") {
       setShowDatePicker(false);
     }
 
-    if (event.type === "dismissed" || !selectedDate) return;
+    if (!selectedDate) return;
 
     setCustomDate(startOfDay(selectedDate));
   }
 
-  function onTimeChange(event: DateTimePickerEvent, selectedTime?: Date) {
+  function handleTimeValueChange(_event: any, selectedTime?: Date) {
     if (Platform.OS === "android") {
       setShowTimePicker(false);
     }
 
-    if (event.type === "dismissed" || !selectedTime) return;
+    if (!selectedTime) return;
 
     setTimeDate(selectedTime);
   }
@@ -207,8 +254,8 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   async function onSave() {
     if (saving) return;
 
-    if (!selectedContact) {
-      Alert.alert("Smart reminder", "Please choose a contact.");
+    if (!selectedContactId) {
+      Alert.alert("Smart reminder", "Please choose a person.");
       return;
     }
 
@@ -229,26 +276,21 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
 
       if (timingMode === "relative") {
         await createRelativeSmartReminder({
-          contactId: selectedContact.id,
+          contactId: selectedContactId,
           text,
           daysFromNow: selectedDays,
           timeOfDay: toTimeOfDay(timeDate),
         });
       } else {
         await createCustomDateSmartReminder({
-          contactId: selectedContact.id,
+          contactId: selectedContactId,
           text,
           date: toYMD(customDate),
           timeOfDay: toTimeOfDay(timeDate),
         });
       }
 
-      Alert.alert("Smart reminder", "Reminder created.", [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      setSuccessVisible(true);
     } catch (error: any) {
       console.log("Create smart reminder failed", error);
       Alert.alert(
@@ -289,6 +331,13 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
           >
             <CompactHeader
               colors={colors}
+              title={screenTitle}
+              badge={isAskNextMode ? "Ask next" : "Smart"}
+              icon={
+                isAskNextMode
+                  ? "chatbubble-ellipses-outline"
+                  : "notifications-outline"
+              }
               contactName={selectedContactName()}
               preview={previewText()}
               onBack={() => navigation.goBack()}
@@ -306,7 +355,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
             >
               <SectionTitle
                 icon="person-outline"
-                title="Who is this for?"
+                title="Person"
                 colors={colors}
               />
 
@@ -315,45 +364,77 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                   contact={selectedContact}
                   fallbackName={selectedContactName()}
                   colors={colors}
+                  locked
                 />
               ) : (
                 <>
-                  <SearchBox
-                    value={contactSearch}
-                    colors={colors}
-                    onChangeText={setContactSearch}
-                  />
+                  {selectedContactId ? (
+                    <TouchableOpacity
+                      activeOpacity={0.86}
+                      onPress={() =>
+                        setShowContactPicker((current) => !current)
+                      }
+                    >
+                      <SelectedContactBox
+                        contact={selectedContact}
+                        fallbackName={selectedContactName()}
+                        colors={colors}
+                        locked={false}
+                        showPicker={showContactPicker}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
 
-                  <View style={styles.contactResults}>
-                    {filteredContacts.length === 0 ? (
-                      <EmptyContactResult colors={colors} />
-                    ) : (
-                      filteredContacts.map((contact) => (
-                        <ContactRow
-                          key={String(contact.id)}
-                          contact={contact}
-                          selected={selectedContact?.id === contact.id}
-                          colors={colors}
-                          onPress={() => setSelectedContact(contact)}
-                        />
-                      ))
-                    )}
-                  </View>
+                  {!selectedContactId || showContactPicker ? (
+                    <>
+                      <SearchBox
+                        value={contactSearch}
+                        colors={colors}
+                        onChangeText={setContactSearch}
+                      />
+
+                      <View style={styles.contactResults}>
+                        {filteredContacts.length === 0 ? (
+                          <EmptyContactResult colors={colors} />
+                        ) : (
+                          filteredContacts.map((contact) => (
+                            <ContactRow
+                              key={String(contact.id)}
+                              contact={contact}
+                              selected={selectedContact?.id === contact.id}
+                              colors={colors}
+                              onPress={() => selectContact(contact)}
+                            />
+                          ))
+                        )}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               )}
 
               <Divider colors={colors} />
 
               <SectionTitle
-                icon="chatbubble-ellipses-outline"
-                title="Remind me to"
+                icon={
+                  isAskNextMode
+                    ? "help-circle-outline"
+                    : "chatbubble-ellipses-outline"
+                }
+                title={
+                  isAskNextMode ? "Question to remember" : "Remind me to"
+                }
                 colors={colors}
               />
 
               <ThemedInput
                 value={message}
                 onChangeText={setMessage}
-                placeholder="Ask how the interview went"
+                placeholder={
+                  isAskNextMode
+                    ? "Ask how the interview went"
+                    : "Call, message, follow up, or remember something"
+                }
                 multiline
                 textAlignVertical="top"
                 style={styles.textArea}
@@ -369,10 +450,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
               />
 
               <View
-                style={[
-                  styles.segment,
-                  { backgroundColor: colors.softCard },
-                ]}
+                style={[styles.segment, { backgroundColor: colors.softCard }]}
               >
                 <SegmentButton
                   label="In a few days"
@@ -423,7 +501,9 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                         mode="date"
                         minimumDate={todayStart()}
                         display={Platform.OS === "ios" ? "inline" : "default"}
-                        onChange={onDateChange}
+                        onValueChange={handleDateValueChange}
+                        onDismiss={() => setShowDatePicker(false)}
+                        onNeutralButtonPress={() => setShowDatePicker(false)}
                       />
 
                       {Platform.OS === "ios" ? (
@@ -457,7 +537,9 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                       value={timeDate}
                       mode="time"
                       display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={onTimeChange}
+                      onValueChange={handleTimeValueChange}
+                      onDismiss={() => setShowTimePicker(false)}
+                      onNeutralButtonPress={() => setShowTimePicker(false)}
                     />
 
                     {Platform.OS === "ios" ? (
@@ -487,11 +569,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                   { backgroundColor: colors.softPrimary },
                 ]}
               >
-                <Ionicons
-                  name="eye-outline"
-                  size={18}
-                  color={colors.primary}
-                />
+                <Ionicons name="eye-outline" size={18} color={colors.primary} />
               </View>
 
               <View style={styles.previewTextWrap}>
@@ -522,10 +600,7 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                 activeOpacity={0.85}
               >
                 <Text
-                  style={[
-                    styles.secondaryButtonText,
-                    { color: colors.text },
-                  ]}
+                  style={[styles.secondaryButtonText, { color: colors.text }]}
                 >
                   Cancel
                 </Text>
@@ -557,26 +632,176 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
                         { color: colors.buttonText },
                       ]}
                     >
-                      Create reminder
+                      {isAskNextMode
+                        ? "Save question reminder"
+                        : "Create reminder"}
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
           </ScrollView>
+
+          <SuccessSheet
+            visible={successVisible}
+            colors={colors}
+            title={
+              isAskNextMode ? "Question reminder saved" : "Reminder created"
+            }
+            message={message.trim()}
+            preview={previewText()}
+            onDone={() => {
+              setSuccessVisible(false);
+              navigation.goBack();
+            }}
+            onAddAnother={() => {
+              setSuccessVisible(false);
+              setMessage("");
+              setTimingMode("relative");
+              setSelectedDays(14);
+              setShowDatePicker(false);
+              setShowTimePicker(false);
+            }}
+          />
         </View>
       </Screen>
     </KeyboardAvoidingView>
   );
 }
 
+function SuccessSheet({
+  visible,
+  colors,
+  title,
+  message,
+  preview,
+  onDone,
+  onAddAnother,
+}: {
+  visible: boolean;
+  colors: SmartReminderColors;
+  title: string;
+  message: string;
+  preview: string;
+  onDone: () => void;
+  onAddAnother: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onDone}
+    >
+      <View style={styles.successOverlay}>
+        <View
+          style={[
+            styles.successSheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.successIcon,
+              { backgroundColor: colors.softPrimary },
+            ]}
+          >
+            <Ionicons
+              name="checkmark-circle"
+              size={30}
+              color={colors.primary}
+            />
+          </View>
+
+          <Text style={[styles.successTitle, { color: colors.title }]}>
+            {title}
+          </Text>
+
+          <Text
+            style={[styles.successMessage, { color: colors.text }]}
+            numberOfLines={2}
+          >
+            {message}
+          </Text>
+
+          <View
+            style={[
+              styles.successPreview,
+              {
+                backgroundColor: colors.softCard,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Ionicons name="time-outline" size={17} color={colors.primary} />
+
+            <Text
+              style={[styles.successPreviewText, { color: colors.title }]}
+              numberOfLines={2}
+            >
+              {preview}
+            </Text>
+          </View>
+
+          <View style={styles.successActions}>
+            <TouchableOpacity
+              style={[
+                styles.successSecondaryButton,
+                {
+                  backgroundColor: colors.softCard,
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={onAddAnother}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[styles.successSecondaryText, { color: colors.text }]}
+              >
+                Add another
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.successPrimaryButton,
+                { backgroundColor: colors.button },
+              ]}
+              onPress={onDone}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.successPrimaryText,
+                  { color: colors.buttonText },
+                ]}
+              >
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function CompactHeader({
   colors,
+  title,
+  badge,
+  icon,
   contactName,
   preview,
   onBack,
 }: {
   colors: SmartReminderColors;
+  title: string;
+  badge: string;
+  icon: keyof typeof Ionicons.glyphMap;
   contactName: string;
   preview: string;
   onBack: () => void;
@@ -601,8 +826,8 @@ function CompactHeader({
         </TouchableOpacity>
 
         <View style={styles.headerPill}>
-          <Ionicons name="notifications-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.headerPillText}>Smart</Text>
+          <Ionicons name={icon} size={14} color="#FFFFFF" />
+          <Text style={styles.headerPillText}>{badge}</Text>
         </View>
       </View>
 
@@ -612,7 +837,7 @@ function CompactHeader({
         </View>
 
         <View style={styles.headerTextWrap}>
-          <Text style={styles.headerEyebrow}>SMART REMINDER</Text>
+          <Text style={styles.headerEyebrow}>{title.toUpperCase()}</Text>
 
           <Text style={styles.headerTitle} numberOfLines={1}>
             {contactName}
@@ -698,11 +923,17 @@ function SelectedContactBox({
   contact,
   fallbackName,
   colors,
+  locked = false,
+  showPicker = false,
 }: {
   contact: Contact | null;
   fallbackName: string;
   colors: SmartReminderColors;
+  locked?: boolean;
+  showPicker?: boolean;
 }) {
+  const name = fallbackName || fullName(contact) || "Selected person";
+
   return (
     <View
       style={[
@@ -723,7 +954,7 @@ function SelectedContactBox({
           ]}
         >
           <Text style={[styles.contactAvatarText, { color: colors.primary }]}>
-            {contactInitials(contact)}
+            {getInitials(name)}
           </Text>
         </View>
       )}
@@ -733,16 +964,29 @@ function SelectedContactBox({
           style={[styles.contactResultName, { color: colors.title }]}
           numberOfLines={1}
         >
-          {fallbackName}
+          {name}
         </Text>
 
         <Text
           style={[styles.contactResultMeta, { color: colors.text }]}
           numberOfLines={1}
         >
-          Selected person
+          {locked ? "Selected person" : "Tap to change person"}
         </Text>
       </View>
+
+      {!locked ? (
+        <View
+          style={[
+            styles.changeContactButton,
+            { backgroundColor: colors.softPrimary },
+          ]}
+        >
+          <Text style={[styles.changeContactText, { color: colors.primary }]}>
+            {showPicker ? "Close" : "Change"}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -792,7 +1036,7 @@ function ContactRow({
               },
             ]}
           >
-            {contactInitials(contact)}
+            {getInitials(name)}
           </Text>
         </View>
       )}
@@ -920,11 +1164,7 @@ function FieldLabel({
   label: string;
   colors: SmartReminderColors;
 }) {
-  return (
-    <Text style={[styles.smallLabel, { color: colors.text }]}>
-      {label}
-    </Text>
-  );
+  return <Text style={[styles.smallLabel, { color: colors.text }]}>{label}</Text>;
 }
 
 function PickerButton({
@@ -953,12 +1193,7 @@ function PickerButton({
       activeOpacity={0.85}
     >
       <View style={styles.pickerButtonLeft}>
-        <View
-          style={[
-            styles.pickerIcon,
-            { backgroundColor: colors.softPrimary },
-          ]}
-        >
+        <View style={[styles.pickerIcon, { backgroundColor: colors.softPrimary }]}>
           <Ionicons name={icon} size={18} color={colors.primary} />
         </View>
 
@@ -1026,9 +1261,7 @@ function ThemedInput({
 }
 
 function Divider({ colors }: { colors: SmartReminderColors }) {
-  return (
-    <View style={[styles.divider, { backgroundColor: colors.border }]} />
-  );
+  return <View style={[styles.divider, { backgroundColor: colors.border }]} />;
 }
 
 /* helpers */
@@ -1065,11 +1298,13 @@ function fullName(contact?: Contact | null) {
   return `${contact.first_name || ""} ${contact.last_name || ""}`.trim();
 }
 
-function contactInitials(contact?: Contact | null) {
-  const first = contact?.first_name?.[0] ?? "";
-  const last = contact?.last_name?.[0] ?? "";
+function getInitials(name?: string | null) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
 
-  return `${first}${last}`.toUpperCase() || "?";
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 function todayStart() {
@@ -1317,6 +1552,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    marginTop: 10,
   },
 
   contactSearchInput: {
@@ -1333,8 +1569,8 @@ const styles = StyleSheet.create({
   },
 
   selectedContactBox: {
-    minHeight: 62,
-    borderRadius: 20,
+    minHeight: 66,
+    borderRadius: 22,
     borderWidth: 1,
     padding: 10,
     flexDirection: "row",
@@ -1343,9 +1579,22 @@ const styles = StyleSheet.create({
   },
 
   selectedPhoto: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 17,
+  },
+
+  changeContactButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  changeContactText: {
+    fontSize: 12,
+    fontWeight: "900",
   },
 
   contactResultRow: {
@@ -1366,8 +1615,8 @@ const styles = StyleSheet.create({
   },
 
   contactAvatar: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
@@ -1631,6 +1880,109 @@ const styles = StyleSheet.create({
   },
 
   saveButtonText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(20, 14, 10, 0.42)",
+    justifyContent: "flex-end",
+  },
+
+  successSheet: {
+    marginHorizontal: 12,
+    marginBottom: Platform.OS === "ios" ? 28 : 26,
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: Platform.OS === "android" ? 24 : 18,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+
+  successIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  successTitle: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  successMessage: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    textAlign: "center",
+    opacity: 0.76,
+    marginTop: 6,
+  },
+
+  successPreview: {
+    width: "100%",
+    minHeight: 56,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 16,
+  },
+
+  successPreviewText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+
+  successActions: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+    marginBottom: Platform.OS === "android" ? 8 : 0,
+  },
+
+  successSecondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  successSecondaryText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  successPrimaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  successPrimaryText: {
     fontSize: 14,
     fontWeight: "900",
   },

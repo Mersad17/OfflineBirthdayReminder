@@ -1,6 +1,6 @@
-// src/navigation/AppTabs.tsx
 import React from "react";
 import {
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -18,8 +18,20 @@ import EventsStack from "./EventsStack";
 import SettingsStack from "./SettingsStack";
 import HomeStackNavigator from "./HomeStackNavigation";
 import { useAppearance } from "../appearance/AppearanceContext";
+import { useAccess } from "../access/AccessContext";
 
 const Tab = createBottomTabNavigator();
+
+type AddMenuColors = {
+  card: string;
+  title: string;
+  text: string;
+  primary: string;
+  buttonText: string;
+  border: string;
+  softPrimary: string;
+  softCard: string;
+};
 
 function EmptyAddScreen() {
   return null;
@@ -33,11 +45,30 @@ function withAlpha(color: string, alpha: string) {
   return color;
 }
 
+function makeAddMenuColors(settings: any): AddMenuColors {
+  return {
+    card: settings.cardColor,
+    title: settings.titleColor,
+    text: settings.textColor,
+    primary: settings.primaryColor,
+    buttonText: settings.buttonTextColor || "#FFFFFF",
+    border: withAlpha(settings.textColor, "16"),
+    softPrimary: withAlpha(settings.primaryColor, "14"),
+    softCard: withAlpha(settings.textColor, "08"),
+  };
+}
+
 export default function AppTabs() {
   const { settings } = useAppearance();
+  const { checkCanCreateContact } = useAccess();
 
   const [addMenuVisible, setAddMenuVisible] = React.useState(false);
   const addTabNavigationRef = React.useRef<any>(null);
+
+  const addMenuColors = React.useMemo(
+    () => makeAddMenuColors(settings),
+    [settings]
+  );
 
   function openAddMenu(navigation: any) {
     addTabNavigationRef.current = navigation;
@@ -47,23 +78,101 @@ export default function AppTabs() {
   function closeAddMenu() {
     setAddMenuVisible(false);
   }
-function goToAddContact() {
-  closeAddMenu();
 
-  requestAnimationFrame(() => {
-    const rootNavigation = addTabNavigationRef.current?.getParent() as any;
-    rootNavigation?.navigate("GlobalAddContact");
-  });
+  function getTabNavigation() {
+    return addTabNavigationRef.current;
+  }
+
+function getRootNavigation() {
+  return (
+    addTabNavigationRef.current?.getParent?.() ??
+    addTabNavigationRef.current
+  );
 }
+  async function goToAddContact() {
+    closeAddMenu();
+
+    const result = await checkCanCreateContact();
+
+    if (!result.allowed) {
+      Alert.alert(
+        "Your memory circle is full",
+        result.maxContacts === "unlimited"
+          ? "You can add unlimited people."
+          : `You have ${result.activeContactCount}/${result.maxContacts} people. Upgrade later to keep adding more people.`,
+        [{ text: "OK", style: "default" }]
+      );
+
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const rootNavigation = getRootNavigation();
+      rootNavigation?.navigate?.("GlobalAddContact");
+    });
+  }
 
 function goToSmartReminder() {
   closeAddMenu();
 
   requestAnimationFrame(() => {
-    const rootNavigation = addTabNavigationRef.current?.getParent() as any;
-    rootNavigation?.navigate("GlobalAddReminder");
+    const rootNavigation = getRootNavigation();
+
+    rootNavigation?.navigate?.("GlobalAddReminder");
   });
 }
+
+function goToAskNextTime() {
+  closeAddMenu();
+
+  requestAnimationFrame(() => {
+    const rootNavigation = getRootNavigation();
+
+    rootNavigation?.navigate?.("GlobalAddReminder", {
+      mode: "ask_next_time",
+      title: "Ask next time",
+    });
+  });
+}
+
+function goToAddEvent() {
+  closeAddMenu();
+
+  requestAnimationFrame(() => {
+    const rootNavigation = getRootNavigation();
+
+    rootNavigation?.navigate?.("GlobalAddEvent");
+  });
+}
+
+function goToAddBirthday() {
+  closeAddMenu();
+
+  requestAnimationFrame(() => {
+    const rootNavigation = getRootNavigation();
+
+    rootNavigation?.navigate?.("GlobalAddEvent", {
+      initialType: 1,
+      initialTitle: "Birthday",
+    });
+  });
+}
+
+  function goToCheckInRhythm() {
+    closeAddMenu();
+
+    requestAnimationFrame(() => {
+      const tabNavigation = getTabNavigation();
+
+      tabNavigation?.navigate?.("Contacts");
+
+      Alert.alert(
+        "Choose a person",
+        "Open a person profile, then set their check-in rhythm. Next we can make this open a dedicated check-in screen directly.",
+        [{ text: "OK" }]
+      );
+    });
+  }
 
   return (
     <>
@@ -71,10 +180,10 @@ function goToSmartReminder() {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: settings.primaryColor,
-          tabBarInactiveTintColor: settings.textColor + "80",
+          tabBarInactiveTintColor: withAlpha(settings.textColor, "80"),
           tabBarStyle: {
             backgroundColor: settings.cardColor,
-            borderTopColor: "#E5E7EB",
+            borderTopColor: withAlpha(settings.textColor, "14"),
           },
           tabBarLabelStyle: {
             fontSize: 11,
@@ -145,7 +254,7 @@ function goToSmartReminder() {
           component={EventsStack}
           options={{
             headerShown: false,
-            tabBarLabel: "Moments",
+            tabBarLabel: "Calendar",
           }}
         />
 
@@ -168,7 +277,7 @@ function goToSmartReminder() {
                 ? { display: "none" }
                 : {
                     backgroundColor: settings.cardColor,
-                    borderTopColor: "#E5E7EB",
+                    borderTopColor: withAlpha(settings.textColor, "14"),
                   },
             };
           }}
@@ -180,12 +289,11 @@ function goToSmartReminder() {
         onClose={closeAddMenu}
         onAddContact={goToAddContact}
         onSmartReminder={goToSmartReminder}
-        colors={{
-          card: settings.cardColor,
-          title: settings.titleColor,
-          text: settings.textColor,
-          primary: settings.primaryColor,
-        }}
+        onAskNextTime={goToAskNextTime}
+        onAddEvent={goToAddEvent}
+        onAddBirthday={goToAddBirthday}
+        onCheckInRhythm={goToCheckInRhythm}
+        colors={addMenuColors}
       />
     </>
   );
@@ -196,24 +304,27 @@ function CreateMenuModal({
   onClose,
   onAddContact,
   onSmartReminder,
+  onAskNextTime,
+  onAddEvent,
+  onAddBirthday,
+  onCheckInRhythm,
   colors,
 }: {
   visible: boolean;
   onClose: () => void;
   onAddContact: () => void;
   onSmartReminder: () => void;
-  colors: {
-    card: string;
-    title: string;
-    text: string;
-    primary: string;
-  };
+  onAskNextTime: () => void;
+  onAddEvent: () => void;
+  onAddBirthday: () => void;
+  onCheckInRhythm: () => void;
+  colors: AddMenuColors;
 }) {
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
@@ -221,27 +332,38 @@ function CreateMenuModal({
           style={[styles.sheet, { backgroundColor: colors.card }]}
           onPress={(event) => event.stopPropagation()}
         >
-          <View style={styles.sheetHandle} />
+          <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
 
           <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetEyebrow, { color: colors.primary }]}>
-              QUICK ADD
-            </Text>
+            <View
+              style={[
+                styles.sheetIcon,
+                { backgroundColor: colors.softPrimary },
+              ]}
+            >
+              <Ionicons name="sparkles-outline" size={22} color={colors.primary} />
+            </View>
 
-            <Text style={[styles.sheetTitle, { color: colors.title }]}>
-              What do you want to add?
-            </Text>
+            <View style={styles.sheetTitleWrap}>
+              <Text style={[styles.sheetEyebrow, { color: colors.primary }]}>
+                ADD MOMENT
+              </Text>
 
-            <Text style={[styles.sheetSubtitle, { color: colors.text }]}>
-              Keep your relationships organized with one quick action.
-            </Text>
+              <Text style={[styles.sheetTitle, { color: colors.title }]}>
+                What do you want to add?
+              </Text>
+
+              <Text style={[styles.sheetSubtitle, { color: colors.text }]}>
+                Create a person, reminder, event, birthday, or follow-up from one place.
+              </Text>
+            </View>
           </View>
 
           <View style={styles.actionList}>
             <CreateAction
               icon="person-add-outline"
               title="New person"
-              subtitle="Create a private profile for someone important."
+              subtitle="Create a private memory profile."
               onPress={onAddContact}
               colors={colors}
             />
@@ -249,14 +371,48 @@ function CreateMenuModal({
             <CreateAction
               icon="notifications-outline"
               title="Smart reminder"
-              subtitle="Remember to ask, call, follow up, or check in."
+              subtitle="Remember to call, ask, follow up, or do something."
               onPress={onSmartReminder}
               colors={colors}
             />
+
+            <CreateAction
+              icon="calendar-outline"
+              title="Event"
+              subtitle="Add a meeting, important date, holiday, or moment."
+              onPress={onAddEvent}
+              colors={colors}
+            />
+
+            <CreateAction
+              icon="chatbubble-ellipses-outline"
+              title="Ask next time"
+              subtitle="Save a question to remember for the next conversation."
+              onPress={onAskNextTime}
+              colors={colors}
+            />
+
+            <View style={styles.twoColumnRow}>
+              <SmallCreateAction
+                icon="gift-outline"
+                title="Birthday"
+                subtitle="Add a special date"
+                onPress={onAddBirthday}
+                colors={colors}
+              />
+
+              <SmallCreateAction
+                icon="heart-outline"
+                title="Check-in"
+                subtitle="Stay in touch"
+                onPress={onCheckInRhythm}
+                colors={colors}
+              />
+            </View>
           </View>
 
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButton, { backgroundColor: colors.softCard }]}
             onPress={onClose}
             activeOpacity={0.85}
           >
@@ -281,19 +437,14 @@ function CreateAction({
   title: string;
   subtitle: string;
   onPress: () => void;
-  colors: {
-    card: string;
-    title: string;
-    text: string;
-    primary: string;
-  };
+  colors: AddMenuColors;
 }) {
   return (
     <TouchableOpacity
       style={[
         styles.actionRow,
         {
-          backgroundColor: withAlpha(colors.primary, "0D"),
+          backgroundColor: colors.softPrimary,
           borderColor: withAlpha(colors.primary, "26"),
         },
       ]}
@@ -327,6 +478,57 @@ function CreateAction({
       >
         <Ionicons name="chevron-forward" size={18} color={colors.primary} />
       </View>
+    </TouchableOpacity>
+  );
+}
+
+function SmallCreateAction({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  colors: AddMenuColors;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.smallAction,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.86}
+    >
+      <View
+        style={[
+          styles.smallActionIcon,
+          { backgroundColor: colors.softPrimary },
+        ]}
+      >
+        <Ionicons name={icon} size={19} color={colors.primary} />
+      </View>
+
+      <Text
+        style={[styles.smallActionTitle, { color: colors.title }]}
+        numberOfLines={1}
+      >
+        {title}
+      </Text>
+
+      <Text
+        style={[styles.smallActionSubtitle, { color: colors.text }]}
+        numberOfLines={1}
+      >
+        {subtitle}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -370,19 +572,33 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 999,
-    backgroundColor: "#D8C8BA",
     marginBottom: 16,
   },
 
   sheetHeader: {
+    flexDirection: "row",
+    gap: 12,
     marginBottom: 16,
+  },
+
+  sheetIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sheetTitleWrap: {
+    flex: 1,
+    minWidth: 0,
   },
 
   sheetEyebrow: {
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0.8,
-    marginBottom: 6,
+    marginBottom: 5,
   },
 
   sheetTitle: {
@@ -448,13 +664,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  twoColumnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  smallAction: {
+    flex: 1,
+    minHeight: 104,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 12,
+  },
+
+  smallActionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+
+  smallActionTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  smallActionSubtitle: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    marginTop: 3,
+    opacity: 0.72,
+  },
+
   cancelButton: {
     height: 48,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 12,
-    backgroundColor: "rgba(0,0,0,0.035)",
   },
 
   cancelText: {

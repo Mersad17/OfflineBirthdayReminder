@@ -177,11 +177,131 @@ async function mapContactToApi(
     talk_notified_at: row.talkNotifiedAt,
   };
 }
+function mapContactListRowToApi(row: {
+  person: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+    birthday: string | null;
+    email: string | null;
+    phone: string | null;
+    groupId: string | null;
+    isFavorite: boolean;
+    createdAt: Date;
+    shortDescription: string | null;
+    metAt: string | null;
+    knownSince: string | null;
+    relationshipLabel: string | null;
+    photoUri: string | null;
+    talkEveryDays: number | null;
+    talkLastAt: string | null;
+    talkNextAt: string | null;
+    talkNotifiedAt: string | null;
+  };
+  group: {
+    id: string | null;
+    name: string | null;
+    normalizedName: string | null;
+    color: string | null;
+    icon: string | null;
+    createdAt: Date | null;
+  } | null;
+}): Contact {
+  const groupDetail: ContactGroup | null =
+    row.group?.id && row.group.name && row.group.normalizedName
+      ? {
+          id: row.group.id,
+          name: row.group.name,
+          normalized_name: row.group.normalizedName,
+          color: row.group.color,
+          icon: row.group.icon,
+          created_at: toIso(row.group.createdAt),
+        }
+      : null;
 
+  return {
+    id: row.person.id,
+
+    first_name: row.person.firstName,
+    last_name: row.person.lastName,
+
+    birthday: row.person.birthday,
+    email: row.person.email,
+    phone: row.person.phone,
+
+    group: row.person.groupId,
+    group_detail: groupDetail,
+
+    // Fast list mode: tags are not needed on the Contacts list.
+    // Contact detail still gets real tags through fetchContactById().
+    tags: [],
+    tags_detail: [],
+
+    is_favorite: row.person.isFavorite,
+
+    created_at: toIso(row.person.createdAt),
+
+    short_description: row.person.shortDescription,
+
+    met_at: row.person.metAt ?? null,
+    known_since: row.person.knownSince ?? null,
+    relationship_label: row.person.relationshipLabel ?? null,
+
+    photo: row.person.photoUri,
+    photo_uri: row.person.photoUri,
+
+    talk_every_days: row.person.talkEveryDays,
+    talk_last_at: row.person.talkLastAt,
+    talk_next_at: row.person.talkNextAt,
+    talk_notified_at: row.person.talkNotifiedAt,
+  };
+}
 export async function fetchContactGroups(options?: {
   onlyUsed?: boolean;
 }): Promise<ContactGroup[]> {
-  let rows = await db
+  if (options?.onlyUsed) {
+    const rows = await db
+      .select({
+        group: {
+          id: contactGroup.id,
+          name: contactGroup.name,
+          normalizedName: contactGroup.normalizedName,
+          color: contactGroup.color,
+          icon: contactGroup.icon,
+          createdAt: contactGroup.createdAt,
+        },
+      })
+      .from(contactGroup)
+      .innerJoin(contact, eq(contact.groupId, contactGroup.id))
+      .where(
+        and(
+          eq(contactGroup.userId, LOCAL_USER_ID),
+          isNull(contactGroup.deletedAt),
+          eq(contact.userId, LOCAL_USER_ID),
+          isNull(contact.deletedAt)
+        )
+      )
+      .orderBy(asc(contactGroup.name));
+
+    const uniqueGroups = new Map<string, ContactGroup>();
+
+    for (const row of rows) {
+      if (!uniqueGroups.has(row.group.id)) {
+        uniqueGroups.set(row.group.id, {
+          id: row.group.id,
+          name: row.group.name,
+          normalized_name: row.group.normalizedName,
+          color: row.group.color,
+          icon: row.group.icon,
+          created_at: toIso(row.group.createdAt),
+        });
+      }
+    }
+
+    return Array.from(uniqueGroups.values());
+  }
+
+  const rows = await db
     .select()
     .from(contactGroup)
     .where(
@@ -191,28 +311,6 @@ export async function fetchContactGroups(options?: {
       )
     )
     .orderBy(asc(contactGroup.name));
-
-  if (options?.onlyUsed) {
-    const usedRows = await db
-      .select({
-        groupId: contact.groupId,
-      })
-      .from(contact)
-      .where(
-        and(
-          eq(contact.userId, LOCAL_USER_ID),
-          isNull(contact.deletedAt)
-        )
-      );
-
-    const usedGroupIds = new Set(
-      usedRows
-        .map((item) => item.groupId)
-        .filter((id): id is string => Boolean(id))
-    );
-
-    rows = rows.filter((group) => usedGroupIds.has(group.id));
-  }
 
   return rows.map(mapGroupToApi);
 }
@@ -614,7 +712,8 @@ export async function fetchContacts(
       ? { page: filtersOrPage }
       : filtersOrPage;
 
-  const page = filters.page ?? 1;
+  const page = Math.max(1, filters.page ?? 1);
+  const start = (page - 1) * PAGE_SIZE;
 
   const conditions: SQL[] = [
     eq(contact.userId, LOCAL_USER_ID),
@@ -629,7 +728,8 @@ export async function fetchContacts(
   }
 
   if (filters.search?.trim()) {
-    const search = `%${filters.search.trim()}%`;
+    const cleanSearch = filters.search.trim();
+    const search = `%${cleanSearch}%`;
 
     conditions.push(
       or(
@@ -667,27 +767,63 @@ export async function fetchContacts(
   }
 
   const rows = await db
-    .select()
+    .select({
+      person: {
+        id: contact.id,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        birthday: contact.birthday,
+        email: contact.email,
+        phone: contact.phone,
+        groupId: contact.groupId,
+        isFavorite: contact.isFavorite,
+        createdAt: contact.createdAt,
+        shortDescription: contact.shortDescription,
+        metAt: contact.metAt,
+        knownSince: contact.knownSince,
+        relationshipLabel: contact.relationshipLabel,
+        photoUri: contact.photoUri,
+        talkEveryDays: contact.talkEveryDays,
+        talkLastAt: contact.talkLastAt,
+        talkNextAt: contact.talkNextAt,
+        talkNotifiedAt: contact.talkNotifiedAt,
+      },
+      group: {
+        id: contactGroup.id,
+        name: contactGroup.name,
+        normalizedName: contactGroup.normalizedName,
+        color: contactGroup.color,
+        icon: contactGroup.icon,
+        createdAt: contactGroup.createdAt,
+      },
+    })
     .from(contact)
+    .leftJoin(
+      contactGroup,
+      and(
+        eq(contact.groupId, contactGroup.id),
+        eq(contactGroup.userId, LOCAL_USER_ID),
+        isNull(contactGroup.deletedAt)
+      )
+    )
     .where(and(...conditions))
     .orderBy(
       desc(contact.isFavorite),
       asc(contact.firstName),
       asc(contact.lastName)
-    );
+    )
+    .limit(PAGE_SIZE + 1)
+    .offset(start);
 
-  const start = (page - 1) * PAGE_SIZE;
-  const pageRows = rows.slice(start, start + PAGE_SIZE);
+  const hasNext = rows.length > PAGE_SIZE;
+  const pageRows = hasNext ? rows.slice(0, PAGE_SIZE) : rows;
 
-  const results = await Promise.all(pageRows.map(mapContactToApi));
+  const results = pageRows.map(mapContactListRowToApi);
 
-  /**
-   * Same shape as DRF paginated response.
-   * Your screens can keep using data.results.
-   */
   return {
-    count: rows.length,
-    next: rows.length > start + PAGE_SIZE ? page + 1 : null,
+    // Fast approximate count. Avoids expensive count(*) on every page.
+    count: start + results.length + (hasNext ? 1 : 0),
+    next: hasNext ? page + 1 : null,
     previous: page > 1 ? page - 1 : null,
     results,
   };

@@ -10,6 +10,7 @@ import LanguageScreen from "../screens/Settings/LanguageScreen";
 import ManageGroupsTagsScreen from "../screens/Settings/ManageGroupsTagsScreen";
 import BackupScreen from "../screens/Settings/BackupScreen";
 import LocalFirstScreen from "../screens/Settings/LocalFirstScreen";
+import PlanAccessScreen from "../screens/Settings/PlanAccessScreen";
 export type SettingsStackParamsList ={
     SettingsHome: undefined;
     Profile:undefined;
@@ -23,6 +24,7 @@ export type SettingsStackParamsList ={
     ManageGroupsTags: undefined;
     Backup: undefined;
     LocalFirst: undefined;
+      PlanAccess: undefined;
 }
 
 const Stack = createNativeStackNavigator<SettingsStackParamsList>()
@@ -50,6 +52,8 @@ export default function SettingsStack(){
             <Stack.Screen name="Backup" component={BackupScreen} options={{ title: "Backup & restore" }}/>
             <Stack.Screen name="LocalFirst" component={LocalFirstScreen} options={{ title: "Local First" }}/>
             <Stack.Screen name="Language" component={LanguageScreen}/> 
+            <Stack.Screen name="PlanAccess" component={PlanAccessScreen} options={{ headerShown: false }}
+/>
             <Stack.Screen name="ManageGroupsTags" component={ManageGroupsTagsScreen}/> 
         </Stack.Navigator>
     )

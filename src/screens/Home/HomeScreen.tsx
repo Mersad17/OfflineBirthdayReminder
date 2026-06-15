@@ -28,6 +28,8 @@ import {
 } from "../../events/types";
 import { fetchHomeSummary } from "../../events/repository";
 import BeforeMeetSearchCard from "../BeforeMeet/BeforeMeetSearchCard";
+import { useAccess } from "../../access/AccessContext";
+import { getRemainingContacts } from "../../access/plans";
 type Props = {
   navigation: any;
 };
@@ -81,7 +83,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { t } = useTranslation("home");
 
   const colors = useMemo(() => makeHomeColors(settings), [settings]);
-
+const { access } = useAccess();
   const [todayItems, setTodayItems] = useState<HomeItem[]>([]);
   const [upcoming, setUpcoming] = useState<HomeItem[]>([]);
   const [typeInsights, setTypeInsights] = useState<TypeInsight[]>([]);
@@ -114,7 +116,65 @@ export default function HomeScreen({ navigation }: Props) {
     },
     [t]
   );
+function AccessStatusCard({
+  access,
+  totalContacts,
+  colors,
+  onPress,
+}: {
+  access: any;
+  totalContacts: number;
+  colors: HomeColors;
+  onPress: () => void;
+}) {
+  const remaining = getRemainingContacts(access, totalContacts);
 
+  const limitText =
+    access.maxContacts === "unlimited"
+      ? "Unlimited people unlocked"
+      : `${totalContacts}/${access.maxContacts} people`;
+
+  const subtitle = access.isBeta
+    ? "Full access during private beta."
+    : remaining === "unlimited"
+      ? "You can add unlimited people."
+      : `${remaining} people remaining.`;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.accessCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      <View style={[styles.accessIcon, { backgroundColor: colors.softPrimary }]}>
+        <Ionicons
+          name={access.isBeta ? "flask-outline" : "shield-checkmark-outline"}
+          size={18}
+          color={colors.primary}
+        />
+      </View>
+
+      <View style={styles.accessTextWrap}>
+        <Text style={[styles.accessTitle, { color: colors.title }]}>
+          {access.label}
+        </Text>
+
+        <Text style={[styles.accessSubtitle, { color: colors.text }]}>
+          {limitText} · {subtitle}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={17} color={colors.text} />
+    </TouchableOpacity>
+  );
+}
   const loadHome = useCallback(async () => {
     try {
       setLoading(true);
@@ -418,7 +478,12 @@ export default function HomeScreen({ navigation }: Props) {
               />
             )}
           </View>
-
+<AccessStatusCard
+  access={access}
+  totalContacts={totalContacts}
+  colors={colors}
+  onPress={() => navigation.navigate("Settings", { screen: "PlanAccess" })}
+/>
           <View style={styles.section}>
             <SectionHeader
               title={t("sections.upcoming")}
@@ -1824,4 +1889,46 @@ const styles = StyleSheet.create({
     opacity: 0.76,
     marginTop: 5,
   },
+accessCard: {
+  minHeight: 64,
+  borderRadius: 22,
+  borderWidth: 1,
+  paddingHorizontal: 13,
+  paddingVertical: 12,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 11,
+  marginTop: 12,
+  shadowOpacity: 0.05,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 7 },
+  elevation: 2,
+},
+
+accessIcon: {
+  width: 40,
+  height: 40,
+  borderRadius: 16,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+accessTextWrap: {
+  flex: 1,
+  minWidth: 0,
+},
+
+accessTitle: {
+  fontSize: 14,
+  lineHeight: 18,
+  fontWeight: "900",
+},
+
+accessSubtitle: {
+  fontSize: 12,
+  lineHeight: 17,
+  fontWeight: "700",
+  opacity: 0.76,
+  marginTop: 2,
+},
 });

@@ -14,7 +14,7 @@ import {
 
 import { AppId, Contact } from "../contacts/types";
 import { db } from "../db/client";
-import { contact, contactEvent } from "../db/schema";
+import { contact, contactEvent, reminder } from "../db/schema";
 
 import {
   CreateEventInput,
@@ -22,6 +22,7 @@ import {
   EventTypeValue,
   HomeEventDTO,
   HomeSummaryDTO,
+  ReminderDTO,
   UpdateEventPayload,
 } from "./types";
 import { createId } from "../lib/id";
@@ -153,7 +154,23 @@ function mapContactMini(row: typeof contact.$inferSelect | null) {
     talk_notified_at: row.talkNotifiedAt,
   };
 }
-
+function mapReminderToApi(row: typeof reminder.$inferSelect): ReminderDTO {
+  return {
+    id: row.id,
+    event: row.eventId,
+    days_before: row.daysBefore,
+    absolute_datetime: row.absoluteDatetime
+      ? row.absoluteDatetime.toISOString()
+      : null,
+    time_of_day: row.timeOfDay,
+    send_at: row.sendAt ? row.sendAt.toISOString() : null,
+    status: row.status,
+    is_active: row.isActive,
+    notification_id: row.notificationId,
+    created_at: row.createdAt?.toISOString(),
+    updated_at: row.updatedAt?.toISOString(),
+  };
+}
 function mapEventToApi(row: {
   event: typeof contactEvent.$inferSelect;
   contactRow?: typeof contact.$inferSelect | null;
@@ -374,13 +391,34 @@ export async function createEvent(
 export async function fetchEventById(
   id: AppId | number
 ): Promise<EventDTO> {
-  const row = await fetchEventRowById(id);
+  const eventId = String(id);
+
+  const row = await fetchEventRowById(eventId);
 
   if (!row) {
     throw new Error("Event not found");
   }
 
-  return mapEventToApi(row);
+  const reminderRows = await db
+    .select()
+    .from(reminder)
+    .where(
+      and(
+        eq(reminder.eventId, eventId),
+        isNull(reminder.deletedAt)
+      )
+    )
+    .orderBy(asc(reminder.sendAt));
+
+  const mappedEvent = mapEventToApi(row);
+  const reminders = reminderRows.map(mapReminderToApi);
+
+  return {
+    ...mappedEvent,
+    reminders,
+    has_reminder: reminders.length > 0,
+    reminder_count: reminders.length,
+  };
 }
 
 export async function fetchEventsForContact(

@@ -1224,28 +1224,32 @@ function renderProfileSection(sectionKey: ContactProfileSectionKey) {
   switch (sectionKey) {
     case "primary_actions":
       return (
-        <PrimaryActionBar
-          onQuickNote={() =>
-            navigation.navigate("QuickNote", {
-              contactId: currentContact.id as any,
-              contactName: `${currentContact.first_name || ""} ${
-                currentContact.last_name || ""
-              }`.trim(),
-            })
-          }
-          onLogInteraction={() =>
-            navigation.navigate("LogInteraction", {
-              contactId: currentContact.id as any,
-            })
-          }
-          onSetReminder={() =>
-            navigation.navigate("AddReminder", {
-              contactId: currentContact.id as any,
-              contactName: name,
-            })
-          }
-          onSaveMemory={() => openCreateMemoryModal("important")}
-        />
+          <PrimaryActionBar
+            onQuickNote={() =>
+              navigation.navigate("QuickNote", {
+                contactId: currentContact.id as any,
+                contactName: name,
+              })
+            }
+            onLogInteraction={() =>
+              navigation.navigate("LogInteraction", {
+                contactId: currentContact.id as any,
+              })
+            }
+            onSetReminder={() =>
+              navigation.navigate("AddReminder", {
+                contactId: currentContact.id as any,
+                contactName: name,
+              })
+            }
+            onAddEvent={() =>
+              navigation.navigate("AddEvent", {
+                contactId: currentContact.id as any,
+                contactName: name,
+                initialType: 4,
+              })
+            }
+          />
       );
 
     case "about":
@@ -1317,11 +1321,12 @@ function renderProfileSection(sectionKey: ContactProfileSectionKey) {
             contact={currentContact}
             events={currentProfile.upcomingEvents}
             birthdayLeft={birthdayLeft}
-            onAdd={() =>
-              navigation.navigate("AddEvent", {
-                contactId: currentContact.id as any,
-                contactName: name,
-              })
+          onAdd={() =>
+        navigation.navigate("AddEvent", {
+          contactId: currentContact.id as any,
+          contactName: name,
+          initialType: 4,
+        })
             }
             onOpen={(event) =>
               navigation.navigate("EventDetails", {
@@ -1337,12 +1342,13 @@ function renderProfileSection(sectionKey: ContactProfileSectionKey) {
             variant="half"
             contact={currentContact}
             events={currentProfile.importantDates}
-            onAdd={() =>
-              navigation.navigate("AddEvent", {
-                contactId: currentContact.id as any,
-                contactName: name,
-              })
-            }
+           onAdd={() =>
+          navigation.navigate("AddEvent", {
+            contactId: currentContact.id as any,
+            contactName: name,
+            initialType: 3,
+          })
+        }
           />
         </View>
       );
@@ -1983,12 +1989,12 @@ function PrimaryActionBar({
   onQuickNote,
   onLogInteraction,
   onSetReminder,
-  onSaveMemory,
+  onAddEvent,
 }: {
   onQuickNote: () => void;
   onLogInteraction: () => void;
   onSetReminder: () => void;
-  onSaveMemory: () => void;
+  onAddEvent: () => void;
 }) {
   return (
     <View style={styles.primaryActionsCard}>
@@ -2013,13 +2019,13 @@ function PrimaryActionBar({
         subtitle="Never forget"
         onPress={onSetReminder}
       />
-      <PrimaryAction
-        icon="book-outline"
-        iconColor={contactDetailTheme.purple}
-        title="Save memory"
-        subtitle="Keep it forever"
-        onPress={onSaveMemory}
-      />
+    <PrimaryAction
+      icon="calendar-outline"
+      iconColor={contactDetailTheme.blue}
+      title="Add event"
+      subtitle="Plan a moment"
+      onPress={onAddEvent}
+    />
     </View>
   );
 }

@@ -16,6 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
@@ -179,7 +180,7 @@ export default function ContactsScreen({ navigation }: Props) {
 
   const isFocused = useIsFocused();
   const loadingRef = useRef(false);
-
+const requestIdRef = useRef(0);
   const loadGroups = useCallback(async () => {
     try {
       const data = await fetchContactGroups({ onlyUsed: true });
@@ -189,50 +190,55 @@ export default function ContactsScreen({ navigation }: Props) {
     }
   }, []);
 
-  const load = useCallback(
-    async (pageToLoad = 1, reset = false) => {
-      if (loadingRef.current) return;
+const load = useCallback(
+  async (pageToLoad = 1, reset = false) => {
+    if (loadingRef.current && !reset) return;
 
-      loadingRef.current = true;
-      setLoading(true);
+    const requestId = ++requestIdRef.current;
 
-      try {
-        const response = await fetchContacts({
-          page: pageToLoad,
-          group: selectedGroupId,
-          search: debouncedSearch || undefined,
-        });
+    loadingRef.current = true;
+    setLoading(true);
 
-        const results: Contact[] = Array.isArray(response)
-          ? response
-          : response.results ?? [];
+    try {
+      const response = await fetchContacts({
+        page: pageToLoad,
+        group: selectedGroupId,
+        search: debouncedSearch || undefined,
+      });
 
-        setContacts((prev) => {
-          if (reset) return results;
+      if (requestId !== requestIdRef.current) return;
 
-          const existingIds = new Set(prev.map((contact) => contact.id));
-          const filtered = results.filter(
-            (contact) => !existingIds.has(contact.id)
-          );
+      const results: Contact[] = Array.isArray(response)
+        ? response
+        : response.results ?? [];
 
-          return [...prev, ...filtered];
-        });
+      setContacts((prev) => {
+        if (reset) return results;
 
-        setHasMore(!Array.isArray(response) && Boolean(response.next));
-        setPage(pageToLoad);
-      } catch (error) {
+        const existingIds = new Set(prev.map((contact) => contact.id));
+
+        const filtered = results.filter(
+          (contact) => !existingIds.has(contact.id)
+        );
+
+        return [...prev, ...filtered];
+      });
+
+      setHasMore(!Array.isArray(response) && Boolean(response.next));
+      setPage(pageToLoad);
+    } catch (error) {
+      if (requestId === requestIdRef.current) {
         console.log("Failed to load contacts:", error);
-      } finally {
+      }
+    } finally {
+      if (requestId === requestIdRef.current) {
         loadingRef.current = false;
         setLoading(false);
       }
-    },
-    [debouncedSearch, selectedGroupId]
-  );
-
-  useEffect(() => {
-    loadGroups();
-  }, [loadGroups]);
+    }
+  },
+  [debouncedSearch, selectedGroupId]
+);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -242,22 +248,35 @@ export default function ContactsScreen({ navigation }: Props) {
     return () => clearTimeout(timeout);
   }, [search]);
 
-  useEffect(() => {
-    if (!isFocused) return;
+useEffect(() => {
+  if (!isFocused) return;
 
-    loadGroups();
-    load(1, true);
-  }, [isFocused, selectedGroupId, debouncedSearch, loadGroups, load]);
+  loadGroups();
+}, [isFocused, loadGroups]);
 
-  async function onRefresh() {
-    setRefreshing(true);
+useEffect(() => {
+  if (!isFocused) return;
 
-    await loadGroups();
-    await load(1, true);
+  setPage(1);
+  setHasMore(true);
+  load(1, true);
+}, [isFocused, selectedGroupId, debouncedSearch, load]);
 
+async function onRefresh() {
+  setRefreshing(true);
+
+  try {
+    setPage(1);
+    setHasMore(true);
+
+    await Promise.all([
+      loadGroups(),
+      load(1, true),
+    ]);
+  } finally {
     setRefreshing(false);
   }
-
+}
   function openAddContact() {
     navigation.navigate("AddContact");
   }
@@ -279,7 +298,12 @@ export default function ContactsScreen({ navigation }: Props) {
   );
 
   const isEmpty = !loading && contacts.length === 0;
+const handleEndReached = useCallback(() => {
+  if (!hasMore) return;
+  if (loadingRef.current) return;
 
+  load(page + 1);
+}, [hasMore, load, page]);
   return (
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -348,12 +372,14 @@ export default function ContactsScreen({ navigation }: Props) {
               <View style={styles.footerSpace} />
             )
           }
-          onEndReached={() => {
-            if (hasMore && !loading) {
-              load(page + 1);
-            }
-          }}
+         onEndReached={handleEndReached}
           onEndReachedThreshold={0.6}
+          initialNumToRender={10}
+maxToRenderPerBatch={10}
+updateCellsBatchingPeriod={50}
+windowSize={7}
+removeClippedSubviews={Platform.OS === "android"}
+keyboardShouldPersistTaps="handled"
         />
       </View>
     </Screen>

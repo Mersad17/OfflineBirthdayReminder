@@ -9,7 +9,18 @@ import {
 } from "../notifications/localReminder";
 import { REMINDER_STATUS, ReminderDTO } from "../events/types";
 import { createId } from "../lib/id";
+export type ReminderWithContextDTO = ReminderDTO & {
+  event_title: string;
+  event_type: number;
+  event_start_date: string;
+  event_start_time?: string | null;
 
+  contact_id: string;
+  contact_name: string;
+  contact_first_name: string;
+  contact_last_name?: string | null;
+  contact_photo?: string | null;
+};
 
 function now() {
   return new Date();
@@ -169,7 +180,32 @@ function mapReminderToApi(row: typeof reminder.$inferSelect): ReminderDTO {
     updated_at: toIso(row.updatedAt) ?? undefined,
   };
 }
+function mapReminderWithContextToApi(row: {
+  reminderRow: typeof reminder.$inferSelect;
+  eventRow: typeof contactEvent.$inferSelect;
+  contactRow: typeof contact.$inferSelect;
+}): ReminderWithContextDTO {
+  const base = mapReminderToApi(row.reminderRow);
 
+  const contactName = `${row.contactRow.firstName} ${
+    row.contactRow.lastName || ""
+  }`.trim();
+
+  return {
+    ...base,
+
+    event_title: row.eventRow.title || "Event",
+    event_type: row.eventRow.type,
+    event_start_date: row.eventRow.startDate,
+    event_start_time: row.eventRow.startTime,
+
+    contact_id: row.contactRow.id,
+    contact_name: contactName || "Unknown person",
+    contact_first_name: row.contactRow.firstName,
+    contact_last_name: row.contactRow.lastName,
+    contact_photo: row.contactRow.photoUri,
+  };
+}
 async function fetchReminderById(id: AppId | number): Promise<ReminderDTO> {
   const reminderId = String(id);
 
@@ -214,17 +250,54 @@ async function fetchEventWithContact(eventId: AppId | number) {
 
   return rows[0];
 }
+async function safeCancelLocalReminder(notificationId?: string | null) {
+  if (!notificationId) return;
 
-export async function fetchReminders(): Promise<ReminderDTO[]> {
-  const rows = await db
-    .select()
-    .from(reminder)
-    .where(isNull(reminder.deletedAt))
-    .orderBy(asc(reminder.id));
-
-  return rows.map(mapReminderToApi);
+  try {
+    await cancelLocalReminder(notificationId);
+  } catch (error) {
+    console.log("Cancel local reminder failed, continuing:", error);
+  }
 }
 
+async function safeScheduleLocalReminder(args: {
+  reminderId: string;
+  eventId: string;
+  contactId: string;
+  title: string;
+  body: string;
+  sendAt: Date | null;
+}) {
+  if (!args.sendAt) return null;
+
+  try {
+    return await scheduleLocalReminder(args);
+  } catch (error) {
+    console.log("Schedule local reminder failed, reminder still saved:", error);
+    return null;
+  }
+}
+export async function fetchReminders(): Promise<ReminderWithContextDTO[]> {
+  const rows = await db
+    .select({
+      reminderRow: reminder,
+      eventRow: contactEvent,
+      contactRow: contact,
+    })
+    .from(reminder)
+    .innerJoin(contactEvent, eq(reminder.eventId, contactEvent.id))
+    .innerJoin(contact, eq(contactEvent.contactId, contact.id))
+    .where(
+      and(
+        isNull(reminder.deletedAt),
+        isNull(contactEvent.deletedAt),
+        isNull(contact.deletedAt)
+      )
+    )
+    .orderBy(asc(reminder.sendAt));
+
+  return rows.map(mapReminderWithContextToApi);
+}
 export async function createReminder(
   eventId: AppId | number,
   payload: Partial<ReminderDTO>
@@ -242,24 +315,7 @@ export async function createReminder(
     timeOfDay: payload.time_of_day ?? null,
   });
 
-  const contactName = `${contactRow.firstName} ${
-    contactRow.lastName || ""
-  }`.trim();
-
   const isActive = payload.is_active ?? true;
-
-  const notificationId = isActive
-    ? await scheduleLocalReminder({
-        reminderId,
-        eventId: event.id,
-        contactId: event.contactId,
-        title: event.title || "Reminder",
-        body: contactName
-          ? `Remember this for ${contactName}`
-          : "You have a reminder.",
-        sendAt: calculatedSendAt,
-      })
-    : null;
 
   await db.insert(reminder).values({
     id: reminderId,
@@ -278,16 +334,50 @@ export async function createReminder(
 
     isActive,
 
-    notificationId,
+    // Important:
+    // Save reminder first. Notification scheduling can fail,
+    // but the reminder should still exist in SQLite.
+    notificationId: null,
 
     createdAt: date,
     updatedAt: date,
     deletedAt: null,
   });
 
+  const contactName = `${contactRow.firstName} ${
+    contactRow.lastName || ""
+  }`.trim();
+
+  const notificationId = isActive
+    ? await safeScheduleLocalReminder({
+        reminderId,
+        eventId: event.id,
+        contactId: event.contactId,
+        title: event.title || "Reminder",
+        body: contactName
+          ? `Remember this for ${contactName}`
+          : "You have a reminder.",
+        sendAt: calculatedSendAt,
+      })
+    : null;
+
+  if (notificationId) {
+    await db
+      .update(reminder)
+      .set({
+        notificationId,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(reminder.id, reminderId),
+          isNull(reminder.deletedAt)
+        )
+      );
+  }
+
   return fetchReminderById(reminderId);
 }
-
 export async function updateReminder(
   id: AppId | number,
   payload: Partial<ReminderDTO>
@@ -310,11 +400,6 @@ export async function updateReminder(
   if (!oldReminder) {
     throw new Error("Reminder not found");
   }
-
-  /**
-   * Cancel old scheduled notification before creating a new one.
-   */
-  await cancelLocalReminder(oldReminder.notificationId);
 
   const eventId = payload.event ?? oldReminder.eventId;
   const { event, contactRow } = await fetchEventWithContact(eventId);
@@ -352,28 +437,11 @@ export async function updateReminder(
     timeOfDay: mergedTimeOfDay,
   });
 
-  const contactName = `${contactRow.firstName} ${
-    contactRow.lastName || ""
-  }`.trim();
-
-  const newNotificationId = mergedIsActive
-    ? await scheduleLocalReminder({
-        reminderId,
-        eventId: event.id,
-        contactId: event.contactId,
-        title: event.title || "Reminder",
-        body: contactName
-          ? `Remember this for ${contactName}`
-          : "You have a reminder.",
-        sendAt: calculatedSendAt,
-      })
-    : null;
-
   const updateData: Partial<typeof reminder.$inferInsert> = {
     updatedAt: now(),
     eventId: event.id,
     sendAt: calculatedSendAt,
-    notificationId: newNotificationId,
+    notificationId: null,
     isActive: mergedIsActive,
   };
 
@@ -403,6 +471,40 @@ export async function updateReminder(
       )
     );
 
+  await safeCancelLocalReminder(oldReminder.notificationId);
+
+  const contactName = `${contactRow.firstName} ${
+    contactRow.lastName || ""
+  }`.trim();
+
+  const newNotificationId = mergedIsActive
+    ? await safeScheduleLocalReminder({
+        reminderId,
+        eventId: event.id,
+        contactId: event.contactId,
+        title: event.title || "Reminder",
+        body: contactName
+          ? `Remember this for ${contactName}`
+          : "You have a reminder.",
+        sendAt: calculatedSendAt,
+      })
+    : null;
+
+  if (newNotificationId) {
+    await db
+      .update(reminder)
+      .set({
+        notificationId: newNotificationId,
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(reminder.id, reminderId),
+          isNull(reminder.deletedAt)
+        )
+      );
+  }
+
   return fetchReminderById(reminderId);
 }
 
@@ -423,7 +525,7 @@ export async function deleteReminder(id: AppId | number) {
   const existing = rows[0];
 
   if (existing?.notificationId) {
-    await cancelLocalReminder(existing.notificationId);
+    await safeCancelLocalReminder(existing?.notificationId);
   }
 
   await db

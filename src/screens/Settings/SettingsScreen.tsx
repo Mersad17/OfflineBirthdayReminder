@@ -1,6 +1,7 @@
 // src/screens/Settings/SettingsScreen.tsx
 import React, { useMemo } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SettingsStackParamsList } from "../../navigation/SettingsStack";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { Screen } from "../../components/Screen";
+import { clearDummyData, seedDummyData } from "../../dev/dummyDataSeeder";
 
 type Props = NativeStackScreenProps<SettingsStackParamsList, "SettingsHome">;
 
@@ -56,7 +58,73 @@ export default function SettingsScreen({ navigation }: Props) {
       headerShown: false,
     });
   }, [navigation]);
+  async function handleSeedDummyData() {
+    Alert.alert(
+      "Seed dummy data",
+      "This will delete previous dummy data and create 120 test contacts with memories, reminders, events, albums, and relationships.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Seed data",
+          style: "default",
+          onPress: async () => {
+            try {
+              const result = await seedDummyData({
+                contactCount: 120,
+                resetExistingDummyData: true,
+              });
 
+              Alert.alert(
+                "Dummy data created",
+                `${result.contacts} contacts\n${result.memories} memories\n${result.events} events\n${result.reminders} reminders\n${result.interactions} interactions\n${result.photos} photos\n${result.relationships} relationships`
+              );
+            } catch (error) {
+              console.log("Seed dummy data error", error);
+
+              Alert.alert(
+                "Error",
+                "Could not seed dummy data. Check the console logs."
+              );
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleClearDummyData() {
+    Alert.alert(
+      "Clear dummy data",
+      "This will remove only rows with dummy_ IDs. Your real manually-created data should stay untouched.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearDummyData();
+
+              Alert.alert("Dummy data cleared");
+            } catch (error) {
+              console.log("Clear dummy data error", error);
+
+              Alert.alert(
+                "Error",
+                "Could not clear dummy data. Check the console logs."
+              );
+            }
+          },
+        },
+      ]
+    );
+  }
   return (
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -121,6 +189,7 @@ export default function SettingsScreen({ navigation }: Props) {
             icon="shield-checkmark-outline"
             colors={colors}
           >
+            
             <SettingsRow
               icon="cloud-upload-outline"
               title="Backup & restore"
@@ -137,8 +206,39 @@ export default function SettingsScreen({ navigation }: Props) {
               onPress={() => navigation.navigate("LocalFirst")}
               colors={colors}
             />
+            <SettingsRow
+        icon="diamond-outline"
+        title="Plan & Access"
+        subtitle="Beta access, future plans, and limits"
+        badge="Beta"
+        onPress={() => navigation.navigate("PlanAccess")}
+        colors={colors}
+      />
           </SettingsSection>
+{process.env.NODE_ENV !== "production" ? (
+  <SettingsSection
+    title="Developer"
+    icon="construct-outline"
+    colors={colors}
+  >
+    <SettingsRow
+      icon="flask-outline"
+      title="Fill with dummy data"
+      subtitle="Create 120 contacts, reminders, memories, albums, and relationships"
+      badge="Dev"
+      onPress={handleSeedDummyData}
+      colors={colors}
+    />
 
+    <SettingsRow
+      icon="trash-outline"
+      title="Clear dummy data"
+      subtitle="Remove only generated test data"
+      onPress={handleClearDummyData}
+      colors={colors}
+    />
+  </SettingsSection>
+) : null}
           <SettingsSection
             title="Support"
             icon="help-buoy-outline"
