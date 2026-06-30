@@ -821,6 +821,7 @@ function getInitials(contact: Contact) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+     paddingTop: 25,
   },
 
   listContent: {

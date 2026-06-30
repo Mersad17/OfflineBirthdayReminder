@@ -117,7 +117,8 @@ export default function AddSmartReminderScreen({ route, navigation }: Props) {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [successVisible, setSuccessVisible] = React.useState(false);
-
+const [notificationScheduled, setNotificationScheduled] =
+  React.useState<boolean | null>(null);
   React.useEffect(() => {
     navigation.setOptions?.({
       headerShown: false,
@@ -280,6 +281,7 @@ async function onSave() {
         is_pinned: true,
       } as any);
 
+      setNotificationScheduled(null);
       setSuccessVisible(true);
       return;
     }
@@ -289,22 +291,22 @@ async function onSave() {
       return;
     }
 
-    if (timingMode === "relative") {
-      await createRelativeSmartReminder({
-        contactId: selectedContactId,
-        text,
-        daysFromNow: selectedDays,
-        timeOfDay: toTimeOfDay(timeDate),
-      });
-    } else {
-      await createCustomDateSmartReminder({
-        contactId: selectedContactId,
-        text,
-        date: toYMD(customDate),
-        timeOfDay: toTimeOfDay(timeDate),
-      });
-    }
+   const createdReminder =
+      timingMode === "relative"
+        ? await createRelativeSmartReminder({
+            contactId: selectedContactId,
+            text,
+            daysFromNow: selectedDays,
+            timeOfDay: toTimeOfDay(timeDate),
+          })
+        : await createCustomDateSmartReminder({
+            contactId: selectedContactId,
+            text,
+            date: toYMD(customDate),
+            timeOfDay: toTimeOfDay(timeDate),
+          });
 
+    setNotificationScheduled(Boolean(createdReminder.notification_id));
     setSuccessVisible(true);
   } catch (error: any) {
     console.log("Create smart reminder failed", error);
@@ -659,24 +661,35 @@ async function onSave() {
 
           <SuccessSheet
             visible={successVisible}
-            colors={colors}
-            title={
-              isAskNextMode ? "Question reminder saved" : "Reminder created"
-            }
-            message={message.trim()}
-            preview={previewText()}
+              colors={colors}
+              title={
+                isAskNextMode
+                  ? "Question reminder saved"
+                  : notificationScheduled
+                  ? "Reminder created"
+                  : "Reminder saved in app"
+              }
+              message={
+                isAskNextMode
+                  ? message.trim()
+                  : notificationScheduled
+                  ? message.trim()
+                  : "Phone notification was not scheduled. Check notification permission or choose a future time."
+              }
+              preview={previewText()}
             onDone={() => {
               setSuccessVisible(false);
               navigation.goBack();
             }}
-            onAddAnother={() => {
-              setSuccessVisible(false);
-              setMessage("");
-              setTimingMode("relative");
-              setSelectedDays(14);
-              setShowDatePicker(false);
-              setShowTimePicker(false);
-            }}
+           onAddAnother={() => {
+            setSuccessVisible(false);
+            setNotificationScheduled(null);
+            setMessage("");
+            setTimingMode("relative");
+            setSelectedDays(14);
+            setShowDatePicker(false);
+            setShowTimePicker(false);
+          }}
           />
         </View>
       </Screen>

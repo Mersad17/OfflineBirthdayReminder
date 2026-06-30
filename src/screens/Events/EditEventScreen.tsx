@@ -24,6 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { EventsStackParamList } from "../../navigation/EventsStack";
 import { fetchEventById, updateEvent } from "../../events/repository";
 import { EventDTO } from "../../events/types";
+import { fetchReminders, updateReminder } from "../../reminders/repository";
 import { Screen } from "../../components/Screen";
 import { useAppearance } from "../../appearance/AppearanceContext";
 import { formatDateEU } from "../../lib/date";
@@ -37,6 +38,12 @@ type EventTypeOption = {
   label: string;
   icon: string;
   value: EventTypeValue;
+};
+
+type ReminderRefreshResult = {
+  total: number;
+  failed: number;
+  unscheduled: number;
 };
 
 type EditEventColors = {
@@ -361,8 +368,14 @@ export default function EditEventScreen({ route, navigation }: Props) {
         is_active: isActive,
       });
 
-      Alert.alert("Saved", "Event updated.");
-      navigation.goBack();
+      const reminderRefresh = await refreshRemindersForEvent(eventId);
+
+      Alert.alert("Saved", getSaveMessage(reminderRefresh), [
+        {
+          text: "OK",
+          onPress: () => navigation.goBack(),
+        },
+      ]);
     } catch (error: any) {
       console.log("Failed to update event", error);
 
@@ -1034,6 +1047,71 @@ function getInitials(name?: string | null) {
 
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
+
+async function refreshRemindersForEvent(
+  eventId: AppId | string
+): Promise<ReminderRefreshResult> {
+  try {
+    const reminders = await fetchReminders();
+    const eventReminders = reminders.filter(
+      (item) => String(item.event) === String(eventId)
+    );
+
+    if (eventReminders.length === 0) {
+      return { total: 0, failed: 0, unscheduled: 0 };
+    }
+
+    const results = await Promise.allSettled(
+      eventReminders.map((item) =>
+        updateReminder(item.id, {
+          event: eventId as any,
+          is_active: item.is_active,
+        } as any)
+      )
+    );
+
+    let failed = 0;
+    let unscheduled = 0;
+
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        failed += 1;
+        return;
+      }
+
+      if (result.value.is_active && !result.value.notification_id) {
+        unscheduled += 1;
+      }
+    });
+
+    return {
+      total: eventReminders.length,
+      failed,
+      unscheduled,
+    };
+  } catch (error) {
+    console.log("Refresh event reminder notifications failed:", error);
+
+    return { total: 0, failed: 1, unscheduled: 0 };
+  }
+}
+
+function getSaveMessage(result: ReminderRefreshResult) {
+  if (result.total === 0) {
+    return "Event updated.";
+  }
+
+  if (result.failed > 0) {
+    return "Event updated, but some reminder notifications could not be refreshed.";
+  }
+
+  if (result.unscheduled > 0) {
+    return "Event updated. Some reminders are saved in the app only because phone notifications were not scheduled.";
+  }
+
+  return "Event updated and reminder notifications refreshed.";
+}
+
 function makeEditEventColors(settings: any): EditEventColors {
   return {
     background: settings.backgroundColor,

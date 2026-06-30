@@ -9,6 +9,7 @@ import {
 } from "../notifications/localReminder";
 import { REMINDER_STATUS, ReminderDTO } from "../events/types";
 import { createId } from "../lib/id";
+
 export type ReminderWithContextDTO = ReminderDTO & {
   event_title: string;
   event_type: number;
@@ -83,17 +84,11 @@ function buildDateTime(dateString: string, time?: string | null): Date {
 }
 
 /**
- * For non-recurring event:
- * use original event start date.
- *
- * For recurring event:
- * calculate next yearly occurrence.
+ * For non-recurring event: use original event start date.
+ * For recurring event: calculate next yearly occurrence.
  */
 function getNextEventOccurrence(eventRow: typeof contactEvent.$inferSelect) {
-  const originalDate = buildDateTime(
-    eventRow.startDate,
-    eventRow.startTime
-  );
+  const originalDate = buildDateTime(eventRow.startDate, eventRow.startTime);
 
   if (!eventRow.isRecurring) {
     return originalDate;
@@ -140,7 +135,6 @@ function calculateSendAt(args: {
   }
 
   const eventOccurrence = getNextEventOccurrence(args.eventRow);
-
   const calculated = new Date(eventOccurrence);
 
   const { hour, minute } = parseTime(
@@ -154,6 +148,10 @@ function calculateSendAt(args: {
   }
 
   return calculated;
+}
+
+function getContactName(contactRow: typeof contact.$inferSelect) {
+  return `${contactRow.firstName || ""} ${contactRow.lastName || ""}`.trim();
 }
 
 function mapReminderToApi(row: typeof reminder.$inferSelect): ReminderDTO {
@@ -180,16 +178,14 @@ function mapReminderToApi(row: typeof reminder.$inferSelect): ReminderDTO {
     updated_at: toIso(row.updatedAt) ?? undefined,
   };
 }
+
 function mapReminderWithContextToApi(row: {
   reminderRow: typeof reminder.$inferSelect;
   eventRow: typeof contactEvent.$inferSelect;
   contactRow: typeof contact.$inferSelect;
 }): ReminderWithContextDTO {
   const base = mapReminderToApi(row.reminderRow);
-
-  const contactName = `${row.contactRow.firstName} ${
-    row.contactRow.lastName || ""
-  }`.trim();
+  const contactName = getContactName(row.contactRow);
 
   return {
     ...base,
@@ -206,18 +202,14 @@ function mapReminderWithContextToApi(row: {
     contact_photo: row.contactRow.photoUri,
   };
 }
+
 async function fetchReminderById(id: AppId | number): Promise<ReminderDTO> {
   const reminderId = String(id);
 
   const rows = await db
     .select()
     .from(reminder)
-    .where(
-      and(
-        eq(reminder.id, reminderId),
-        isNull(reminder.deletedAt)
-      )
-    )
+    .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)))
     .limit(1);
 
   if (!rows[0]) {
@@ -250,6 +242,7 @@ async function fetchEventWithContact(eventId: AppId | number) {
 
   return rows[0];
 }
+
 async function safeCancelLocalReminder(notificationId?: string | null) {
   if (!notificationId) return;
 
@@ -264,8 +257,10 @@ async function safeScheduleLocalReminder(args: {
   reminderId: string;
   eventId: string;
   contactId: string;
-  title: string;
-  body: string;
+  contactName: string;
+  eventTitle: string;
+  eventType?: number | null;
+  message: string;
   sendAt: Date | null;
 }) {
   if (!args.sendAt) return null;
@@ -277,6 +272,7 @@ async function safeScheduleLocalReminder(args: {
     return null;
   }
 }
+
 export async function fetchReminders(): Promise<ReminderWithContextDTO[]> {
   const rows = await db
     .select({
@@ -298,6 +294,7 @@ export async function fetchReminders(): Promise<ReminderWithContextDTO[]> {
 
   return rows.map(mapReminderWithContextToApi);
 }
+
 export async function createReminder(
   eventId: AppId | number,
   payload: Partial<ReminderDTO>
@@ -317,44 +314,38 @@ export async function createReminder(
 
   const isActive = payload.is_active ?? true;
 
+  /**
+   * Save first.
+   * Notification scheduling can fail because of OS permission, channel issues,
+   * Android force-stop behavior, or a past date. The SQLite reminder should
+   * still exist.
+   */
   await db.insert(reminder).values({
     id: reminderId,
-
     eventId: event.id,
-
     daysBefore: payload.days_before ?? null,
-
     absoluteDatetime: toDateTime(payload.absolute_datetime),
-
     timeOfDay: payload.time_of_day ?? null,
-
     status: payload.status ?? REMINDER_STATUS.PENDING,
-
     sendAt: calculatedSendAt,
-
     isActive,
-
-    // Important:
-    // Save reminder first. Notification scheduling can fail,
-    // but the reminder should still exist in SQLite.
     notificationId: null,
-
     createdAt: date,
     updatedAt: date,
     deletedAt: null,
   });
 
-  const contactName = `${contactRow.firstName} ${
-    contactRow.lastName || ""
-  }`.trim();
+  const contactName = getContactName(contactRow);
 
   const notificationId = isActive
     ? await safeScheduleLocalReminder({
         reminderId,
         eventId: event.id,
         contactId: event.contactId,
-        title: event.title || "Reminder",
-        body: contactName
+        contactName,
+        eventTitle: event.title || "Reminder",
+        eventType: event.type,
+        message: contactName
           ? `Remember this for ${contactName}`
           : "You have a reminder.",
         sendAt: calculatedSendAt,
@@ -368,16 +359,12 @@ export async function createReminder(
         notificationId,
         updatedAt: now(),
       })
-      .where(
-        and(
-          eq(reminder.id, reminderId),
-          isNull(reminder.deletedAt)
-        )
-      );
+      .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)));
   }
 
   return fetchReminderById(reminderId);
 }
+
 export async function updateReminder(
   id: AppId | number,
   payload: Partial<ReminderDTO>
@@ -387,12 +374,7 @@ export async function updateReminder(
   const oldRows = await db
     .select()
     .from(reminder)
-    .where(
-      and(
-        eq(reminder.id, reminderId),
-        isNull(reminder.deletedAt)
-      )
-    )
+    .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)))
     .limit(1);
 
   const oldReminder = oldRows[0];
@@ -409,25 +391,33 @@ export async function updateReminder(
       ? payload.days_before
       : oldReminder.daysBefore;
 
-  const mergedAbsoluteDatetime =
-    payload.absolute_datetime !== undefined
-      ? payload.absolute_datetime
-      : toIso(oldReminder.absoluteDatetime);
+  const timingChanged =
+  payload.event !== undefined ||
+  payload.days_before !== undefined ||
+  payload.time_of_day !== undefined ||
+  payload.absolute_datetime !== undefined ||
+  payload.send_at !== undefined;
 
-  const mergedSendAt =
-    payload.send_at !== undefined
-      ? payload.send_at
-      : toIso(oldReminder.sendAt);
+const mergedAbsoluteDatetime =
+  payload.absolute_datetime !== undefined
+    ? payload.absolute_datetime
+    : timingChanged
+    ? null
+    : toIso(oldReminder.absoluteDatetime);
 
-  const mergedTimeOfDay =
-    payload.time_of_day !== undefined
-      ? payload.time_of_day
-      : oldReminder.timeOfDay;
+const mergedSendAt =
+  payload.send_at !== undefined
+    ? payload.send_at
+    : timingChanged
+    ? null
+    : toIso(oldReminder.sendAt);
 
+const mergedTimeOfDay =
+  payload.time_of_day !== undefined
+    ? payload.time_of_day
+    : oldReminder.timeOfDay;
   const mergedIsActive =
-    payload.is_active !== undefined
-      ? payload.is_active
-      : oldReminder.isActive;
+    payload.is_active !== undefined ? payload.is_active : oldReminder.isActive;
 
   const calculatedSendAt = calculateSendAt({
     eventRow: event,
@@ -449,9 +439,11 @@ export async function updateReminder(
     updateData.daysBefore = payload.days_before;
   }
 
-  if (payload.absolute_datetime !== undefined) {
-    updateData.absoluteDatetime = toDateTime(payload.absolute_datetime);
-  }
+    if (payload.absolute_datetime !== undefined) {
+      updateData.absoluteDatetime = toDateTime(payload.absolute_datetime);
+    } else if (timingChanged && payload.send_at === undefined) {
+      updateData.absoluteDatetime = null;
+    }
 
   if (payload.time_of_day !== undefined) {
     updateData.timeOfDay = payload.time_of_day;
@@ -461,29 +453,28 @@ export async function updateReminder(
     updateData.status = payload.status;
   }
 
+  /**
+   * Update SQLite first, then touch the OS notification schedule.
+   * This prevents failed scheduling/canceling from blocking the actual edit.
+   */
   await db
     .update(reminder)
     .set(updateData)
-    .where(
-      and(
-        eq(reminder.id, reminderId),
-        isNull(reminder.deletedAt)
-      )
-    );
+    .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)));
 
   await safeCancelLocalReminder(oldReminder.notificationId);
 
-  const contactName = `${contactRow.firstName} ${
-    contactRow.lastName || ""
-  }`.trim();
+  const contactName = getContactName(contactRow);
 
   const newNotificationId = mergedIsActive
     ? await safeScheduleLocalReminder({
         reminderId,
         eventId: event.id,
         contactId: event.contactId,
-        title: event.title || "Reminder",
-        body: contactName
+        contactName,
+        eventTitle: event.title || "Reminder",
+        eventType: event.type,
+        message: contactName
           ? `Remember this for ${contactName}`
           : "You have a reminder.",
         sendAt: calculatedSendAt,
@@ -497,12 +488,7 @@ export async function updateReminder(
         notificationId: newNotificationId,
         updatedAt: now(),
       })
-      .where(
-        and(
-          eq(reminder.id, reminderId),
-          isNull(reminder.deletedAt)
-        )
-      );
+      .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)));
   }
 
   return fetchReminderById(reminderId);
@@ -514,18 +500,13 @@ export async function deleteReminder(id: AppId | number) {
   const rows = await db
     .select()
     .from(reminder)
-    .where(
-      and(
-        eq(reminder.id, reminderId),
-        isNull(reminder.deletedAt)
-      )
-    )
+    .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)))
     .limit(1);
 
   const existing = rows[0];
 
   if (existing?.notificationId) {
-    await safeCancelLocalReminder(existing?.notificationId);
+    await safeCancelLocalReminder(existing.notificationId);
   }
 
   await db
@@ -536,12 +517,7 @@ export async function deleteReminder(id: AppId | number) {
       isActive: false,
       notificationId: null,
     })
-    .where(
-      and(
-        eq(reminder.id, reminderId),
-        isNull(reminder.deletedAt)
-      )
-    );
+    .where(and(eq(reminder.id, reminderId), isNull(reminder.deletedAt)));
 
   return true;
 }

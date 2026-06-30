@@ -26,6 +26,8 @@ import {
   UpdateEventPayload,
 } from "./types";
 import { createId } from "../lib/id";
+import { cancelLocalReminder } from "../notifications/localReminder";
+import { updateReminder } from "../reminders/repository";
 
 const LOCAL_USER_ID = "local";
 const PAGE_SIZE = 50;
@@ -431,9 +433,36 @@ export async function fetchEventsForContact(
     filter: "upcoming",
   });
 }
+async function safeCancelEventReminderNotifications(eventId: string) {
+  const reminderRows = await db
+    .select()
+    .from(reminder)
+    .where(and(eq(reminder.eventId, eventId), isNull(reminder.deletedAt)));
 
+  for (const reminderRow of reminderRows) {
+    if (!reminderRow.notificationId) continue;
+
+    try {
+      await cancelLocalReminder(reminderRow.notificationId);
+    } catch (error) {
+      console.log("Cancel event reminder notification failed:", error);
+    }
+  }
+
+  await db
+    .update(reminder)
+    .set({
+      deletedAt: now(),
+      updatedAt: now(),
+      isActive: false,
+      notificationId: null,
+    })
+    .where(and(eq(reminder.eventId, eventId), isNull(reminder.deletedAt)));
+}
 export async function deleteEvent(id: AppId | number) {
   const eventId = String(id);
+
+  await safeCancelEventReminderNotifications(eventId);
 
   await db
     .update(contactEvent)
@@ -455,7 +484,30 @@ export async function deleteEvent(id: AppId | number) {
     status: 204,
   };
 }
+async function refreshEventRemindersAfterEventUpdate(eventId: string) {
+  const reminderRows = await db
+    .select()
+    .from(reminder)
+    .where(and(eq(reminder.eventId, eventId), isNull(reminder.deletedAt)));
 
+  for (const reminderRow of reminderRows) {
+    try {
+      await updateReminder(reminderRow.id, {
+        event: eventId,
+        days_before: reminderRow.daysBefore,
+        absolute_datetime: reminderRow.absoluteDatetime
+          ? reminderRow.absoluteDatetime.toISOString()
+          : null,
+        time_of_day: reminderRow.timeOfDay,
+        send_at: null,
+        status: reminderRow.status,
+        is_active: reminderRow.isActive,
+      } as any);
+    } catch (error) {
+      console.log("Refresh event reminder failed:", error);
+    }
+  }
+}
 export async function updateEvent(
   id: AppId | number,
   payload: UpdateEventPayload
@@ -524,7 +576,16 @@ export async function updateEvent(
         isNull(contactEvent.deletedAt)
       )
     );
+    const shouldRefreshReminders =
+      payload.start_date !== undefined ||
+      payload.start_time !== undefined ||
+      payload.type !== undefined ||
+      payload.is_recurring !== undefined ||
+      payload.is_active !== undefined;
 
+    if (shouldRefreshReminders) {
+      await refreshEventRemindersAfterEventUpdate(eventId);
+    }
   return fetchEventById(eventId);
 }
 

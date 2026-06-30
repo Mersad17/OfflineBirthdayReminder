@@ -136,13 +136,18 @@ export default function AddReminderScreen({ navigation }: any) {
     setSaving(true);
 
     try {
-      await createReminder(eventId, {
-        days_before: daysBefore,
-        absolute_datetime: null,
-        time_of_day: formatHHMM(timeOfDay),
-      });
+      const createdReminder = await createReminder(eventId, {
+     days_before: daysBefore,
+      absolute_datetime: null,
+      time_of_day: formatHHMM(timeOfDay),
+    });
 
-      Alert.alert("Success", "Reminder created.", [
+    Alert.alert(
+      "Success",
+      createdReminder.notification_id
+        ? "Reminder created and phone notification scheduled."
+        : "Reminder saved in the app, but phone notification was not scheduled. Choose a future time or check notification permission.",
+      [
         {
           text: "OK",
           onPress: () => navigation.goBack(),

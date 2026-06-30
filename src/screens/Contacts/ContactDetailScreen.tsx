@@ -84,6 +84,7 @@ import { ContactMemory } from "../../memories/types";
 import { MEMORY_TYPES } from "../../memories/helper";
 import { ContactAlbumSummary } from "../../albums/types";
 import { createContactAlbum, fetchAlbumsForContact } from "../../albums/repository";
+import { cancelCheckInReminder, scheduleCheckInReminderForContact } from "../../reminders/checkInReminderService";
 
 type Props = NativeStackScreenProps<ContactsStackParamList, "ContactDetail">;
 
@@ -900,6 +901,23 @@ async function saveTalkCadence(days: number | null) {
     } as any);
 
     setContact(updated);
+
+    try {
+      if (days === null) {
+        await cancelCheckInReminder(contact.id as any);
+      } else {
+        await scheduleCheckInReminderForContact({
+          contactId: contact.id as any,
+          contactName: fullName(contact),
+          nextTalkAt,
+        });
+      }
+    } catch (notificationError) {
+      console.log(
+        "Check-in notification schedule failed:",
+        notificationError
+      );
+    }
   } catch (error) {
     console.log("Save talk cadence failed:", error);
     setContact(previous);
@@ -3759,14 +3777,17 @@ function createContactDetailStyles(theme: ContactDetailsColors) {
   root: {
     flex: 1,
     backgroundColor: theme.background,
+    
   },
   center: {
     flex: 1,
+    
     alignItems: "center",
     justifyContent: "center",
   },
   scrollContent: {
     paddingBottom: 105,
+    
   },
 panelTitleRow: {
   minHeight: 44,
@@ -3819,6 +3840,7 @@ panelActionText: {
     height: 236,
     backgroundColor: "#111",
     justifyContent: "flex-start",
+    
   },
   heroImage: {
     resizeMode: "cover",

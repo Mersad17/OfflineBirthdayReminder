@@ -165,7 +165,8 @@ export default function AddEventScreen({ navigation, route }: Props) {
 
   const [successVisible, setSuccessVisible] = useState(false);
   const [createdEventTitle, setCreatedEventTitle] = useState("");
-
+  const [notificationScheduled, setNotificationScheduled] =
+    useState<boolean | null>(null);
   const selectedTypeOption =
     EVENT_TYPE_OPTIONS.find((option) => option.value === type) ??
     EVENT_TYPE_OPTIONS[0];
@@ -439,14 +440,19 @@ export default function AddEventScreen({ navigation, route }: Props) {
         is_recurring: isRecurring,
       });
 
-      if (reminderPreset !== "none") {
-        await createEventReminder({
-          eventId: createdEvent.id,
-          preset: reminderPreset,
-          dateString,
-          startTimeString,
-        });
-      }
+      const createdReminder =
+        reminderPreset !== "none"
+          ? await createEventReminder({
+              eventId: createdEvent.id,
+              preset: reminderPreset,
+              dateString,
+              startTimeString,
+            })
+          : null;
+
+      setNotificationScheduled(
+        reminderPreset === "none" ? null : Boolean(createdReminder?.notification_id)
+      );
 
       setCreatedEventTitle(cleanTitle);
       setSuccessVisible(true);
@@ -849,13 +855,14 @@ export default function AddEventScreen({ navigation, route }: Props) {
             </View>
           </ScrollView>
 
-          <SuccessSheet
-            visible={successVisible}
-            colors={colors}
-            title="Event created"
-            eventTitle={createdEventTitle}
-            reminderLabel={getReminderLabel(reminderPreset)}
-            beforeMeetEnabled={type === 4 || type === 6}
+         <SuccessSheet
+        visible={successVisible}
+        colors={colors}
+        title="Event created"
+        eventTitle={createdEventTitle}
+        reminderLabel={getReminderLabel(reminderPreset)}
+        notificationScheduled={notificationScheduled}
+        beforeMeetEnabled={type === 4 || type === 6}
             onDone={() => {
               setSuccessVisible(false);
               navigation.goBack();
@@ -875,6 +882,7 @@ export default function AddEventScreen({ navigation, route }: Props) {
               setShowDatePicker(false);
               setShowStartTimePicker(false);
               setShowEndDatePicker(false);
+              setNotificationScheduled(null);
               setShowEndTimePicker(false);
             }}
           />
@@ -994,6 +1002,7 @@ function SuccessSheet({
   title,
   eventTitle,
   reminderLabel,
+  notificationScheduled,
   beforeMeetEnabled,
   onDone,
   onAddAnother,
@@ -1003,6 +1012,7 @@ function SuccessSheet({
   title: string;
   eventTitle: string;
   reminderLabel: string;
+  notificationScheduled: boolean | null;
   beforeMeetEnabled: boolean;
   onDone: () => void;
   onAddAnother: () => void;
@@ -1067,7 +1077,11 @@ function SuccessSheet({
               style={[styles.successPreviewText, { color: colors.title }]}
               numberOfLines={2}
             >
-              Reminder: {reminderLabel}
+              {notificationScheduled === false
+                ? `Reminder: ${reminderLabel} · saved in app only`
+                : notificationScheduled === true
+                ? `Reminder: ${reminderLabel} · phone alert scheduled`
+                : `Reminder: ${reminderLabel}`}
             </Text>
           </View>
 
@@ -1655,34 +1669,30 @@ async function createEventReminder({
   if (preset === "at_time") {
     const sendAt = buildDateTime(dateString, timeOfDay);
 
-    await createReminder(eventId, {
+    return createReminder(eventId, {
       event: eventId,
       absolute_datetime: sendAt.toISOString(),
       send_at: sendAt.toISOString(),
       status: REMINDER_STATUS.PENDING,
       is_active: true,
     } as any);
-
-    return;
   }
 
   if (preset === "one_hour_before") {
     const sendAt = buildDateTime(dateString, timeOfDay);
     sendAt.setHours(sendAt.getHours() - 1);
 
-    await createReminder(eventId, {
+    return createReminder(eventId, {
       event: eventId,
       absolute_datetime: sendAt.toISOString(),
       send_at: sendAt.toISOString(),
       status: REMINDER_STATUS.PENDING,
       is_active: true,
     } as any);
-
-    return;
   }
 
   if (preset === "one_day_before") {
-    await createReminder(eventId, {
+    return createReminder(eventId, {
       event: eventId,
       days_before: 1,
       time_of_day: timeOfDay,
@@ -1690,6 +1700,8 @@ async function createEventReminder({
       is_active: true,
     } as any);
   }
+
+  return null;
 }
 
 function buildDateTime(dateString: string, timeString: string) {

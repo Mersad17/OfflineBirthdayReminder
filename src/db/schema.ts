@@ -625,6 +625,7 @@ export const reminder = sqliteTable(
      * Save it here so you can cancel/update the notification later.
      */
     notificationId: text("notification_id"),
+    
 
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),

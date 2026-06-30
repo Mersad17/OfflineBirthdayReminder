@@ -13,6 +13,10 @@ import { useNavigationAppearance } from "../appearance/useNavigationAppearance";
 import { AppId } from "../contacts/types";
 import { AccessProvider } from "../access/AccessContext";
 
+
+import { useNotificationTapNavigation } from "../notifications/notificationNavigation";
+import { flushPendingNotificationNavigation, navigationRef } from "../notifications/navigationRef";
+
 export type RootStackParamList = {
   MainTabs: undefined;
 
@@ -53,8 +57,14 @@ export default function RootNavigator() {
 function NavigationWithAppearance() {
   const { navTheme } = useNavigationAppearance();
 
+  useNotificationTapNavigation();
+
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navTheme}
+      onReady={flushPendingNotificationNavigation}
+    >
       <Stack.Navigator>
         <Stack.Screen
           name="MainTabs"

@@ -98,7 +98,11 @@ const THEME_OPTIONS: {
 }[] = [
   { mode: "light" as ThemeMode, label: "Light", icon: "sunny-outline" },
   { mode: "dark" as ThemeMode, label: "Dark", icon: "moon-outline" },
-  { mode: "system" as ThemeMode, label: "System", icon: "phone-portrait-outline" },
+  {
+    mode: "system" as ThemeMode,
+    label: "System",
+    icon: "phone-portrait-outline",
+  },
   { mode: "custom" as ThemeMode, label: "Custom", icon: "sparkles-outline" },
 ];
 
@@ -219,57 +223,99 @@ export default function AppearanceScreen({ navigation }: Props) {
     const value = normalizeHexInput(customHex);
 
     if (!/^#[0-9A-F]{6}$/i.test(value)) {
-      Alert.alert("Invalid color", "Please enter a valid HEX color like #4F46E5.");
+      Alert.alert(
+        "Invalid color",
+        "Please enter a valid HEX color like #4F46E5."
+      );
       return;
     }
 
     handlePickFromModal(value);
   }
 
- async function onUploadBackground() {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  async function onUploadBackground() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-  if (!permission.granted) {
-    Alert.alert(
-      "Permission required",
-      "Please allow photo access to pick a background image."
-    );
-    return;
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ["images"],
-    quality: 0.85,
-  });
-
-  if (result.canceled || result.assets.length === 0) return;
-
-  try {
-    const pickedUri = result.assets[0].uri;
-    const copiedUri = await copyAppearanceBackgroundImage(pickedUri);
-
-    if (settings.backgroundImageUri) {
-      await deleteAppearanceBackgroundImage(settings.backgroundImageUri);
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission required",
+        "Please allow photo access to pick a background image."
+      );
+      return;
     }
 
-    setBackgroundImageUri(copiedUri);
-  } catch (error) {
-    console.log("Background image copy failed:", error);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+    });
 
+    if (result.canceled || result.assets.length === 0) return;
+
+    try {
+      const pickedUri = result.assets[0].uri;
+      const copiedUri = await copyAppearanceBackgroundImage(pickedUri);
+
+      if (settings.backgroundImageUri) {
+        await deleteAppearanceBackgroundImage(settings.backgroundImageUri);
+      }
+
+      setBackgroundImageUri(copiedUri);
+    } catch (error) {
+      console.log("Background image copy failed:", error);
+
+      Alert.alert(
+        "Background image",
+        "Could not save this image as your app background."
+      );
+    }
+  }
+
+  async function onClearBackgroundImage() {
+    const currentUri = settings.backgroundImageUri;
+
+    setBackgroundImageUri(null);
+
+    if (currentUri) {
+      await deleteAppearanceBackgroundImage(currentUri);
+    }
+  }
+
+  function onResetAppearance() {
     Alert.alert(
-      "Background image",
-      "Could not save this image as your app background."
+      "Reset appearance?",
+      "This will restore the default theme, default colors, background fit, and remove your background image.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Reset to default",
+          style: "destructive",
+          onPress: async () => {
+            const currentUri = settings.backgroundImageUri;
+
+            setActivePicker(null);
+            setCustomHex("#4F46E5");
+            setBackgroundImageUri(null);
+            setBackgroundResizeMode("cover");
+
+            // This applies your app default preset from AppearanceContext.
+            setThemeMode("system");
+
+            if (currentUri) {
+              try {
+                await deleteAppearanceBackgroundImage(currentUri);
+              } catch (error) {
+                console.log("Delete background image failed:", error);
+              }
+            }
+          },
+        },
+      ]
     );
   }
-}
 
-async function onClearBackgroundImage() {
-  const currentUri = settings.backgroundImageUri;
-
-  setBackgroundImageUri(null);
-
-  await deleteAppearanceBackgroundImage(currentUri);
-}
   return (
     <Screen>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -398,16 +444,29 @@ async function onClearBackgroundImage() {
               },
             ]}
           >
-            <SectionTitle icon="image-outline" title="Background image" colors={colors} />
+            <SectionTitle
+              icon="image-outline"
+              title="Background image"
+              colors={colors}
+            />
 
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: colors.button }]}
               onPress={onUploadBackground}
               activeOpacity={0.88}
             >
-              <Ionicons name="image-outline" size={18} color={colors.buttonText} />
+              <Ionicons
+                name="image-outline"
+                size={18}
+                color={colors.buttonText}
+              />
 
-              <Text style={[styles.primaryButtonText, { color: colors.buttonText }]}>
+              <Text
+                style={[
+                  styles.primaryButtonText,
+                  { color: colors.buttonText },
+                ]}
+              >
                 Upload background image
               </Text>
             </TouchableOpacity>
@@ -435,9 +494,18 @@ async function onClearBackgroundImage() {
                   onPress={onClearBackgroundImage}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                  <Ionicons
+                    name="trash-outline"
+                    size={17}
+                    color={colors.danger}
+                  />
 
-                  <Text style={[styles.dangerButtonText, { color: colors.danger }]}>
+                  <Text
+                    style={[
+                      styles.dangerButtonText,
+                      { color: colors.danger },
+                    ]}
+                  >
                     Remove background image
                   </Text>
                 </TouchableOpacity>
@@ -471,20 +539,28 @@ async function onClearBackgroundImage() {
               },
             ]}
           >
-            <SectionTitle icon="resize-outline" title="Background fit" colors={colors} />
+            <SectionTitle
+              icon="resize-outline"
+              title="Background fit"
+              colors={colors}
+            />
 
             <View style={styles.fitGrid}>
               {FIT_OPTIONS.map((option) => (
                 <FitOption
                   key={option.mode}
                   label={option.label}
-                  selected={(settings.backgroundResizeMode || "cover") === option.mode}
+                  selected={
+                    (settings.backgroundResizeMode || "cover") === option.mode
+                  }
                   colors={colors}
                   onPress={() => setBackgroundResizeMode(option.mode)}
                 />
               ))}
             </View>
           </View>
+
+          <ResetAppearanceCard colors={colors} onPress={onResetAppearance} />
         </ScrollView>
 
         <ColorPickerModal
@@ -612,7 +688,12 @@ function LivePreview({
           A private place to remember people, moments, and thoughtful follow-ups.
         </Text>
 
-        <View style={[styles.previewButton, { backgroundColor: settings.buttonColor }]}>
+        <View
+          style={[
+            styles.previewButton,
+            { backgroundColor: settings.buttonColor },
+          ]}
+        >
           <Text
             style={[
               styles.previewButtonText,
@@ -639,10 +720,7 @@ function SectionTitle({
   return (
     <View style={styles.sectionTitleRow}>
       <View
-        style={[
-          styles.sectionIcon,
-          { backgroundColor: colors.softPrimary },
-        ]}
+        style={[styles.sectionIcon, { backgroundColor: colors.softPrimary }]}
       >
         <Ionicons name={icon} size={17} color={colors.primary} />
       </View>
@@ -838,6 +916,56 @@ function FitOption({
   );
 }
 
+function ResetAppearanceCard({
+  colors,
+  onPress,
+}: {
+  colors: AppearanceColors;
+  onPress: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SectionTitle
+        icon="refresh-outline"
+        title="Reset appearance"
+        colors={colors}
+      />
+
+      <Text style={[styles.resetDescription, { color: colors.text }]}>
+        Restore the default theme, default colors, background fit, and remove the
+        background image.
+      </Text>
+
+      <TouchableOpacity
+        style={[
+          styles.resetButton,
+          {
+            backgroundColor: withOpacity(colors.danger, "14"),
+            borderColor: withOpacity(colors.danger, "35"),
+          },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="refresh-outline" size={17} color={colors.danger} />
+
+        <Text style={[styles.resetButtonText, { color: colors.danger }]}>
+          Reset to default
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function ColorPickerModal({
   visible,
   title,
@@ -860,7 +988,12 @@ function ColorPickerModal({
   onClose: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView
         style={styles.modalOverlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -876,12 +1009,13 @@ function ColorPickerModal({
         >
           <View style={styles.modalHeader}>
             <View
-              style={[
-                styles.modalIcon,
-                { backgroundColor: colors.softPrimary },
-              ]}
+              style={[styles.modalIcon, { backgroundColor: colors.softPrimary }]}
             >
-              <Ionicons name="color-palette-outline" size={20} color={colors.primary} />
+              <Ionicons
+                name="color-palette-outline"
+                size={20}
+                color={colors.primary}
+              />
             </View>
 
             <View style={styles.modalHeaderText}>
@@ -895,7 +1029,10 @@ function ColorPickerModal({
             </View>
 
             <TouchableOpacity
-              style={[styles.modalCloseButton, { backgroundColor: colors.softCard }]}
+              style={[
+                styles.modalCloseButton,
+                { backgroundColor: colors.softCard },
+              ]}
               onPress={onClose}
               activeOpacity={0.85}
             >
@@ -1478,6 +1615,31 @@ const styles = StyleSheet.create({
 
   fitOptionText: {
     fontSize: 12,
+    fontWeight: "900",
+  },
+
+  resetDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+
+  resetButton: {
+    minHeight: 48,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+
+  resetButtonText: {
+    fontSize: 13,
     fontWeight: "900",
   },
 

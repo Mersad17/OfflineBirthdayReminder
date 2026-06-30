@@ -1819,6 +1819,7 @@ function withOpacity(hexColor?: string | null, opacityHex = "22") {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    paddingTop: 16,
   },
 
   content: {

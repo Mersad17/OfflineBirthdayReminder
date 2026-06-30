@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import * as Notifications from "expo-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -22,6 +21,13 @@ import {
   fetchPushStatus,
   enableLocalNotifications,
 } from "../../notifications/api";
+import {
+  buildReminderNotificationContent,
+  getTestNotificationArgs,
+  scheduleAllTestNotifications,
+  scheduleTestNotification,
+} from "../../notifications/notification";
+import type { ReminderNotificationKind } from "../../notifications/notification";
 import { Screen } from "../../components/Screen";
 
 type Props = NativeStackScreenProps<SettingsStackParamsList, "Notifications">;
@@ -44,6 +50,25 @@ type NotificationColors = {
   shadow: string;
 };
 
+type TestNotificationOption = {
+  key: ReminderNotificationKind;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+};
+
+const TEST_NOTIFICATION_OPTIONS: TestNotificationOption[] = [
+  { key: "test", label: "Basic test", icon: "notifications-outline" },
+  { key: "birthday", label: "Birthday", icon: "gift-outline" },
+  { key: "anniversary", label: "Anniversary", icon: "heart-outline" },
+  { key: "important_date", label: "Important date", icon: "star-outline" },
+  { key: "meeting", label: "Meeting", icon: "people-outline" },
+  { key: "holiday", label: "Holiday", icon: "sunny-outline" },
+  { key: "event", label: "Event", icon: "calendar-outline" },
+  { key: "check_in", label: "Check-in", icon: "chatbubble-outline" },
+  { key: "ask_next_time", label: "Ask next time", icon: "help-circle-outline" },
+  { key: "generic", label: "Generic", icon: "alarm-outline" },
+];
+
 export default function NotificationScreen({ navigation }: Props) {
   const { settings } = useAppearance();
   const colors = useMemo(() => makeNotificationColors(settings), [settings]);
@@ -51,7 +76,9 @@ export default function NotificationScreen({ navigation }: Props) {
   const [enabled, setEnabled] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [sendingTest, setSendingTest] = useState(false);
+  const [sendingTestKind, setSendingTestKind] =
+    useState<ReminderNotificationKind | null>(null);
+  const [sendingAllTests, setSendingAllTests] = useState(false);
 
   useEffect(() => {
     navigation.setOptions?.({
@@ -78,7 +105,7 @@ export default function NotificationScreen({ navigation }: Props) {
       }
     }
 
-    loadStatus();
+    void loadStatus();
 
     return () => {
       isMounted = false;
@@ -112,16 +139,18 @@ export default function NotificationScreen({ navigation }: Props) {
           "Notifications",
           "Local reminders are enabled on this device."
         );
-      } else {
-        await unregisterPushTokens();
 
-        setEnabled(false);
-
-        Alert.alert(
-          "Notifications",
-          "Local reminders are disabled. Scheduled reminder notifications were cancelled."
-        );
+        return;
       }
+
+      await unregisterPushTokens();
+
+      setEnabled(false);
+
+      Alert.alert(
+        "Notifications",
+        "Local reminders are disabled. Scheduled reminder notifications were cancelled."
+      );
     } catch (error) {
       console.log("Toggle notification error", error);
 
@@ -134,10 +163,10 @@ export default function NotificationScreen({ navigation }: Props) {
     }
   }
 
-  async function onSendTest() {
-    if (sendingTest) return;
+  async function onSendTest(kind: ReminderNotificationKind) {
+    if (sendingTestKind || sendingAllTests) return;
 
-    setSendingTest(true);
+    setSendingTestKind(kind);
 
     try {
       const status = await fetchPushStatus();
@@ -152,31 +181,69 @@ export default function NotificationScreen({ navigation }: Props) {
         return;
       }
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Test reminder",
-          body: "Your local notifications are working.",
-          sound: true,
-          data: {
-            type: "test_notification",
-          },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 2,
-        },
-      });
+      const notificationId = await scheduleTestNotification(kind);
+
+      if (!notificationId) {
+        Alert.alert(
+          "Notifications",
+          "Could not schedule the test notification. Check phone permissions."
+        );
+
+        return;
+      }
 
       Alert.alert(
         "Notifications",
-        "Test notification scheduled. It should appear in a few seconds."
+        `${getNotificationLabel(kind)} test scheduled. It should appear in a few seconds.`
       );
     } catch (error) {
       console.log("Test notification error", error);
 
       Alert.alert("Notifications", "Could not schedule test notification.");
     } finally {
-      setSendingTest(false);
+      setSendingTestKind(null);
+    }
+  }
+
+  async function onSendAllTests() {
+    if (sendingAllTests || sendingTestKind) return;
+
+    setSendingAllTests(true);
+
+    try {
+      const status = await fetchPushStatus();
+
+      if (!status.push_enabled) {
+        Alert.alert(
+          "Notifications",
+          "Enable notifications first before sending tests."
+        );
+
+        setEnabled(false);
+        return;
+      }
+
+      const notificationIds = await scheduleAllTestNotifications();
+
+      if (notificationIds.length === 0) {
+        Alert.alert(
+          "Notifications",
+          "Could not schedule the test notifications. Check phone permissions."
+        );
+
+        return;
+      }
+
+      Alert.alert(
+        "Notifications",
+        `${notificationIds.length} test notifications scheduled. They will appear one by one.`
+      );
+    } catch (error) {
+      console.log("Send all test notifications error", error);
+
+      Alert.alert("Notifications", "Could not schedule all test notifications.");
+    } finally {
+      setSendingAllTests(false);
     }
   }
 
@@ -238,7 +305,7 @@ export default function NotificationScreen({ navigation }: Props) {
 
                 <Text style={[styles.cardSubtitle, { color: colors.text }]}>
                   Allow this app to remind you about birthdays, important dates,
-                  and follow-ups.
+                  meetings, and follow-ups.
                 </Text>
               </View>
 
@@ -334,46 +401,83 @@ export default function NotificationScreen({ navigation }: Props) {
 
               <View style={styles.cardHeaderText}>
                 <Text style={[styles.cardTitle, { color: colors.title }]}>
-                  Test notification
+                  Test notification styles
                 </Text>
 
                 <Text style={[styles.cardSubtitle, { color: colors.text }]}>
-                  Send a test alert to confirm your local notifications work.
+                  Tap any style to receive a real test notification in a few
+                  seconds.
                 </Text>
               </View>
             </View>
 
             <TouchableOpacity
               style={[
-                styles.primaryButton,
+                styles.sendAllButton,
                 { backgroundColor: colors.button },
-                (!enabled || updating || sendingTest) && styles.disabled,
+                (!enabled ||
+                  updating ||
+                  sendingAllTests ||
+                  Boolean(sendingTestKind)) &&
+                  styles.disabledButton,
               ]}
-              onPress={onSendTest}
-              disabled={!enabled || updating || sendingTest}
+              onPress={onSendAllTests}
+              disabled={
+                !enabled || updating || sendingAllTests || Boolean(sendingTestKind)
+              }
               activeOpacity={0.88}
             >
-              {sendingTest ? (
+              {sendingAllTests ? (
                 <ActivityIndicator color={colors.buttonText} />
               ) : (
                 <>
                   <Ionicons
-                    name="notifications-outline"
+                    name="albums-outline"
                     size={18}
                     color={colors.buttonText}
                   />
 
                   <Text
                     style={[
-                      styles.primaryButtonText,
+                      styles.sendAllButtonText,
                       { color: colors.buttonText },
                     ]}
                   >
-                    Send test notification
+                    Send all preview notifications
                   </Text>
                 </>
               )}
             </TouchableOpacity>
+
+            <View style={styles.testList}>
+              {TEST_NOTIFICATION_OPTIONS.map((option) => {
+                const preview = buildReminderNotificationContent(
+                  getTestNotificationArgs(option.key)
+                );
+
+                const title = safeNotificationText(preview.title);
+                const body = safeNotificationText(preview.body);
+
+                return (
+                  <TestNotificationRow
+                    key={option.key}
+                    option={option}
+                    title={title}
+                    body={body}
+                    colors={colors}
+                    enabled={enabled}
+                    loading={sendingTestKind === option.key}
+                    disabled={
+                      Boolean(sendingTestKind) ||
+                      sendingAllTests ||
+                      updating ||
+                      !enabled
+                    }
+                    onPress={() => onSendTest(option.key)}
+                  />
+                );
+              })}
+            </View>
           </View>
 
           <View
@@ -386,10 +490,7 @@ export default function NotificationScreen({ navigation }: Props) {
             ]}
           >
             <View
-              style={[
-                styles.infoIcon,
-                { backgroundColor: colors.softPrimary },
-              ]}
+              style={[styles.infoIcon, { backgroundColor: colors.softPrimary }]}
             >
               <Ionicons
                 name="phone-portrait-outline"
@@ -404,14 +505,86 @@ export default function NotificationScreen({ navigation }: Props) {
               </Text>
 
               <Text style={[styles.infoText, { color: colors.text }]}>
-                Notifications are scheduled locally on your phone. They work
-                without your Django backend.
+                Notifications are scheduled locally on your phone. If permission
+                is disabled, reminders still stay visible inside the app.
               </Text>
             </View>
           </View>
         </ScrollView>
       </View>
     </Screen>
+  );
+}
+
+function TestNotificationRow({
+  option,
+  title,
+  body,
+  colors,
+  enabled,
+  loading,
+  disabled,
+  onPress,
+}: {
+  option: TestNotificationOption;
+  title: string;
+  body: string;
+  colors: NotificationColors;
+  enabled: boolean;
+  loading: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.testRow,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+          opacity: disabled && !loading ? 0.56 : 1,
+        },
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.86}
+    >
+      <View style={[styles.testIcon, { backgroundColor: colors.softPrimary }]}>
+        <Ionicons name={option.icon} size={18} color={colors.primary} />
+      </View>
+
+      <View style={styles.testTextWrap}>
+        <Text style={[styles.testLabel, { color: colors.primary }]}>
+          {option.label}
+        </Text>
+
+        <Text
+          style={[styles.testTitle, { color: colors.title }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+
+        <Text
+          style={[styles.testBody, { color: colors.text }]}
+          numberOfLines={2}
+        >
+          {body}
+        </Text>
+      </View>
+
+      <View style={[styles.testAction, { backgroundColor: colors.button }]}>
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.buttonText} />
+        ) : (
+          <Ionicons
+            name={enabled ? "send-outline" : "lock-closed-outline"}
+            size={16}
+            color={colors.buttonText}
+          />
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -470,7 +643,7 @@ function CompactHeader({
           </Text>
 
           <Text style={styles.headerSubtitle} numberOfLines={2}>
-            Manage local reminders, permissions, and test alerts.
+            Preview each notification style before using it in real reminders.
           </Text>
         </View>
       </View>
@@ -480,23 +653,37 @@ function CompactHeader({
 
 /* helpers */
 
+function getNotificationLabel(kind: ReminderNotificationKind) {
+  return (
+    TEST_NOTIFICATION_OPTIONS.find((option) => option.key === kind)?.label ??
+    "Notification"
+  );
+}
+
+function safeNotificationText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 function makeNotificationColors(settings: any): NotificationColors {
   return {
-    background: settings.backgroundColor,
-    card: settings.cardColor,
-    title: settings.titleColor,
-    text: settings.textColor,
-    primary: settings.primaryColor,
-    button: settings.buttonColor || settings.primaryColor,
-    buttonText: settings.buttonTextColor,
-    border: withOpacity(settings.textColor, "16"),
-    muted: withOpacity(settings.textColor, "88"),
-    softCard: withOpacity(settings.textColor, "08"),
-    softPrimary: withOpacity(settings.primaryColor, "16"),
+    background: settings.backgroundColor ?? "#F8F4FF",
+    card: settings.cardColor ?? "#FFFFFF",
+    title: settings.titleColor ?? "#10162F",
+    text: settings.textColor ?? "#5F6680",
+    primary: settings.primaryColor ?? "#6651E5",
+    button: settings.buttonColor || settings.primaryColor || "#6651E5",
+    buttonText: settings.buttonTextColor ?? "#FFFFFF",
+    border: withOpacity(settings.textColor ?? "#10162F", "16"),
+    muted: withOpacity(settings.textColor ?? "#10162F", "88"),
+    softCard: withOpacity(settings.textColor ?? "#10162F", "08"),
+    softPrimary: withOpacity(settings.primaryColor ?? "#6651E5", "16"),
     danger: "#EE6A5E",
     warning: "#EBA55B",
     success: "#7DA56D",
-    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+    shadow:
+      settings.resolvedThemeMode === "dark" || settings.themeMode === "dark"
+        ? "#000000"
+        : "#6F3D2E",
   };
 }
 
@@ -746,18 +933,81 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  primaryButton: {
-    minHeight: 52,
-    borderRadius: 20,
+  sendAllButton: {
+    minHeight: 50,
+    borderRadius: 19,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 8,
   },
 
-  primaryButtonText: {
-    fontSize: 14,
+  sendAllButtonText: {
+    fontSize: 13,
     fontWeight: "900",
+  },
+
+  disabledButton: {
+    opacity: 0.6,
+  },
+
+  testList: {
+    gap: 9,
+  },
+
+  testRow: {
+    minHeight: 82,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+
+  testIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  testTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  testLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+
+  testTitle: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+
+  testBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.76,
+    marginTop: 3,
+  },
+
+  testAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   infoCard: {
@@ -794,9 +1044,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     opacity: 0.74,
     marginTop: 2,
-  },
-
-  disabled: {
-    opacity: 0.6,
   },
 });

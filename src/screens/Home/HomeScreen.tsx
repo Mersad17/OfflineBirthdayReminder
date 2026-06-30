@@ -48,6 +48,12 @@ type HomeItem = {
   daysUntil: number;
 };
 
+type AttentionItem = HomeItem & {
+  attentionTitle: string;
+  attentionText: string;
+  accentKind: "today" | "soon";
+};
+
 type TypeInsight = {
   type: EventTypeValue;
   count: number;
@@ -71,15 +77,15 @@ type HomeColors = {
   muted: string;
   softCard: string;
   softPrimary: string;
-  softButtonText: string;
   danger: string;
   warning: string;
   success: string;
   shadow: string;
 };
 
-const HOME_TODAY_LIMIT = 5;
+const HOME_TODAY_LIMIT = 4;
 const HOME_UPCOMING_LIMIT = 5;
+const HOME_ATTENTION_LIMIT = 4;
 const HOME_STALE_AFTER_MS = 30_000;
 
 export default function HomeScreen({ navigation }: Props) {
@@ -114,14 +120,14 @@ export default function HomeScreen({ navigation }: Props) {
   const mapDtoToHomeItem = useCallback(
     (dto: HomeEventDTO): HomeItem => {
       const date = parseDateOnly(dto.next_occurrence);
-      const daysUntil = dto.days_until;
+      const daysUntil = Number(dto.days_until ?? 999);
 
       return {
         id: dto.id,
         contactId: dto.contact_id,
         name: dto.contact_name || t("event.unknownContact"),
         dateLabel: formatDateLabel(date),
-        relativeLabel: buildRelativeLabelFr(daysUntil, t),
+        relativeLabel: buildRelativeLabel(daysUntil, t),
         type: dto.type as EventTypeValue,
         isToday: daysUntil === 0,
         daysUntil,
@@ -151,9 +157,9 @@ export default function HomeScreen({ navigation }: Props) {
 
         if (requestId !== requestIdRef.current) return;
 
-        const mappedToday = summary.today.map(mapDtoToHomeItem);
+        const mappedToday = (summary.today ?? []).map(mapDtoToHomeItem);
 
-        const mappedUpcoming = summary.upcoming
+        const mappedUpcoming = (summary.upcoming ?? [])
           .map(mapDtoToHomeItem)
           .filter((item) => !item.isToday && item.daysUntil > 0)
           .sort((a, b) => a.daysUntil - b.daysUntil);
@@ -185,8 +191,8 @@ export default function HomeScreen({ navigation }: Props) {
           }));
 
         setTypeInsights(insights);
-        setUpcomingWeekCount(summary.meta.upcoming_week_count ?? 0);
-        setTotalContacts(summary.meta.total_contacts ?? 0);
+        setUpcomingWeekCount(summary.meta?.upcoming_week_count ?? 0);
+        setTotalContacts(summary.meta?.total_contacts ?? 0);
 
         lastLoadedAtRef.current = Date.now();
       } catch (error) {
@@ -210,7 +216,7 @@ export default function HomeScreen({ navigation }: Props) {
       const now = Date.now();
 
       if (!hasLoadedOnceRef.current) {
-        loadHome({ showFullLoading: true });
+        void loadHome({ showFullLoading: true });
         return;
       }
 
@@ -219,7 +225,7 @@ export default function HomeScreen({ navigation }: Props) {
         now - lastLoadedAtRef.current > HOME_STALE_AFTER_MS;
 
       if (isStale) {
-        loadHome({ showFullLoading: false });
+        void loadHome({ showFullLoading: false });
       }
     }, [loadHome])
   );
@@ -240,28 +246,6 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }
 
-  const hasEvents = todayItems.length > 0 || upcoming.length > 0;
-
-  const visibleToday = showAllToday
-    ? todayItems
-    : todayItems.slice(0, HOME_TODAY_LIMIT);
-
-  const filteredUpcoming = useMemo(() => {
-    const list =
-      selectedTypeFilter === "all"
-        ? upcoming
-        : upcoming.filter((item) => item.type === selectedTypeFilter);
-
-    return showAllUpcoming ? list : list.slice(0, HOME_UPCOMING_LIMIT);
-  }, [selectedTypeFilter, showAllUpcoming, upcoming]);
-
-  const upcomingSections = useMemo(
-    () => buildUpcomingSections(filteredUpcoming, t),
-    [filteredUpcoming, t]
-  );
-
-  const mainToday = todayItems[0] ?? null;
-
   function openContact(item: HomeItem) {
     navigation.navigate("ContactDetail", {
       contactId: item.contactId,
@@ -281,13 +265,36 @@ export default function HomeScreen({ navigation }: Props) {
     );
   }
 
-  const heroText = hasEvents
-    ? upcomingWeekCount > 0
-      ? upcomingWeekCount === 1
-        ? t("hero.oneMomentThisWeek")
-        : t("hero.manyMomentsThisWeek", { count: upcomingWeekCount })
-      : t("hero.nothingThisWeek")
-    : t("hero.addEvents");
+  const focusItem = todayItems[0] ?? upcoming[0] ?? null;
+
+  const attentionItems = useMemo(
+    () =>
+      buildAttentionItems(todayItems, upcoming, t).slice(
+        0,
+        HOME_ATTENTION_LIMIT
+      ),
+    [todayItems, upcoming, t]
+  );
+
+  const visibleToday = showAllToday
+    ? todayItems
+    : todayItems.slice(0, HOME_TODAY_LIMIT);
+
+  const filteredUpcoming = useMemo(() => {
+    const list =
+      selectedTypeFilter === "all"
+        ? upcoming
+        : upcoming.filter((item) => item.type === selectedTypeFilter);
+
+    return showAllUpcoming ? list : list.slice(0, HOME_UPCOMING_LIMIT);
+  }, [selectedTypeFilter, showAllUpcoming, upcoming]);
+
+  const upcomingSections = useMemo(
+    () => buildUpcomingSections(filteredUpcoming, t),
+    [filteredUpcoming, t]
+  );
+
+  const shouldShowAccessCard = shouldShowPlanCard(access, totalContacts);
 
   const showSkeleton = loading && !hasLoadedOnce && !refreshing;
 
@@ -314,77 +321,21 @@ export default function HomeScreen({ navigation }: Props) {
             />
           }
         >
-          <View style={styles.appBar}>
-            <View style={styles.appTitleRow}>
-              <View
-                style={[
-                  styles.appIconCircle,
-                  { backgroundColor: colors.softPrimary },
-                ]}
-              >
-                <Ionicons
-                  name="sparkles-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
+          <AppBar colors={colors} t={t} />
 
-              <View style={styles.appTitleWrap}>
-                <Text
-                  style={[styles.appTitle, { color: colors.title }]}
-                  numberOfLines={1}
-                >
-                  {t("app.title")}
-                </Text>
-
-                <Text
-                  style={[styles.appSubtitle, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {t("app.subtitle")}
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.userChip,
-                {
-                  backgroundColor: colors.softPrimary,
-                  borderColor: withOpacity(colors.primary, "24"),
-                },
-              ]}
-            >
-              <Text style={[styles.userChipText, { color: colors.primary }]}>
-                U
-              </Text>
-            </View>
-          </View>
-
-          <LinearGradient
-            colors={[colors.primary, colors.button] as [string, string]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
-          >
-            <View style={styles.heroGlowOne} />
-            <View style={styles.heroGlowTwo} />
-
-            <View style={styles.heroContent}>
-              <Text style={[styles.heroGreeting, { color: colors.buttonText }]}>
-                {t("hero.hello")}
-              </Text>
-
-              <Text
-                style={[styles.heroSubtitle, { color: colors.buttonText }]}
-                numberOfLines={3}
-              >
-                {heroText}
-              </Text>
-
-              <BeforeMeetSearchCard colors={colors} navigation={navigation} />
-            </View>
-          </LinearGradient>
+          <FocusHero
+            focusItem={focusItem}
+            todayCount={todayItems.length}
+            upcomingWeekCount={upcomingWeekCount}
+            colors={colors}
+            navigation={navigation}
+            t={t}
+            onOpenFocus={() => {
+              if (focusItem) {
+                openContact(focusItem);
+              }
+            }}
+          />
 
           <View style={styles.statsRow}>
             <StatCard
@@ -406,7 +357,7 @@ export default function HomeScreen({ navigation }: Props) {
 
           {typeInsights.length > 0 ? (
             <View style={styles.insightsRow}>
-              {typeInsights.map(({ type, count }) => (
+              {typeInsights.slice(0, 4).map(({ type, count }) => (
                 <InsightChip
                   key={String(type)}
                   type={type}
@@ -419,49 +370,46 @@ export default function HomeScreen({ navigation }: Props) {
 
           <View style={styles.section}>
             <SectionHeader
+              title="Needs attention"
+              icon="heart-outline"
+              colors={colors}
+            />
+
+            {attentionItems.length > 0 ? (
+              <View style={styles.attentionList}>
+                {attentionItems.map((item) => (
+                  <AttentionCard
+                    key={`attention-${String(item.id)}`}
+                    item={item}
+                    colors={colors}
+                    onPress={() => openContact(item)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <EmptyInlineCard
+                icon="checkmark-circle-outline"
+                title="Nothing urgent right now"
+                text="You are clear today. Use Before Meet when you want to prepare for someone."
+                colors={colors}
+              />
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <SectionHeader
               title={t("sections.today")}
               icon="sunny-outline"
               colors={colors}
             />
 
-            {mainToday ? (
+            {todayItems.length > 0 ? (
               <>
-                <View
-                  style={[
-                    styles.todayHighlightCard,
-                    {
-                      backgroundColor: withOpacity(colors.warning, "18"),
-                      borderColor: withOpacity(colors.warning, "32"),
-                    },
-                  ]}
-                >
-                  <View style={styles.todayHighlightText}>
-                    <Text style={[styles.todayTitle, { color: colors.title }]}>
-                      {todayItems.length === 1
-                        ? t("today.oneMoment")
-                        : t("today.manyMoments", {
-                            count: todayItems.length,
-                          })}
-                    </Text>
-
-                    <Text style={[styles.todayMeta, { color: colors.text }]}>
-                      {t("today.meta")}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.todayIconCircle,
-                      { backgroundColor: withOpacity(colors.warning, "22") },
-                    ]}
-                  >
-                    <Ionicons
-                      name="gift-outline"
-                      size={22}
-                      color={colors.warning}
-                    />
-                  </View>
-                </View>
+                <TodaySummaryCard
+                  count={todayItems.length}
+                  colors={colors}
+                  t={t}
+                />
 
                 <View style={styles.eventList}>
                   {visibleToday.map((item) => renderItemRow(item))}
@@ -489,12 +437,15 @@ export default function HomeScreen({ navigation }: Props) {
             )}
           </View>
 
-          <AccessStatusCard
-  access={access}
-  totalContacts={totalContacts}
-  colors={colors}
-  onPress={() => navigation.navigate("PlanAccess")}
-/>
+          {shouldShowAccessCard ? (
+            <AccessStatusCard
+              access={access}
+              totalContacts={totalContacts}
+              colors={colors}
+              onPress={() => navigation.navigate("PlanAccess")}
+            />
+          ) : null}
+
           <View style={styles.section}>
             <SectionHeader
               title={t("sections.upcoming")}
@@ -502,7 +453,7 @@ export default function HomeScreen({ navigation }: Props) {
               colors={colors}
             />
 
-            {upcomingSections.length === 0 ? (
+            {upcoming.length === 0 ? (
               <EmptyInlineCard
                 icon="calendar-clear-outline"
                 title={t("upcoming.emptyFilter")}
@@ -534,20 +485,32 @@ export default function HomeScreen({ navigation }: Props) {
                   })}
                 </View>
 
-                {upcomingSections.map((section) => (
-                  <View key={section.key} style={styles.upcomingSectionBlock}>
-                    <Text
-                      style={[
-                        styles.upcomingSectionTitle,
-                        { color: colors.text },
-                      ]}
+                {upcomingSections.length === 0 ? (
+                  <EmptyInlineCard
+                    icon="options-outline"
+                    title="No match for this filter"
+                    text="Try another event type or choose All."
+                    colors={colors}
+                  />
+                ) : (
+                  upcomingSections.map((section) => (
+                    <View
+                      key={section.key}
+                      style={styles.upcomingSectionBlock}
                     >
-                      {section.title}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.upcomingSectionTitle,
+                          { color: colors.text },
+                        ]}
+                      >
+                        {section.title}
+                      </Text>
 
-                    {section.data.map((item) => renderItemRow(item))}
-                  </View>
-                ))}
+                      {section.data.map((item) => renderItemRow(item))}
+                    </View>
+                  ))
+                )}
 
                 {upcoming.length > HOME_UPCOMING_LIMIT ? (
                   <ShowMoreButton
@@ -564,265 +527,260 @@ export default function HomeScreen({ navigation }: Props) {
             )}
           </View>
 
-          <View style={styles.section}>
-            <SectionHeader
-              title={t("sections.recentlyCelebrated")}
-              icon="chatbubble-ellipses-outline"
-              colors={colors}
-            />
-
-            <View
-              style={[
-                styles.recentCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.recentIcon,
-                  { backgroundColor: colors.softPrimary },
-                ]}
-              >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View style={styles.recentTextWrap}>
-                <Text style={[styles.recentTitle, { color: colors.title }]}>
-                  {t("recent.comingSoon")}
-                </Text>
-
-                <Text style={[styles.recentText, { color: colors.text }]}>
-                  {t("recent.text")}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.bottomRow}>
-            <View
-              style={[
-                styles.planCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.smallCardIcon,
-                  { backgroundColor: colors.softPrimary },
-                ]}
-              >
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={17}
-                  color={colors.primary}
-                />
-              </View>
-
-              <Text style={[styles.planTitle, { color: colors.title }]}>
-                {t("plan.title")}
-              </Text>
-
-              <Text style={[styles.planText, { color: colors.text }]}>
-                {t("plan.text")}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.noticeCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.smallCardIcon,
-                  { backgroundColor: colors.softPrimary },
-                ]}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={17}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View style={styles.noticeTextWrap}>
-                <Text style={[styles.noticeTitle, { color: colors.title }]}>
-                  {t("notifications.title")}
-                </Text>
-
-                <Text style={[styles.noticeText, { color: colors.text }]}>
-                  {t("notifications.text")}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <PrivacyFooter colors={colors} />
         </ScrollView>
       </View>
     </Screen>
   );
 }
 
-/* skeleton */
+/* -------------------------------------------------------------------------- */
+/* Main components                                                              */
+/* -------------------------------------------------------------------------- */
 
-function HomeSkeleton({ colors }: { colors: HomeColors }) {
+function AppBar({ colors, t }: { colors: HomeColors; t: any }) {
   return (
-    <View style={[styles.page, { backgroundColor: colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.container}
+    <View style={styles.appBar}>
+      <View style={styles.appTitleRow}>
+        <View
+          style={[styles.appIconCircle, { backgroundColor: colors.softPrimary }]}
+        >
+          <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+        </View>
+
+        <View style={styles.appTitleWrap}>
+          <Text
+            style={[styles.appTitle, { color: colors.title }]}
+            numberOfLines={1}
+          >
+            {t("app.title")}
+          </Text>
+
+          <Text
+            style={[styles.appSubtitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {t("app.subtitle")}
+          </Text>
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.userChip,
+          {
+            backgroundColor: colors.softPrimary,
+            borderColor: withOpacity(colors.primary, "24"),
+          },
+        ]}
       >
-        <View style={styles.skeletonAppBar}>
-          <View style={styles.skeletonAppLeft}>
-            <SkeletonBlock colors={colors} style={styles.skeletonAppIcon} />
-
-            <View style={styles.skeletonAppText}>
-              <SkeletonBlock colors={colors} style={styles.skeletonAppTitle} />
-              <SkeletonBlock colors={colors} style={styles.skeletonAppSubtitle} />
-            </View>
-          </View>
-
-          <SkeletonBlock colors={colors} style={styles.skeletonUserChip} />
-        </View>
-
-        <View style={styles.skeletonHeroCard}>
-          <SkeletonBlock colors={colors} style={styles.skeletonHeroTitle} />
-          <SkeletonBlock colors={colors} style={styles.skeletonHeroLine} />
-          <SkeletonBlock colors={colors} style={styles.skeletonHeroLineSmall} />
-          <SkeletonBlock colors={colors} style={styles.skeletonBeforeMeet} />
-        </View>
-
-        <View style={styles.statsRow}>
-          <SkeletonStatCard colors={colors} />
-          <SkeletonStatCard colors={colors} />
-        </View>
-
-        <SkeletonSection colors={colors} />
-        <SkeletonAccessCard colors={colors} />
-        <SkeletonSection colors={colors} />
-      </ScrollView>
-    </View>
-  );
-}
-
-function SkeletonStatCard({ colors }: { colors: HomeColors }) {
-  return (
-    <View
-      style={[
-        styles.skeletonStatCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          shadowColor: colors.shadow,
-        },
-      ]}
-    >
-      <SkeletonBlock colors={colors} style={styles.skeletonSmallCircle} />
-      <SkeletonBlock colors={colors} style={styles.skeletonStatLabel} />
-      <SkeletonBlock colors={colors} style={styles.skeletonStatValue} />
-      <SkeletonBlock colors={colors} style={styles.skeletonStatHint} />
-    </View>
-  );
-}
-
-function SkeletonSection({ colors }: { colors: HomeColors }) {
-  return (
-    <View style={styles.section}>
-      <View style={styles.skeletonSectionHeader}>
-        <SkeletonBlock colors={colors} style={styles.skeletonSectionIcon} />
-        <SkeletonBlock colors={colors} style={styles.skeletonSectionTitle} />
+        <Text style={[styles.userChipText, { color: colors.primary }]}>U</Text>
       </View>
-
-      <SkeletonEventRow colors={colors} />
-      <SkeletonEventRow colors={colors} />
     </View>
   );
 }
 
-function SkeletonEventRow({ colors }: { colors: HomeColors }) {
-  return (
-    <View
-      style={[
-        styles.skeletonEventCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          shadowColor: colors.shadow,
-        },
-      ]}
-    >
-      <SkeletonBlock colors={colors} style={styles.skeletonTimelineDot} />
-
-      <View style={styles.skeletonEventText}>
-        <SkeletonBlock colors={colors} style={styles.skeletonEventTitle} />
-        <SkeletonBlock colors={colors} style={styles.skeletonEventSubtitle} />
-        <SkeletonBlock colors={colors} style={styles.skeletonEventMeta} />
-      </View>
-
-      <SkeletonBlock colors={colors} style={styles.skeletonDatePill} />
-    </View>
-  );
-}
-
-function SkeletonAccessCard({ colors }: { colors: HomeColors }) {
-  return (
-    <View
-      style={[
-        styles.skeletonAccessCard,
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          shadowColor: colors.shadow,
-        },
-      ]}
-    >
-      <SkeletonBlock colors={colors} style={styles.skeletonAccessIcon} />
-
-      <View style={styles.skeletonAccessText}>
-        <SkeletonBlock colors={colors} style={styles.skeletonAccessTitle} />
-        <SkeletonBlock colors={colors} style={styles.skeletonAccessSubtitle} />
-      </View>
-
-      <SkeletonBlock colors={colors} style={styles.skeletonAccessChevron} />
-    </View>
-  );
-}
-
-function SkeletonBlock({
+function FocusHero({
+  focusItem,
+  todayCount,
+  upcomingWeekCount,
   colors,
-  style,
+  navigation,
+  t,
+  onOpenFocus,
 }: {
+  focusItem: HomeItem | null;
+  todayCount: number;
+  upcomingWeekCount: number;
   colors: HomeColors;
-  style?: any;
+  navigation: any;
+  t: any;
+  onOpenFocus: () => void;
+}) {
+  const hasFocus = Boolean(focusItem);
+  const isToday = focusItem?.isToday ?? false;
+  const meta = focusItem ? getEventMeta(focusItem.type) : null;
+
+  const title = isToday
+    ? "Today’s focus"
+    : hasFocus
+    ? "Next important moment"
+    : "All clear today";
+
+  const text = isToday
+    ? `${focusItem?.name ?? ""} has something important today. Open the profile and act with attention.`
+    : hasFocus
+    ? `${focusItem?.name ?? ""} has ${meta?.label.toLowerCase() ?? "a moment"} ${focusItem?.relativeLabel.toLowerCase()}. Prepare before it happens.`
+    : upcomingWeekCount > 0
+    ? `${upcomingWeekCount} moments are coming this week.`
+    : t("hero.addEvents");
+
+  return (
+    <LinearGradient
+      colors={[colors.primary, colors.button] as [string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.heroCard}
+    >
+      <View style={styles.heroGlowOne} />
+      <View style={styles.heroGlowTwo} />
+
+      <View style={styles.heroTopRow}>
+        <View style={styles.heroTextWrap}>
+          <Text style={[styles.heroEyebrow, { color: colors.buttonText }]}>
+            {todayCount > 0 ? `${todayCount} TODAY` : "PRIVATE MEMORY"}
+          </Text>
+
+          <Text
+            style={[styles.heroGreeting, { color: colors.buttonText }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+
+          <Text
+            style={[styles.heroSubtitle, { color: colors.buttonText }]}
+            numberOfLines={3}
+          >
+            {text}
+          </Text>
+        </View>
+
+        <View style={styles.heroIconBubble}>
+          <Text style={styles.heroIconText}>
+            {focusItem ? meta?.icon ?? "✨" : "✓"}
+          </Text>
+        </View>
+      </View>
+
+      {focusItem ? (
+        <TouchableOpacity
+          style={styles.heroActionButton}
+          onPress={onOpenFocus}
+          activeOpacity={0.88}
+        >
+          <Ionicons name="person-circle-outline" size={18} color="#FFFFFF" />
+
+          <Text style={styles.heroActionText}>
+            Open {firstName(focusItem.name)}
+          </Text>
+
+          <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+        </TouchableOpacity>
+      ) : null}
+
+      <BeforeMeetSearchCard colors={colors} navigation={navigation} />
+    </LinearGradient>
+  );
+}
+
+function TodaySummaryCard({
+  count,
+  colors,
+  t,
+}: {
+  count: number;
+  colors: HomeColors;
+  t: any;
 }) {
   return (
     <View
       style={[
-        styles.skeletonBlock,
+        styles.todayHighlightCard,
         {
-          backgroundColor: colors.softCard,
-          borderColor: colors.border,
+          backgroundColor: withOpacity(colors.warning, "18"),
+          borderColor: withOpacity(colors.warning, "32"),
         },
-        style,
       ]}
-    />
+    >
+      <View style={styles.todayHighlightText}>
+        <Text style={[styles.todayTitle, { color: colors.title }]}>
+          {count === 1
+            ? t("today.oneMoment")
+            : t("today.manyMoments", { count })}
+        </Text>
+
+        <Text style={[styles.todayMeta, { color: colors.text }]}>
+          {t("today.meta")}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.todayIconCircle,
+          { backgroundColor: withOpacity(colors.warning, "22") },
+        ]}
+      >
+        <Ionicons name="gift-outline" size={22} color={colors.warning} />
+      </View>
+    </View>
   );
 }
 
-/* components */
+function AttentionCard({
+  item,
+  colors,
+  onPress,
+}: {
+  item: AttentionItem;
+  colors: HomeColors;
+  onPress: () => void;
+}) {
+  const accentColor =
+    item.accentKind === "today" ? colors.warning : colors.primary;
+  const meta = getEventMeta(item.type);
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.attentionCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: item.accentKind === "today" ? accentColor : colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      <View
+        style={[
+          styles.attentionIcon,
+          { backgroundColor: withOpacity(accentColor, "16") },
+        ]}
+      >
+        <Text style={styles.attentionIconText}>{meta.icon}</Text>
+      </View>
+
+      <View style={styles.attentionTextWrap}>
+        <Text
+          style={[styles.attentionTitle, { color: colors.title }]}
+          numberOfLines={1}
+        >
+          {item.attentionTitle}
+        </Text>
+
+        <Text
+          style={[styles.attentionText, { color: colors.text }]}
+          numberOfLines={2}
+        >
+          {item.attentionText}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.attentionBadge,
+          { backgroundColor: withOpacity(accentColor, "14") },
+        ]}
+      >
+        <Text style={[styles.attentionBadgeText, { color: accentColor }]}>
+          {item.isToday ? "Today" : formatShortCountdown(item.daysUntil, null)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 function AccessStatusCard({
   access,
@@ -1011,7 +969,7 @@ function HomeEventRow({
             numberOfLines={1}
           >
             {t("event.tapToView", {
-              name: item.name.split(" ")[0] || t("event.unknownContact"),
+              name: firstName(item.name) || t("event.unknownContact"),
             })}
           </Text>
         </View>
@@ -1044,7 +1002,9 @@ function StatCard({
         },
       ]}
     >
-      <View style={[styles.statIconBubble, { backgroundColor: colors.softPrimary }]}>
+      <View
+        style={[styles.statIconBubble, { backgroundColor: colors.softPrimary }]}
+      >
         <Ionicons name={icon} size={16} color={colors.primary} />
       </View>
 
@@ -1105,7 +1065,12 @@ function SectionHeader({
   return (
     <View style={styles.sectionHeaderRow}>
       <View style={styles.sectionTitleLeft}>
-        <View style={[styles.sectionIconBubble, { backgroundColor: colors.softPrimary }]}>
+        <View
+          style={[
+            styles.sectionIconBubble,
+            { backgroundColor: colors.softPrimary },
+          ]}
+        >
           <Ionicons name={icon} size={15} color={colors.primary} />
         </View>
 
@@ -1221,7 +1186,172 @@ function ShowMoreButton({
   );
 }
 
-/* helpers */
+function PrivacyFooter({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.privacyFooter,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <View style={[styles.privacyIcon, { backgroundColor: colors.softPrimary }]}>
+        <Ionicons
+          name="phone-portrait-outline"
+          size={17}
+          color={colors.primary}
+        />
+      </View>
+
+      <View style={styles.privacyTextWrap}>
+        <Text style={[styles.privacyTitle, { color: colors.title }]}>
+          Private on this device
+        </Text>
+
+        <Text style={[styles.privacyText, { color: colors.text }]}>
+          Your relationship memory stays local unless you export a backup.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Skeleton                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function HomeSkeleton({ colors }: { colors: HomeColors }) {
+  return (
+    <View style={[styles.page, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
+        <View style={styles.skeletonAppBar}>
+          <View style={styles.skeletonAppLeft}>
+            <SkeletonBlock colors={colors} style={styles.skeletonAppIcon} />
+
+            <View style={styles.skeletonAppText}>
+              <SkeletonBlock colors={colors} style={styles.skeletonAppTitle} />
+              <SkeletonBlock
+                colors={colors}
+                style={styles.skeletonAppSubtitle}
+              />
+            </View>
+          </View>
+
+          <SkeletonBlock colors={colors} style={styles.skeletonUserChip} />
+        </View>
+
+        <View
+          style={[
+            styles.skeletonHeroCard,
+            { backgroundColor: colors.softPrimary },
+          ]}
+        >
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroTitle} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroLine} />
+          <SkeletonBlock colors={colors} style={styles.skeletonHeroLineSmall} />
+          <SkeletonBlock colors={colors} style={styles.skeletonBeforeMeet} />
+        </View>
+
+        <View style={styles.statsRow}>
+          <SkeletonStatCard colors={colors} />
+          <SkeletonStatCard colors={colors} />
+        </View>
+
+        <SkeletonSection colors={colors} />
+        <SkeletonSection colors={colors} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function SkeletonStatCard({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonStatCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonSmallCircle} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatLabel} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatValue} />
+      <SkeletonBlock colors={colors} style={styles.skeletonStatHint} />
+    </View>
+  );
+}
+
+function SkeletonSection({ colors }: { colors: HomeColors }) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.skeletonSectionHeader}>
+        <SkeletonBlock colors={colors} style={styles.skeletonSectionIcon} />
+        <SkeletonBlock colors={colors} style={styles.skeletonSectionTitle} />
+      </View>
+
+      <SkeletonEventRow colors={colors} />
+      <SkeletonEventRow colors={colors} />
+    </View>
+  );
+}
+
+function SkeletonEventRow({ colors }: { colors: HomeColors }) {
+  return (
+    <View
+      style={[
+        styles.skeletonEventCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          shadowColor: colors.shadow,
+        },
+      ]}
+    >
+      <SkeletonBlock colors={colors} style={styles.skeletonTimelineDot} />
+
+      <View style={styles.skeletonEventText}>
+        <SkeletonBlock colors={colors} style={styles.skeletonEventTitle} />
+        <SkeletonBlock colors={colors} style={styles.skeletonEventSubtitle} />
+        <SkeletonBlock colors={colors} style={styles.skeletonEventMeta} />
+      </View>
+
+      <SkeletonBlock colors={colors} style={styles.skeletonDatePill} />
+    </View>
+  );
+}
+
+function SkeletonBlock({
+  colors,
+  style,
+}: {
+  colors: HomeColors;
+  style?: any;
+}) {
+  return (
+    <View
+      style={[
+        styles.skeletonBlock,
+        {
+          backgroundColor: colors.softCard,
+          borderColor: colors.border,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                      */
+/* -------------------------------------------------------------------------- */
 
 function makeHomeColors(settings: any): HomeColors {
   return {
@@ -1236,12 +1366,60 @@ function makeHomeColors(settings: any): HomeColors {
     muted: withOpacity(settings.textColor ?? "#10162F", "88"),
     softCard: withOpacity(settings.textColor ?? "#10162F", "08"),
     softPrimary: withOpacity(settings.primaryColor ?? "#6651E5", "16"),
-    softButtonText: withOpacity(settings.buttonTextColor ?? "#FFFFFF", "18"),
     danger: "#EE6A5E",
     warning: "#EBA55B",
     success: "#7DA56D",
-    shadow: settings.themeMode === "dark" ? "#000000" : "#6F3D2E",
+    shadow:
+      settings.resolvedThemeMode === "dark" || settings.themeMode === "dark"
+        ? "#000000"
+        : "#6F3D2E",
   };
+}
+
+function shouldShowPlanCard(access: any, totalContacts: number) {
+  if (!access) return false;
+  if (access.isBeta) return false;
+  if (access.maxContacts === "unlimited") return false;
+
+  const remaining = getRemainingContacts(access, totalContacts);
+
+  if (remaining === "unlimited") return false;
+
+  return Number(remaining) <= 3;
+}
+
+function buildAttentionItems(
+  todayItems: HomeItem[],
+  upcoming: HomeItem[],
+  t: any
+): AttentionItem[] {
+  const today = todayItems.map((item) => ({
+    ...item,
+    attentionTitle: `${item.name} needs attention today`,
+    attentionText: `${getEventMeta(item.type).label} today. Open the profile and prepare a thoughtful action.`,
+    accentKind: "today" as const,
+  }));
+
+  const soon = upcoming
+    .filter((item) => item.daysUntil > 0 && item.daysUntil <= 7)
+    .map((item) => ({
+      ...item,
+      attentionTitle: `${item.name} is coming up`,
+      attentionText: `${getEventMeta(item.type).label} ${item.relativeLabel.toLowerCase()}. Prepare before the moment arrives.`,
+      accentKind: "soon" as const,
+    }));
+
+  const nextImportant =
+    today.length === 0 && soon.length === 0
+      ? upcoming.slice(0, 2).map((item) => ({
+          ...item,
+          attentionTitle: `${item.name} is next`,
+          attentionText: `${getEventMeta(item.type).label} ${item.relativeLabel.toLowerCase()}.`,
+          accentKind: "soon" as const,
+        }))
+      : [];
+
+  return [...today, ...soon, ...nextImportant];
 }
 
 function withOpacity(hexColor?: string | null, opacityHex = "22") {
@@ -1279,7 +1457,7 @@ function formatDateLabel(date: Date) {
   });
 }
 
-function buildRelativeLabelFr(daysUntil: number, t: any) {
+function buildRelativeLabel(daysUntil: number, t: any) {
   if (daysUntil === 0) return t("relative.today");
   if (daysUntil === 1) return t("relative.tomorrow");
 
@@ -1298,17 +1476,17 @@ function buildRelativeLabelFr(daysUntil: number, t: any) {
   return t("relative.inDays", { count: daysUntil });
 }
 
-function formatShortCountdown(daysUntil: number, t: any) {
-  if (daysUntil === 0) return t("countdown.today");
-  if (daysUntil === 1) return t("countdown.oneDay");
+function formatShortCountdown(daysUntil: number, t: any | null) {
+  if (daysUntil === 0) return t ? t("countdown.today") : "Today";
+  if (daysUntil === 1) return t ? t("countdown.oneDay") : "1d";
 
   if (daysUntil < 7) {
-    return t("countdown.days", { count: daysUntil });
+    return t ? t("countdown.days", { count: daysUntil }) : `${daysUntil}d`;
   }
 
   const weeks = Math.ceil(daysUntil / 7);
 
-  return t("countdown.weeks", { count: weeks });
+  return t ? t("countdown.weeks", { count: weeks }) : `${weeks}w`;
 }
 
 function buildUpcomingSections(items: HomeItem[], t: any): UpcomingSection[] {
@@ -1367,7 +1545,13 @@ function getInitials(name: string) {
   );
 }
 
-/* styles */
+function firstName(name: string) {
+  return name.split(" ").filter(Boolean)[0] ?? "";
+}
+
+/* -------------------------------------------------------------------------- */
+/* Styles                                                                       */
+/* -------------------------------------------------------------------------- */
 
 const styles = StyleSheet.create({
   page: {
@@ -1376,7 +1560,7 @@ const styles = StyleSheet.create({
 
   container: {
     paddingHorizontal: 14,
-    paddingTop: 18,
+    paddingTop: 38,
     paddingBottom: 34,
   },
 
@@ -1438,7 +1622,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    minHeight: 206,
+    minHeight: 250,
     borderRadius: 32,
     padding: 16,
     marginBottom: 12,
@@ -1469,12 +1653,28 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.10)",
   },
 
-  heroContent: {
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+
+  heroTextWrap: {
     flex: 1,
+    minWidth: 0,
+  },
+
+  heroEyebrow: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "900",
+    letterSpacing: 1,
+    opacity: 0.72,
+    marginBottom: 4,
   },
 
   heroGreeting: {
-    fontSize: 29,
+    fontSize: 28,
     lineHeight: 34,
     fontWeight: "900",
     letterSpacing: -0.4,
@@ -1484,9 +1684,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontWeight: "700",
-    opacity: 0.82,
+    opacity: 0.84,
     marginTop: 7,
-    maxWidth: 310,
+  },
+
+  heroIconBubble: {
+    width: 50,
+    height: 50,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  heroIconText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+
+  heroActionButton: {
+    alignSelf: "flex-start",
+    minHeight: 42,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 13,
+    marginTop: 14,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  heroActionText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
   },
 
   statsRow: {
@@ -1602,6 +1839,68 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "900",
     letterSpacing: -0.1,
+  },
+
+  attentionList: {
+    gap: 9,
+  },
+
+  attentionCard: {
+    minHeight: 78,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+
+  attentionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  attentionIconText: {
+    fontSize: 18,
+  },
+
+  attentionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  attentionTitle: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+
+  attentionText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 3,
+  },
+
+  attentionBadge: {
+    minHeight: 28,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  attentionBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
   },
 
   todayHighlightCard: {
@@ -1891,101 +2190,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  recentCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  recentIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  recentTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  recentTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-  },
-
-  recentText: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-    opacity: 0.74,
-    marginTop: 3,
-  },
-
-  bottomRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 18,
-  },
-
-  planCard: {
-    flex: 1,
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 14,
-  },
-
-  smallCardIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-
-  planTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-  },
-
-  planText: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-    opacity: 0.76,
-    marginTop: 5,
-  },
-
-  noticeCard: {
-    flex: 1,
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 14,
-  },
-
-  noticeTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-  },
-
-  noticeText: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-    opacity: 0.76,
-    marginTop: 5,
-  },
-
   accessCard: {
     minHeight: 64,
     borderRadius: 22,
@@ -1995,7 +2199,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
-    marginTop: 12,
+    marginTop: 18,
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 7 },
@@ -2027,6 +2231,43 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     opacity: 0.76,
     marginTop: 2,
+  },
+
+  privacyFooter: {
+    minHeight: 74,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  privacyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  privacyTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  privacyTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  privacyText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    opacity: 0.74,
+    marginTop: 3,
   },
 
   skeletonBlock: {
@@ -2080,11 +2321,10 @@ const styles = StyleSheet.create({
   },
 
   skeletonHeroCard: {
-    minHeight: 206,
+    minHeight: 250,
     borderRadius: 32,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: "rgba(0,0,0,0.04)",
     overflow: "hidden",
   },
 
@@ -2222,50 +2462,5 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 999,
     marginLeft: 10,
-  },
-
-  skeletonAccessCard: {
-    minHeight: 64,
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    marginTop: 12,
-    shadowOpacity: 0.04,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 2,
-  },
-
-  skeletonAccessIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 16,
-  },
-
-  skeletonAccessText: {
-    flex: 1,
-    gap: 7,
-  },
-
-  skeletonAccessTitle: {
-    width: "50%",
-    height: 14,
-    borderRadius: 7,
-  },
-
-  skeletonAccessSubtitle: {
-    width: "74%",
-    height: 12,
-    borderRadius: 6,
-  },
-
-  skeletonAccessChevron: {
-    width: 17,
-    height: 17,
-    borderRadius: 9,
   },
 });

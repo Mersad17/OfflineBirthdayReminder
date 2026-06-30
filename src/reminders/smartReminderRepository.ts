@@ -1,12 +1,7 @@
+// src/reminders/smartReminderRepository.ts
 import { AppId, Contact } from "../contacts/types";
-import {
-  fetchContactById,
-  updateContact,
-} from "../contacts/repository";
-import {
-  createEvent,
-  fetchEventsForContact,
-} from "../events/repository";
+import { fetchContactById, updateContact } from "../contacts/repository";
+import { createEvent, fetchEventsForContact } from "../events/repository";
 import { EventDTO, EventTypeValue } from "../events/types";
 import { createReminder } from "./repository";
 import { createContactMemory } from "../memories/repository";
@@ -14,21 +9,28 @@ import { createContactMemory } from "../memories/repository";
 const EVENT_TYPE_BIRTHDAY: EventTypeValue = 1;
 const EVENT_TYPE_OTHER: EventTypeValue = 6;
 
+const DEFAULT_TIME_OF_DAY = "09:00";
+
 function todayStart() {
   const date = new Date();
+
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function parseDate(value?: string | null) {
   if (!value) return null;
 
-  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  const normalized = value.includes("T") ? value : `${value}T00:00:00`;
+  const date = new Date(normalized);
+
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function addDays(date: Date, days: number) {
   const copy = new Date(date);
+
   copy.setDate(copy.getDate() + days);
+
   return copy;
 }
 
@@ -41,9 +43,10 @@ function toYMD(date: Date) {
 }
 
 function normalizeTime(time?: string | null) {
-  if (!time) return "09:00";
+  if (!time) return DEFAULT_TIME_OF_DAY;
 
   const [hourRaw, minuteRaw] = time.split(":");
+
   const hour = Number(hourRaw);
   const minute = Number(minuteRaw);
 
@@ -55,7 +58,7 @@ function normalizeTime(time?: string | null) {
     minute < 0 ||
     minute > 59
   ) {
-    return "09:00";
+    return DEFAULT_TIME_OF_DAY;
   }
 
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
@@ -86,8 +89,16 @@ function ensureFutureDateTime(date: Date, time?: string | null) {
   return buildDateTime(addDays(todayStart(), 1), time);
 }
 
+function cleanText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function contactName(contact: Contact) {
   return `${contact.first_name || ""} ${contact.last_name || ""}`.trim();
+}
+
+function firstName(contact: Contact) {
+  return contact.first_name?.trim() || contactName(contact) || "Contact";
 }
 
 async function getEventsArray(contactId: AppId | number): Promise<EventDTO[]> {
@@ -119,7 +130,7 @@ async function getOrCreateBirthdayEvent(contact: Contact, timeOfDay: string) {
 
   return createEvent({
     contact: contact.id,
-    title: `${contact.first_name || "Contact"}'s birthday`,
+    title: `${firstName(contact)}'s birthday`,
     type: EVENT_TYPE_BIRTHDAY,
     start_date: contact.birthday.slice(0, 10),
     start_time: timeOfDay,
@@ -129,11 +140,21 @@ async function getOrCreateBirthdayEvent(contact: Contact, timeOfDay: string) {
 }
 
 export async function createRelativeSmartReminder(args: {
-  contactId: AppId ;
+  contactId: AppId;
   text: string;
   daysFromNow: number;
   timeOfDay?: string | null;
 }) {
+  const text = cleanText(args.text);
+
+  if (!text) {
+    throw new Error("Write what you want to remember.");
+  }
+
+  if (args.daysFromNow < 0) {
+    throw new Error("Please choose a future reminder date.");
+  }
+
   const timeOfDay = normalizeTime(args.timeOfDay);
   const sendAt = ensureFutureDateTime(
     addDays(todayStart(), args.daysFromNow),
@@ -142,7 +163,7 @@ export async function createRelativeSmartReminder(args: {
 
   const event = await createEvent({
     contact: args.contactId,
-    title: args.text.trim(),
+    title: text,
     type: EVENT_TYPE_OTHER,
     start_date: toYMD(sendAt),
     start_time: timeOfDay,
@@ -160,11 +181,17 @@ export async function createRelativeSmartReminder(args: {
 }
 
 export async function createCustomDateSmartReminder(args: {
-  contactId: AppId ;
+  contactId: AppId;
   text: string;
   date: string;
   timeOfDay?: string | null;
 }) {
+  const text = cleanText(args.text);
+
+  if (!text) {
+    throw new Error("Write what you want to remember.");
+  }
+
   const parsedDate = parseDate(args.date);
 
   if (!parsedDate) {
@@ -176,7 +203,7 @@ export async function createCustomDateSmartReminder(args: {
 
   const event = await createEvent({
     contact: args.contactId,
-    title: args.text.trim(),
+    title: text,
     type: EVENT_TYPE_OTHER,
     start_date: toYMD(sendAt),
     start_time: timeOfDay,
@@ -198,6 +225,10 @@ export async function createBirthdaySmartReminder(args: {
   daysBefore: number;
   timeOfDay?: string | null;
 }) {
+  if (args.daysBefore < 0) {
+    throw new Error("Days before cannot be negative.");
+  }
+
   const contact = await fetchContactById(args.contactId);
   const timeOfDay = normalizeTime(args.timeOfDay);
   const event = await getOrCreateBirthdayEvent(contact, timeOfDay);
@@ -211,10 +242,14 @@ export async function createBirthdaySmartReminder(args: {
 }
 
 export async function createCheckInSmartReminder(args: {
-  contactId: AppId ;
+  contactId: AppId;
   everyDays: number;
   timeOfDay?: string | null;
 }) {
+  if (args.everyDays <= 0) {
+    throw new Error("Choose a valid check-in rhythm.");
+  }
+
   const contact = await fetchContactById(args.contactId);
   const timeOfDay = normalizeTime(args.timeOfDay);
 
@@ -227,9 +262,11 @@ export async function createCheckInSmartReminder(args: {
     talk_next_at: toYMD(sendAt),
   } as any);
 
+  const name = contactName(contact);
+
   const event = await createEvent({
     contact: args.contactId,
-    title: `Prendre des nouvelles ${contactName(contact) ? `— ${contactName(contact)}` : ""}`,
+    title: name ? `Check in with ${name}` : "Check in",
     type: EVENT_TYPE_OTHER,
     start_date: toYMD(sendAt),
     start_time: timeOfDay,
@@ -250,8 +287,14 @@ export async function createNextMeetingSmartReminder(args: {
   contactId: AppId | number;
   text: string;
 }) {
+  const text = cleanText(args.text);
+
+  if (!text) {
+    throw new Error("Write what you want to ask next time.");
+  }
+
   return createContactMemory(args.contactId as any, {
-    text: args.text.trim(),
+    text,
     memory_type: "ask_next_time",
     date: null,
     is_pinned: true,
